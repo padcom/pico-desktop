@@ -455,6 +455,41 @@ std::vector<std::byte> with_window(std::span<const std::byte> envelope, std::uin
   return rebuild(envelope, *entries, std::nullopt, window);
 }
 
+std::optional<std::vector<std::byte>> raw_field(std::span<const std::byte> envelope, std::uint64_t key) {
+  ReadResult result;
+  const auto entries = envelope_entries(envelope, result);
+  const auto value = entries ? field(envelope, *entries, key) : std::nullopt;
+  if (!value) {
+    return std::nullopt;
+  }
+  return std::vector<std::byte>(value->begin(), value->end());
+}
+
+std::vector<std::byte> with_field(std::span<const std::byte> envelope, std::uint64_t key,
+                                  std::optional<std::uint64_t> value) {
+  ReadResult result;
+  const auto entries = envelope_entries(envelope, result);
+  if (!entries) {
+    return {};
+  }
+  // Rebuild without the key, then add the new value (keys stay unique).
+  std::size_t kept = 0;
+  for (const Entry& e : *entries) {
+    kept += read_uint(envelope.subspan(e.key.begin, e.key.end - e.key.begin)) == key ? 0 : 1;
+  }
+  Writer w;
+  w.map(kept + (value ? 1 : 0));
+  for (const Entry& e : *entries) {
+    if (read_uint(envelope.subspan(e.key.begin, e.key.end - e.key.begin)) != key) {
+      w.raw(envelope.subspan(e.key.begin, e.value.end - e.key.begin));
+    }
+  }
+  if (value) {
+    w.uint(key).uint(*value);
+  }
+  return w.take();
+}
+
 std::vector<std::byte> without_window(std::span<const std::byte> envelope) {
   ReadResult result;
   const auto entries = envelope_entries(envelope, result);

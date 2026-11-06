@@ -1,16 +1,24 @@
-# The host's CEF-free core: asset resolution, the security policy, options, sandbox inspection.
+# The host's CEF-free core: asset resolution, the security policy, options, sandbox inspection,
+# message routing.
 add_library(pd_host_core STATIC
   src/core/assets.cpp
   src/core/options.cpp
   src/core/policy.cpp
+  src/core/router.cpp
   src/core/sandbox.cpp)
 target_include_directories(pd_host_core PUBLIC include)
+target_link_libraries(pd_host_core PUBLIC pd_ipc)
 pd_warnings(pd_host_core)
 
 add_executable(pd_host_core_test tests/core_test.cpp)
 target_link_libraries(pd_host_core_test PRIVATE pd_host_core)
 pd_warnings(pd_host_core_test)
 add_test(NAME host.core COMMAND pd_host_core_test)
+
+add_executable(pd_host_router_test tests/router_test.cpp)
+target_link_libraries(pd_host_router_test PRIVATE pd_host_core)
+pd_warnings(pd_host_router_test)
+add_test(NAME host.router COMMAND pd_host_router_test)
 
 if(NOT PD_WITH_CEF)
   # Without CEF: a stub that only identifies itself (so packaging and CI have a binary to run).

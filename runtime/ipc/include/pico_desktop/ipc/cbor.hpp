@@ -55,6 +55,18 @@ std::vector<std::byte> with_window(std::span<const std::byte> envelope, std::uin
 /// `envelope` without its window field (what the backend's messages look like to a frontend).
 std::vector<std::byte> without_window(std::span<const std::byte> envelope);
 
+/// The raw CBOR of uint-keyed field `key` of an envelope (for example its payload), if present.
+std::optional<std::vector<std::byte>> raw_field(std::span<const std::byte> envelope, std::uint64_t key);
+
+/// Envelope keys the host rewrites when routing.
+inline constexpr std::uint64_t kKeyId = 2;
+inline constexpr std::uint64_t kKeyWindow = 6;
+
+/// `envelope` with uint field `key` set to `value` (replacing it, or added at the end), or removed
+/// when `value` is empty. Empty on an invalid envelope.
+std::vector<std::byte> with_field(std::span<const std::byte> envelope, std::uint64_t key,
+                                  std::optional<std::uint64_t> value);
+
 /// A minimal CBOR writer for the messages the host originates (lifecycle, errors) and for tests.
 class Writer {
  public:

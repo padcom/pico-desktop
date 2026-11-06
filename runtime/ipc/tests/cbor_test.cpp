@@ -115,6 +115,13 @@ static void header_and_window() {
   check(ipc::without_window(routed) == request, "without_window gives back the original bytes");
   check(ipc::with_window(ipc::from_hex("80"), 1).empty(), "with_window refuses a non-envelope");
 
+  const auto renumbered = ipc::with_field(request, ipc::kKeyId, 1000);
+  const auto renumbered_read = ipc::read_envelope(renumbered);
+  check(renumbered_read && renumbered_read.header->id == 1000u && renumbered_read.header->name == std::string("serial.list"),
+        "with_field replaces the id");
+  const auto no_id = ipc::with_field(request, ipc::kKeyId, std::nullopt);
+  check(ipc::check_profile(no_id) == std::nullopt && !ipc::read_envelope(no_id), "with_field removes a field (a request then needs its id)");
+
   // Large values and lengths use the right head forms.
   const auto big = ipc::Writer().uint(1000000000000ull).take();
   check(ipc::to_hex(big) == "1b000000e8d4a51000", "uint head forms");
