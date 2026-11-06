@@ -85,13 +85,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/pico" && tar -xzf "$RUNNER_TEMP/pico-$v-linux-arm64.tar.gz" -C "$RUNNER_TEMP/pico"
           bin=$(dirname "$(find "$RUNNER_TEMP/pico" -type f -name pico -perm -u+x | head -1)")
           echo "$bin" >> "$GITHUB_PATH"
-      - name: Build hello-world (self-test frontend, Pico backend)
+      - name: Build hello-world (self-test frontend, Pico backend) and the CLI (for the dev-loop test)
         if: steps.pico.outputs.available == 'true'
         run: |
+          pnpm --filter pico-desktop... build
           pnpm --filter @pico-desktop/hello-world... build
           pnpm --filter @pico-desktop/hello-world build:self-test
           pnpm --filter @pico-desktop/hello-world backend
-      - name: Build the host and run its self-tests (and hello-world end to end, when built)
+      - name: Build the host and run its self-tests (hello-world and the dev loop too, when pico is there)
         run: pnpm cef
 
   pico:

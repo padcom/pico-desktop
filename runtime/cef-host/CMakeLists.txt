@@ -90,3 +90,10 @@ endforeach()
 add_test(NAME hello-world.self-test
   COMMAND ${PROJECT_SOURCE_DIR}/apps/hello-world/scripts/self-test.sh $<TARGET_FILE:pico-desktop-host>)
 set_tests_properties(hello-world.self-test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 150 RUN_SERIAL TRUE)
+
+# The F4 developer loop on a freshly created app (tooling/cli/tests/dev-loop.sh): create,
+# install, test, then `pnpm dev` with backend edits, a syntax error, frontend and contract edits,
+# and Ctrl+C. Needs pico and the built CLI (`pnpm build`); skipped otherwise.
+add_test(NAME cli.dev-loop
+  COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/dev-loop.sh $<TARGET_FILE:pico-desktop-host>)
+set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)

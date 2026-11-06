@@ -1,0 +1,14 @@
+{
+  "name": "@pico-desktop/communicator-pico",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The Pico Communicator as Pico sources: an app's Pico workspace lists node_modules/@pico-desktop/communicator-pico, so npm delivers it with matching TypeScript packages",
+  "author": "Matthias Hryniszak <padcom@gmail.com>",
+  "license": "MIT",
+  "files": [
+    "*.pi",
+    "!*.test.pi",
+    "generated/experiment.pi",
+    "project.json"
+  ]
+}

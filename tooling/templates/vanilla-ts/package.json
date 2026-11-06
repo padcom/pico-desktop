@@ -1,0 +1,21 @@
+{
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pico-desktop dev",
+    "test": "pico-desktop test",
+    "generate": "pico-desktop generate"
+  },
+  "dependencies": {
+    "@pico-desktop/communicator-pico": "{{dep:communicator-pico}}"
+  },
+  "devDependencies": {
+    "pico-desktop": "{{dep:cli}}"
+  },
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=26.9.0"
+  }
+}

@@ -1,0 +1,38 @@
+// The backend's handlers. Pico has no async closures yet, so handlers are named async functions.
+import { Cbor, Communicator, RequestContext, Sink, Transport } from "pico-desktop/communicator"
+import { Greeting, Tick, decodeClockParams, decodeHelloRequest, encodeGreeting, encodeTick } from "./generated/app"
+
+/// The backend on `transport` (the app runs it on stdio; tests on a memory link).
+export function createBackend(transport: Transport): Communicator {
+  const c = new Communicator(transport)
+  c.handle("greeting.hello", hello)
+  c.publish("clock.ticks", ticks)
+  c
+}
+
+async function hello(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {
+  const request = decodeHelloRequest(payload ?? Cbor.Null, "$")
+  encodeGreeting(Greeting { message: `Hello, ${request.name}!` })
+}
+
+class Clock {
+  sink: Sink
+  public n: u32 = 0
+  public timer: int = 0
+
+  constructor(sink: Sink) {
+    this.sink = sink
+  }
+
+  public tick(): void {
+    n += 1
+    sink.next(encodeTick(Tick { n: n }))
+  }
+}
+
+function ticks(params: Cbor?, sink: Sink): void throws Error {
+  const interval = decodeClockParams(params ?? Cbor.Null, "$").intervalMs ?? 1000
+  const clock = new Clock(sink)
+  clock.timer = setInterval(() => clock.tick(), interval as int)
+  sink.onClose = () => clearInterval(clock.timer)
+}

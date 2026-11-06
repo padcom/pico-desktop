@@ -1,0 +1,4 @@
+node_modules/
+dist/
+.pico-desktop/
+project.lock

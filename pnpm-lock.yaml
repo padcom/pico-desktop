@@ -215,6 +215,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/schema-tooling
 
+  packages/communicator-pico: {}
+
   packages/communicator-ts:
     dependencies:
       '@pico-desktop/protocol':
@@ -243,7 +245,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/protocol
 
-  tooling/cli: {}
+  tooling/cli:
+    dependencies:
+      '@pico-desktop/schema-tooling':
+        specifier: workspace:*
+        version: link:../../packages/schema-tooling
 
   tooling/vite-plugin:
     dependencies:
