@@ -1,0 +1,355 @@
+// The Pico side of the Communicator (docs/protocol.md): answers the frontend's requests through
+// registered handlers, publishes subscriptions, sends its own requests and events. Pico 0.4 has
+// no async closures (pico-lang #52): handlers are named async functions, publishers named
+// functions that get a Sink.
+import { Cbor } from "./cbor"
+import { Envelope, ErrorInfo, MessageKind, PROTOCOL_VERSION, ProtocolError, decodeEnvelope, encodeEnvelope, envelope } from "./envelope"
+import { Transport } from "./transport"
+
+/// A failed call: a protocol error code (or an application's own) and an optional payload.
+export class CommunicatorError extends Error {
+  public code: string
+  public data: Cbor?
+
+  constructor(code: string, message: string, data: Cbor? = null) {
+    super(message)
+    this.code = code
+    this.data = data
+  }
+}
+
+/// What a handler gets besides the payload.
+export class RequestContext {
+  /// Aborted when the caller cancels, or the app closes.
+  public signal: AbortSignal
+  /// The window that asked (the host's routing ID).
+  public window: u64?
+
+  constructor(signal: AbortSignal, window: u64?) {
+    this.signal = signal
+    this.window = window
+  }
+}
+
+/// Answers a request: the response payload (or null), or throws (a CommunicatorError's code is sent as is).
+export type Handler = (payload: Cbor?, context: RequestContext) => Promise<Cbor?, Error>
+
+/// Starts a subscription: deliver values through the sink until it's closed.
+export type Publisher = (params: Cbor?, sink: Sink) => void throws Error
+
+/// Receives an event.
+export type Listener = (payload: Cbor?, window: u64?) => void
+
+/// Undelivered values a subscription may have before older ones are dropped.
+export const MAX_UNDELIVERED: int = 256
+
+/// A subscription as its publisher sees it.
+export class Sink {
+  public readonly topic: string
+  public readonly id: u64
+  public readonly window: u64?
+  /// Called once when the subscriber unsubscribes (or the app closes).
+  public onClose: (() => void)? = null
+  communicator: Communicator
+  closed: bool = false
+  inFlight: int = 0
+  dropped: u64 = 0
+
+  constructor(communicator: Communicator, topic: string, id: u64, window: u64?) {
+    this.communicator = communicator
+    this.topic = topic
+    this.id = id
+    this.window = window
+  }
+
+  /// Whether values are still wanted.
+  public get active(): bool {
+    !closed
+  }
+
+  /// Sends a value (dropped, and counted, while MAX_UNDELIVERED are still on their way).
+  public next(value: Cbor): void {
+    if (closed) {
+      return
+    }
+    if (inFlight >= MAX_UNDELIVERED) {
+      dropped += 1
+      return
+    }
+    const e = envelope("event")
+    e.n = topic
+    e.s = id
+    e.w = window
+    e.p = value
+    if (dropped > 0) {
+      e.d = dropped
+      dropped = 0
+    }
+    inFlight += 1
+    communicator.post(e).then<void>((_v: void) => {
+      this.inFlight -= 1
+    })
+  }
+
+  /// Ends the subscription from the publisher's side (with an error code, if it failed).
+  public end(code: string? = null, message: string = ""): void {
+    if (closed) {
+      return
+    }
+    close()
+    const e = envelope("unsubscribe")
+    e.s = id
+    e.w = window
+    if (code != null) {
+      e.err = ErrorInfo { code: code, message: message, data: null }
+    }
+    communicator.post(e)
+  }
+
+  /// Closes it without telling the subscriber (the Communicator does this on unsubscribe).
+  public close(): void {
+    if (!closed) {
+      closed = true
+      const f = onClose
+      if (f != null) {
+        f()
+      }
+    }
+  }
+}
+
+export class Communicator {
+  transport: Transport
+  handlers: Map<string, Handler> = new Map<string, Handler>()
+  publishers: Map<string, Publisher> = new Map<string, Publisher>()
+  listeners: Map<string, Listener[]> = new Map<string, Listener[]>()
+  running: Map<u64, AbortController> = new Map<u64, AbortController>()
+  waiting: Map<u64, (e: Envelope) => void> = new Map<u64, (e: Envelope) => void>()
+  sinks: Map<u64, Sink> = new Map<u64, Sink>()
+  nextId: u64 = 1
+  nextSubscription: u64 = 1
+  stopping: bool = false
+  /// Called when the host announces that the app is closing (finish quickly, then return from run).
+  public onClosing: (() => void)? = null
+
+  constructor(transport: Transport) {
+    this.transport = transport
+  }
+
+  /// Answers the frontend's calls to `name` (only registered names are callable).
+  public handle(name: string, handler: Handler): void {
+    handlers.set(name, handler)
+  }
+
+  /// Publishes `topic`: `publisher` starts each subscription.
+  public publish(topic: string, publisher: Publisher): void {
+    publishers.set(topic, publisher)
+  }
+
+  /// Listens to an event from the frontend.
+  public on(name: string, listener: Listener): void {
+    const list = listeners.get(name) ?? []
+    list.push(listener)
+    listeners.set(name, list)
+  }
+
+  /// Sends a one-way event (to `window`, or every window).
+  public async emit(name: string, payload: Cbor? = null, window: u64? = null): Promise<void> throws Error {
+    const e = envelope("event")
+    e.n = name
+    e.p = payload
+    e.w = window
+    await post(e)
+  }
+
+  /// Calls a method the frontend registered; rejects with a CommunicatorError.
+  public request(name: string, payload: Cbor? = null, window: u64? = null): Promise<Cbor?, CommunicatorError> {
+    const id = nextId
+    nextId += 1
+    const e = envelope("request")
+    e.id = id
+    e.n = name
+    e.p = payload
+    e.w = window
+    const answer = new Promise<Cbor?, CommunicatorError>((resolve, reject) => {
+      this.waiting.set(id, (reply: Envelope) => {
+        const err = reply.err
+        if (err != null) {
+          reject(new CommunicatorError(err.code, err.message, err.data))
+        } else {
+          resolve(reply.p)
+        }
+      })
+    })
+    post(e)
+    answer
+  }
+
+  /// Says hello, then handles messages until the link closes or the host says the app is closing.
+  public async run(): Promise<void> throws Error {
+    const hello = envelope("lifecycle")
+    hello.n = "hello"
+    const p = new Map<string, Cbor>()
+    p.set("protocol", Cbor.List([Cbor.Uint(PROTOCOL_VERSION as u64), Cbor.Uint(PROTOCOL_VERSION as u64)]))
+    p.set("role", Cbor.Text("backend"))
+    hello.p = Cbor.Dict(p)
+    await post(hello)
+    let message = await transport.receive()
+    while (message != null && !stopping) {
+      dispatch(message)
+      if (!stopping) {
+        message = await transport.receive()
+      }
+    }
+    shutDown()
+  }
+
+  /// Encodes and sends an envelope (an invalid one is a bug in this program: it panics).
+  public post(e: Envelope): Promise<void, Error> {
+    try {
+      transport.send(encodeEnvelope(e))
+    } catch (error: ProtocolError) {
+      panic(`pico-desktop: an invalid message: ${error.message}`)
+    }
+  }
+
+  dispatch(message: Uint8Array): void {
+    try {
+      route(decodeEnvelope(message))
+    } catch (error: ProtocolError) {
+      // A message that breaks the protocol is dropped (the host already checks what it forwards).
+    }
+  }
+
+  route(e: Envelope): void {
+    match (e.k) {
+      "request" => answer(e),
+      "response" | "error" => settle(e),
+      "event" => notify(e),
+      "subscribe" => subscribe(e),
+      "unsubscribe" => unsubscribe(e),
+      "cancel" => cancel(e),
+      "lifecycle" => lifecycle(e),
+    }
+  }
+
+  reply(to: Envelope, kind: MessageKind): Envelope {
+    const r = envelope(kind)
+    r.id = to.id
+    r.w = to.w
+    r
+  }
+
+  refuse(to: Envelope, code: string, message: string): void {
+    const r = reply(to, "error")
+    r.err = ErrorInfo { code: code, message: message, data: null }
+    post(r)
+  }
+
+  answer(e: Envelope): void {
+    const name = e.n ?? ""
+    const handler = handlers.get(name)
+    if (handler == null) {
+      refuse(e, "UNKNOWN_METHOD", `no handler for ${name}`)
+      return
+    }
+    const id = e.id ?? 0
+    const controller = new AbortController()
+    running.set(id, controller)
+    runHandler(handler, e, controller)
+  }
+
+  async runHandler(handler: Handler, e: Envelope, controller: AbortController): Promise<void> throws Error {
+    let r = reply(e, "response")
+    try {
+      r.p = await handler(e.p, new RequestContext(controller.signal, e.w))
+    } catch (error: CommunicatorError) {
+      r = reply(e, "error")
+      r.err = ErrorInfo { code: error.code, message: error.message, data: error.data }
+    } catch (error) {
+      r = reply(e, "error")
+      const code = if (controller.signal.aborted) "CANCELLED" else "HANDLER_ERROR"
+      r.err = ErrorInfo { code: code, message: error.message, data: null }
+    }
+    running.delete(e.id ?? 0)
+    await post(r)
+  }
+
+  settle(e: Envelope): void {
+    const id = e.id ?? 0
+    const resolve = waiting.get(id)
+    if (resolve != null) {
+      waiting.delete(id)
+      resolve(e)
+    }
+  }
+
+  notify(e: Envelope): void {
+    for (const listener of listeners.get(e.n ?? "") ?? []) {
+      listener(e.p, e.w)
+    }
+  }
+
+  subscribe(e: Envelope): void {
+    const topic = e.n ?? ""
+    const publisher = publishers.get(topic)
+    if (publisher == null) {
+      refuse(e, "UNKNOWN_METHOD", `no topic ${topic}`)
+      return
+    }
+    const sink = new Sink(this, topic, nextSubscription, e.w)
+    nextSubscription += 1
+    sinks.set(sink.id, sink)
+    const accepted = reply(e, "response")
+    accepted.s = sink.id
+    post(accepted)
+    try {
+      publisher(e.p, sink)
+    } catch (error) {
+      sinks.delete(sink.id)
+      sink.end("HANDLER_ERROR", error.message)
+    }
+  }
+
+  unsubscribe(e: Envelope): void {
+    const sink = sinks.get(e.s ?? 0)
+    if (sink != null) {
+      sinks.delete(sink.id)
+      sink.close()
+    }
+  }
+
+  cancel(e: Envelope): void {
+    const controller = running.get(e.id ?? 0)
+    if (controller != null) {
+      controller.abort()
+    }
+  }
+
+  lifecycle(e: Envelope): void {
+    if (e.n == "closing") {
+      stopping = true
+      const f = onClosing
+      if (f != null) {
+        f()
+      }
+    }
+  }
+
+  /// The link is gone (or the app is closing): stop handlers and subscriptions, fail waiting calls.
+  shutDown(): void {
+    for (const controller of running.values()) {
+      controller.abort()
+    }
+    for (const sink of sinks.values()) {
+      sink.close()
+    }
+    sinks.clear()
+    const gone = envelope("error")
+    gone.err = ErrorInfo { code: "DISCONNECTED", message: "the link to the frontend closed", data: null }
+    for (const resolve of waiting.values()) {
+      resolve(gone)
+    }
+    waiting.clear()
+  }
+}

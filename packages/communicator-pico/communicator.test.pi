@@ -1,0 +1,224 @@
+// The Pico Communicator against a scripted frontend+host on the other end of an in-memory link.
+import { describe, it, expect } from "std/test"
+import { delay } from "std/timers"
+import { Cbor, integer } from "./cbor"
+import { Envelope, decodeEnvelope, encodeEnvelope, envelope } from "./envelope"
+import { Communicator, CommunicatorError, RequestContext, Sink } from "./communicator"
+import { MemoryEnd, memoryPair } from "./transport"
+
+/// The frontend's end of the link, with the Communicator under test running on the other one.
+class Rig {
+  public c: Communicator
+  public peer: MemoryEnd
+  public done: bool = false
+
+  constructor() {
+    const ends = memoryPair()
+    this.c = new Communicator(ends[0])
+    this.peer = ends[1]
+  }
+
+  public async next(): Promise<Envelope> throws Error {
+    const m = await peer.receive()
+    if (m == null) {
+      throw new Error("the link closed")
+    }
+    decodeEnvelope(m)
+  }
+
+  public async send(e: Envelope): Promise<void> throws Error {
+    await peer.send(encodeEnvelope(e))
+  }
+}
+
+async function runIt(rig: Rig): Promise<void> throws Error {
+  await rig.c.run()
+  rig.done = true
+}
+
+/// A rig whose Communicator is running and has said hello.
+async function started(rig: Rig): Promise<Rig> throws Error {
+  runIt(rig)
+  const hello = await rig.next()
+  expect(hello.n ?? "").toBe("hello")
+  rig
+}
+
+function request(id: u64, name: string, payload: Cbor?, window: u64?): Envelope {
+  const e = envelope("request")
+  e.id = id
+  e.n = name
+  e.p = payload
+  e.w = window
+  e
+}
+
+async function greet(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {
+  match (payload) {
+    Cbor.Text(name) => Cbor.Text(`Hello, ${name}`),
+    _ => throw new CommunicatorError("INVALID_PAYLOAD", "a name, please"),
+  }
+}
+
+async function fail(_payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {
+  throw new Error("boom")
+}
+
+async function slow(payload: Cbor?, ctx: RequestContext): Promise<Cbor?> throws Error {
+  await delay(5000, ctx.signal)
+  null
+}
+
+async function answersRequests(): Promise<void> throws Error {
+  const rig = new Rig()
+  rig.c.handle("greeting.hello", greet)
+  rig.c.handle("fail", fail)
+  await started(rig)
+  await rig.send(request(7, "greeting.hello", Cbor.Text("Ada"), 3))
+  const r = await rig.next()
+  expect(r.k == "response" && r.id == 7 && r.w == 3).toBe(true)
+  match (r.p) {
+    Cbor.Text(t) => expect(t).toBe("Hello, Ada"),
+    _ => expect("no text").toBe("text"),
+  }
+  await rig.send(request(8, "greeting.hello", integer(1), 3))
+  expect((await rig.next()).err?.code ?? "").toBe("INVALID_PAYLOAD")
+  await rig.send(request(9, "fail", null, 3))
+  const f = await rig.next()
+  expect(f.err?.code ?? "").toBe("HANDLER_ERROR")
+  expect(f.err?.message ?? "").toBe("boom")
+  await rig.send(request(10, "fs.delete", null, 3))
+  expect((await rig.next()).err?.code ?? "").toBe("UNKNOWN_METHOD")
+}
+
+async function cancels(): Promise<void> throws Error {
+  const rig = new Rig()
+  rig.c.handle("slow", slow)
+  await started(rig)
+  await rig.send(request(1, "slow", null, null))
+  const cancel = envelope("cancel")
+  cancel.id = 1
+  await rig.send(cancel)
+  const r = await rig.next()
+  expect(r.id == 1 && r.err?.code == "CANCELLED").toBe(true)
+}
+
+let asked: Cbor? = null
+
+async function askFrontend(rig: Rig): Promise<void> throws Error {
+  asked = await rig.c.request("ui.confirm", Cbor.Text("Quit?"), 1)
+}
+
+async function requestsTheFrontend(): Promise<void> throws Error {
+  const rig = await started(new Rig())
+  askFrontend(rig)
+  const q = await rig.next()
+  expect(q.k == "request" && q.n == "ui.confirm" && q.w == 1).toBe(true)
+  const a = envelope("response")
+  a.id = q.id
+  a.p = Cbor.Bool(true)
+  await rig.send(a)
+  await delay(10)
+  match (asked) {
+    Cbor.Bool(b) => expect(b).toBe(true),
+    _ => expect("nothing").toBe("an answer"),
+  }
+}
+
+let closedSinks = 0
+
+function counter(params: Cbor?, sink: Sink): void throws Error {
+  sink.onClose = () => {
+    closedSinks += 1
+  }
+  sink.next(integer(1))
+  sink.next(integer(2))
+}
+
+async function publishes(): Promise<void> throws Error {
+  const rig = new Rig()
+  rig.c.publish("count", counter)
+  await started(rig)
+  const sub = envelope("subscribe")
+  sub.id = 4
+  sub.n = "count"
+  sub.w = 2
+  await rig.send(sub)
+  const accepted = await rig.next()
+  expect(accepted.k == "response" && accepted.id == 4 && accepted.s != null).toBe(true)
+  const one = await rig.next()
+  const two = await rig.next()
+  expect(one.k == "event" && one.s == accepted.s && one.w == 2 && one.n == "count").toBe(true)
+  expect(two.s == accepted.s).toBe(true)
+  const stop = envelope("unsubscribe")
+  stop.s = accepted.s
+  await rig.send(stop)
+  await delay(10)
+  expect(closedSinks).toBe(1)
+  const unknown = envelope("subscribe")
+  unknown.id = 5
+  unknown.n = "nope"
+  await rig.send(unknown)
+  expect((await rig.next()).err?.code ?? "").toBe("UNKNOWN_METHOD")
+}
+
+let heard: string[] = []
+
+function hear(payload: Cbor?, window: u64?): void {
+  heard.push(`ui.ready from ${window}`)
+}
+
+let closing = false
+
+function onClosing(): void {
+  closing = true
+}
+
+async function eventsAndClosing(): Promise<void> throws Error {
+  const rig = new Rig()
+  rig.c.on("ui.ready", hear)
+  rig.c.onClosing = onClosing
+  await started(rig)
+  const ready = envelope("event")
+  ready.n = "ui.ready"
+  ready.w = 1
+  await rig.send(ready)
+  await rig.c.emit("backend.tick", integer(5))
+  const tick = await rig.next()
+  expect(tick.k == "event" && tick.n == "backend.tick").toBe(true)
+  const bye = envelope("lifecycle")
+  bye.n = "closing"
+  await rig.send(bye)
+  await delay(10)
+  expect(heard.join(",")).toBe("ui.ready from 1")
+  expect(closing && rig.done).toBe(true)
+}
+
+let lost = ""
+
+async function askAndLose(rig: Rig): Promise<void> throws Error {
+  try {
+    await rig.c.request("ui.confirm", null, null)
+  } catch (e: CommunicatorError) {
+    lost = e.code
+  }
+}
+
+async function disconnects(): Promise<void> throws Error {
+  const rig = await started(new Rig())
+  askAndLose(rig)
+  await rig.next()
+  rig.peer.close()
+  await delay(10)
+  expect(lost).toBe("DISCONNECTED")
+  expect(rig.done).toBe(true)
+}
+
+describe("the Pico Communicator", () => {
+  it("answers requests through handlers, with the request's window", answersRequests)
+  it("passes cancellation to the handler", cancels)
+  it("sends requests to the frontend and gets the answers", requestsTheFrontend)
+  it("publishes subscriptions and closes them on unsubscribe", publishes)
+  it("delivers events and stops when the app closes", eventsAndClosing)
+  it("fails waiting requests when the link closes", disconnects)
+})

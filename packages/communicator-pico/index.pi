@@ -18,6 +18,9 @@ export {
   envelope,
 } from "./envelope"
 export { FRAME_HEADER_BYTES, FrameReader, encodeFrame } from "./framing"
+export { Communicator, CommunicatorError, Handler, Listener, MAX_UNDELIVERED, Publisher, RequestContext, Sink } from "./communicator"
+export { MemoryEnd, StdioTransport, Transport, memoryPair } from "./transport"
+export { InvalidPayload } from "./payload"
 
 /// Observable connection states (docs/protocol.md §7).
 export type ConnectionState = "connecting" | "ready" | "disconnected" | "restarting" | "failed" | "closing"

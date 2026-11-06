@@ -1,0 +1,96 @@
+// How the backend's messages travel: whole envelopes, in order. Production uses the process's
+// framed stdin/stdout (ADR-0004); tests use an in-memory pair.
+import { stdin, stdout } from "std/process"
+import { FrameReader, encodeFrame } from "./framing"
+
+export interface Transport {
+  /// Sends one encoded envelope (in order with earlier ones).
+  send(message: Uint8Array): Promise<void, Error>
+  /// The next received envelope, or null once the link is closed.
+  receive(): Promise<Uint8Array?, Error>
+}
+
+/// The backend's stdin/stdout, framed: what the host spawns it with.
+export class StdioTransport implements Transport {
+  frames: FrameReader = new FrameReader()
+
+  public async send(message: Uint8Array): Promise<void> throws Error {
+    await stdout.write(encodeFrame(message))
+  }
+
+  public async receive(): Promise<Uint8Array?> throws Error {
+    let message = frames.next()
+    while (message == null) {
+      const chunk = await stdin.read()
+      if (chunk == null) {
+        return null
+      }
+      frames.push(chunk)
+      message = frames.next()
+    }
+    message
+  }
+}
+
+/// One end of an in-memory link (see `memoryPair`).
+export class MemoryEnd implements Transport {
+  public peer: MemoryEnd? = null
+  inbox: Uint8Array[] = []
+  head: int = 0
+  waiter: ((m: Uint8Array?) => void)? = null
+  closed: bool = false
+
+  public async send(message: Uint8Array): Promise<void> throws Error {
+    const p = peer
+    if (p != null) {
+      p.deliver(message.slice())
+    }
+  }
+
+  public receive(): Promise<Uint8Array?, Error> {
+    if (head < inbox.length) {
+      head += 1
+      return Promise.resolve<Uint8Array?>(inbox[head - 1])
+    }
+    if (closed) {
+      return Promise.resolve<Uint8Array?>(null)
+    }
+    new Promise<Uint8Array?, Error>((resolve, _reject) => {
+      this.waiter = resolve
+    })
+  }
+
+  /// Ends the link: the peer's pending and later `receive()` give null.
+  public close(): void {
+    const p = peer
+    if (p != null) {
+      p.closed = true
+      p.wake(null)
+    }
+  }
+
+  deliver(message: Uint8Array): void {
+    if (waiter != null) {
+      wake(message)
+    } else {
+      inbox.push(message)
+    }
+  }
+
+  wake(message: Uint8Array?): void {
+    const w = waiter
+    if (w != null) {
+      waiter = null
+      w(message)
+    }
+  }
+}
+
+/// Two connected in-memory transports.
+export function memoryPair(): MemoryEnd[] {
+  const a = new MemoryEnd()
+  const b = new MemoryEnd()
+  a.peer = b
+  b.peer = a
+  [a, b]
+}

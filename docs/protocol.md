@@ -20,6 +20,9 @@ The host routes between the links and may answer some messages itself (host serv
   which window and frame sent it; envelopes on this link carry no window field.
 - **backend link:** the Pico process's stdin/stdout (ADR-0004), framed as below. The host adds the
   window field (`w`) to everything it forwards from a window, and routes the backend's messages by it.
+  Replies carry the `w` of what they answer. A message the backend starts without `w` (an event, or
+  a request to the frontend) goes to every window; in v1 that's the one window. The host refuses
+  frontend messages that already carry `w`.
 
 ## 2. Framing (byte-stream transports)
 
