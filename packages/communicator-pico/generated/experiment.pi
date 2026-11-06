@@ -34,6 +34,24 @@ export function decodeSerialPort(v: Cbor, path: string): SerialPort throws Inval
   }
 }
 
+export function encodeSerialPort(v: SerialPort): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("path", Cbor.Text(v.path))
+  const vendorIdValue = v.vendorId
+  if (vendorIdValue != null) {
+    m.set("vendorId", Cbor.Uint(vendorIdValue as u64))
+  }
+  const productIdValue = v.productId
+  if (productIdValue != null) {
+    m.set("productId", Cbor.Uint(productIdValue as u64))
+  }
+  const serialValue = v.serial
+  if (serialValue != null) {
+    m.set("serial", Cbor.Text(serialValue))
+  }
+  Cbor.Dict(m)
+}
+
 export enum OpenParamsParity { None, Even, Odd }
 
 export function decodeOpenParamsParity(v: Cbor, path: string): OpenParamsParity throws InvalidPayload {
@@ -42,6 +60,14 @@ export function decodeOpenParamsParity(v: Cbor, path: string): OpenParamsParity 
     "even" => OpenParamsParity.Even,
     "odd" => OpenParamsParity.Odd,
     _ => throw new InvalidPayload(path, "none or even or odd"),
+  }
+}
+
+export function encodeOpenParamsParity(v: OpenParamsParity): Cbor {
+  match (v) {
+    None => Cbor.Text("none"),
+    Even => Cbor.Text("even"),
+    Odd => Cbor.Text("odd"),
   }
 }
 
@@ -65,6 +91,17 @@ export function decodeOpenParams(v: Cbor, path: string): OpenParams throws Inval
   }
 }
 
+export function encodeOpenParams(v: OpenParams): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("path", Cbor.Text(v.path))
+  m.set("baud", Cbor.Uint(v.baud as u64))
+  const parityValue = v.parity
+  if (parityValue != null) {
+    m.set("parity", encodeOpenParamsParity(parityValue))
+  }
+  Cbor.Dict(m)
+}
+
 export struct WriteParams {
   handle: u32
   data: Uint8Array
@@ -85,6 +122,17 @@ export function decodeWriteParams(v: Cbor, path: string): WriteParams throws Inv
   }
 }
 
+export function encodeWriteParams(v: WriteParams): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("handle", Cbor.Uint(v.handle as u64))
+  m.set("data", Cbor.Bytes(v.data))
+  const packetValue = v.packet
+  if (packetValue != null) {
+    m.set("packet", encodePacket(packetValue))
+  }
+  Cbor.Dict(m)
+}
+
 export enum Packet {
   Raw(value: RawPacket),
   Text(value: TextPacket),
@@ -98,12 +146,25 @@ export function decodePacket(v: Cbor, path: string): Packet throws InvalidPayloa
   }
 }
 
+export function encodePacket(v: Packet): Cbor {
+  match (v) {
+    Raw { value } => encodeRawPacket(value),
+    Text { value } => encodeTextPacket(value),
+  }
+}
+
 export enum RawPacketKind { Raw }
 
 export function decodeRawPacketKind(v: Cbor, path: string): RawPacketKind throws InvalidPayload {
   match (text(v, path)) {
     "raw" => RawPacketKind.Raw,
     _ => throw new InvalidPayload(path, "raw"),
+  }
+}
+
+export function encodeRawPacketKind(v: RawPacketKind): Cbor {
+  match (v) {
+    Raw => Cbor.Text("raw"),
   }
 }
 
@@ -120,12 +181,25 @@ export function decodeRawPacket(v: Cbor, path: string): RawPacket throws Invalid
   }
 }
 
+export function encodeRawPacket(v: RawPacket): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("kind", encodeRawPacketKind(v.kind))
+  m.set("data", Cbor.Bytes(v.data))
+  Cbor.Dict(m)
+}
+
 export enum TextPacketKind { Text }
 
 export function decodeTextPacketKind(v: Cbor, path: string): TextPacketKind throws InvalidPayload {
   match (text(v, path)) {
     "text" => TextPacketKind.Text,
     _ => throw new InvalidPayload(path, "text"),
+  }
+}
+
+export function encodeTextPacketKind(v: TextPacketKind): Cbor {
+  match (v) {
+    Text => Cbor.Text("text"),
   }
 }
 
@@ -142,6 +216,13 @@ export function decodeTextPacket(v: Cbor, path: string): TextPacket throws Inval
   }
 }
 
+export function encodeTextPacket(v: TextPacket): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("kind", encodeTextPacketKind(v.kind))
+  m.set("line", Cbor.Text(v.line))
+  Cbor.Dict(m)
+}
+
 export struct TelemetryAttitude {
   roll: f64
   pitch: f64
@@ -155,6 +236,14 @@ export function decodeTelemetryAttitude(v: Cbor, path: string): TelemetryAttitud
     pitch: float(required(m, "pitch", path), `${path}.pitch`),
     yaw: float(required(m, "yaw", path), `${path}.yaw`),
   }
+}
+
+export function encodeTelemetryAttitude(v: TelemetryAttitude): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("roll", Cbor.Float(v.roll))
+  m.set("pitch", Cbor.Float(v.pitch))
+  m.set("yaw", Cbor.Float(v.yaw))
+  Cbor.Dict(m)
 }
 
 export struct TelemetryBattery {
@@ -175,6 +264,16 @@ export function decodeTelemetryBattery(v: Cbor, path: string): TelemetryBattery 
   }
 }
 
+export function encodeTelemetryBattery(v: TelemetryBattery): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("voltage", Cbor.Float(v.voltage))
+  const remainingValue = v.remaining
+  if (remainingValue != null) {
+    m.set("remaining", Cbor.Uint(remainingValue as u64))
+  }
+  Cbor.Dict(m)
+}
+
 export enum TelemetryMode { Manual, Stabilize, Auto }
 
 export function decodeTelemetryMode(v: Cbor, path: string): TelemetryMode throws InvalidPayload {
@@ -183,6 +282,14 @@ export function decodeTelemetryMode(v: Cbor, path: string): TelemetryMode throws
     "stabilize" => TelemetryMode.Stabilize,
     "auto" => TelemetryMode.Auto,
     _ => throw new InvalidPayload(path, "manual or stabilize or auto"),
+  }
+}
+
+export function encodeTelemetryMode(v: TelemetryMode): Cbor {
+  match (v) {
+    Manual => Cbor.Text("manual"),
+    Stabilize => Cbor.Text("stabilize"),
+    Auto => Cbor.Text("auto"),
   }
 }
 
@@ -208,6 +315,18 @@ export function decodeTelemetry(v: Cbor, path: string): Telemetry throws Invalid
   }
 }
 
+export function encodeTelemetry(v: Telemetry): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("timeUs", Cbor.Uint(v.timeUs as u64))
+  m.set("attitude", encodeTelemetryAttitude(v.attitude))
+  const batteryValue = v.battery
+  if (batteryValue != null) {
+    m.set("battery", encodeTelemetryBattery(batteryValue))
+  }
+  m.set("mode", encodeTelemetryMode(v.mode))
+  Cbor.Dict(m)
+}
+
 function decodeTreeChildrenList(v: Cbor, path: string): Tree[] throws InvalidPayload {
   const out: Tree[] = []
   let i = 0
@@ -216,6 +335,14 @@ function decodeTreeChildrenList(v: Cbor, path: string): Tree[] throws InvalidPay
     i += 1
   }
   out
+}
+
+function encodeTreeChildrenList(v: Tree[]): Cbor {
+  const out: Cbor[] = []
+  for (const e of v) {
+    out.push(encodeTree(e))
+  }
+  Cbor.List(out)
 }
 
 export struct Tree {
@@ -231,6 +358,13 @@ export function decodeTree(v: Cbor, path: string): Tree throws InvalidPayload {
   }
 }
 
+export function encodeTree(v: Tree): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("name", Cbor.Text(v.name))
+  m.set("children", encodeTreeChildrenList(v.children))
+  Cbor.Dict(m)
+}
+
 export struct PortBusy {
   port: string
 }
@@ -240,6 +374,12 @@ export function decodePortBusy(v: Cbor, path: string): PortBusy throws InvalidPa
   PortBusy {
     port: text(required(m, "port", path), `${path}.port`),
   }
+}
+
+export function encodePortBusy(v: PortBusy): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("port", Cbor.Text(v.port))
+  Cbor.Dict(m)
 }
 
 /// Decodes `v` as the contract type named `name` (the experiment's test drives it).
@@ -265,5 +405,21 @@ export function decodeNamed(name: string, v: Cbor): void throws InvalidPayload {
       decodePortBusy(v, "$")
     default:
       throw new InvalidPayload("$", `a contract type, not ${name}`)
+  }
+}
+
+/// Decodes `v` as the contract type named `name` and encodes it again (tests).
+export function roundTripNamed(name: string, v: Cbor): Cbor throws InvalidPayload {
+  match (name) {
+    "serial-port" => encodeSerialPort(decodeSerialPort(v, "$")),
+    "open-params" => encodeOpenParams(decodeOpenParams(v, "$")),
+    "write-params" => encodeWriteParams(decodeWriteParams(v, "$")),
+    "packet" => encodePacket(decodePacket(v, "$")),
+    "raw-packet" => encodeRawPacket(decodeRawPacket(v, "$")),
+    "text-packet" => encodeTextPacket(decodeTextPacket(v, "$")),
+    "telemetry" => encodeTelemetry(decodeTelemetry(v, "$")),
+    "tree" => encodeTree(decodeTree(v, "$")),
+    "port-busy" => encodePortBusy(decodePortBusy(v, "$")),
+    _ => throw new InvalidPayload("$", `a contract type, not ${name}`),
   }
 }

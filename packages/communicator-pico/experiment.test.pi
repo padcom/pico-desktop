@@ -3,9 +3,9 @@
 import { describe, it, expect } from "std/test"
 import { readText, exists } from "std/fs"
 import { hex } from "std/encoding"
-import { decode } from "./cbor"
+import { decode, encode } from "./cbor"
 import { InvalidPayload } from "./payload"
-import { decodeNamed } from "./generated/experiment"
+import { decodeNamed, roundTripNamed } from "./generated/experiment"
 
 struct Case {
   name: string
@@ -33,6 +33,28 @@ function accepts(c: Case): string {
     e.message
   }
 }
+
+/// Encoding a decoded value and decoding it again gives the same bytes (the encoders write what
+/// the decoders read).
+function stable(c: Case): string {
+  try {
+    const once = roundTripNamed(c.type, decode(hex.decode(c.hex)))
+    const twice = roundTripNamed(c.type, once)
+    if (hex.encode(encode(once)) == hex.encode(encode(twice))) "stable" else "changed"
+  } catch (e: InvalidPayload) {
+    e.message
+  }
+}
+
+describe("the generated Pico encoders", () => {
+  for (const c of corpus.cases) {
+    if (c.valid) {
+      it(`round-trip ${c.name}`, () => {
+        expect(stable(c)).toBe("stable")
+      })
+    }
+  }
+})
 
 describe("the generated Pico decoders", () => {
   for (const c of corpus.cases) {

@@ -8,4 +8,4 @@ export { CddlReader, readCddl } from './from-cddl'
 
 export { TypeScriptWriter, generateTypeScript, typeName } from './generate-ts'
 
-export { generatePico } from './generate-pico'
+export { type PicoOptions, generatePico } from './generate-pico'
