@@ -17,4 +17,4 @@
 ## Current status of the inputs (2026-11-06)
 - CEF 156.0.15 (Chromium 156.0.8078.80) has prebuilt *minimal* distributions for all six
   targets, including linux-arm64 (provisional pin in `toolchain.json`).
-- Pico 0.4.0 is released for five of the six hosts; **macos-x64 has none** (pico-lang #86).
+- Pico 0.4.1 is released for five of the six hosts; **macos-x64 has none** (pico-lang #86).

@@ -7,9 +7,9 @@
   "cxx": { "standard": 20, "developedWith": "g++ 14.2.0 (Debian 14.2.0-19)" },
   "pico": {
     "minimum": "0.4.2",
-    "releasedPin": "0.4.0",
-    "localBuild": "padcom/pico-lang fix/84-bulk-byte-copy @ 9c5c62a (includes #82 ed82b08)",
-    "$comment": "0.4.2 (stdout flush #82, bulk copies #84) isn't released yet: develop with the local ppl build; CI's Pico job waits for 0.4.2."
+    "releasedPin": "0.4.1",
+    "localBuild": "padcom/pico-lang main @ 75fc4aa (0.4.1 + #82 44a1f22 + #84 75fc4aa)",
+    "$comment": "0.4.2 (stdout flush #82, bulk copies #84; on pico-lang main) isn't released yet: develop with the local ppl build; CI's Pico job waits for 0.4.2."
   },
   "cef": {
     "status": "provisional",

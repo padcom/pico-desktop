@@ -3,7 +3,7 @@
 Upstream issues for every gap below are filed on [padcom/pico-lang](https://github.com/padcom/pico-lang/issues) (#82–#88 from this audit, plus existing #14, #52, #66, #69, #74, #75).
 
 **Date:** 2026-11-06
-**Pinned compiler:** `pico 0.4.0`, built from `padcom/ppl` @ `b5a9a05` for the audit. **Now:** the local ppl build at branch `fix/84-bulk-byte-copy` (`9c5c62a`, which includes the #82 fix `ed82b08`); it still reports `0.4.0`. Fixes will ship as **0.4.2**. `~/bin/pico` is a symlink to `ppl/target/release/pico`.
+**Pinned compiler:** `pico 0.4.0`, built from `padcom/ppl` @ `b5a9a05` for the audit. **Now:** a local build of pico-lang `main` @ `75fc4aa` (0.4.1 plus the #82 and #84 fixes; it reports `0.4.1`). The fixes ship as **0.4.2**. `~/bin/pico` is a symlink to `ppl/target/release/pico`.
 **Verified on:** Debian 13, Linux 6.12 **arm64**, Node 26.9.0. No other OS or architecture has been run yet.
 **Evidence:** `probes/` (see `probes/README.md`). Every row below links to a probe that was actually compiled and run.
 
@@ -25,7 +25,7 @@ Status legend: **verified** = the probe passes as written · **workaround** = wo
 | Tests | `pico test [paths] [-t filter] [--release]` runs `*.test.pi`, one process per file, in parallel. `std/test` provides `describe`/`it`/`expect`/hooks, Vitest-like. |
 | Bench | `pico bench` runs `bench(name, fn)` in `*.bench.pi`, optimized. |
 | Cross targets | `--target` with aliases such as `linux-x64`. Runtime + libc built per target, lld in-process (ppl PROGRESS P8.1). |
-| Released hosts | v0.4.0 has releases for **macOS arm64, Linux x64/arm64, Windows x64/arm64**. **macOS x64 has none** (see R1, [#86](https://github.com/padcom/pico-lang/issues/86)). |
+| Released hosts | v0.4.0 and v0.4.1 have releases for **macOS arm64, Linux x64/arm64, Windows x64/arm64**. **macOS x64 has none** (see R1, [#86](https://github.com/padcom/pico-lang/issues/86)). |
 | Debugger | `pico dap` (DAP over stdio on lldb-dap) and a VS Code extension in `ppl/editors/vscode`. Not exercised yet. |
 | Language server | `pico lsp` |
 | Docs | `pico doc --std --out <dir>`. The spec is in `ppl/docs/spec/*.md`. |
