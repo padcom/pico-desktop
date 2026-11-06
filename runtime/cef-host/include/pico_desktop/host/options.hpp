@@ -25,6 +25,8 @@ enum class Mode {
 struct Options {
   Mode mode = Mode::run;
   std::filesystem::path app_dir;
+  /// The compiled Pico backend; none: the page has no backend (requests fail with DISCONNECTED).
+  std::filesystem::path backend;
   Policy policy;
   /// Development policy: DevTools (F12), the dev-server origin, remote debugging allowed.
   bool dev = false;

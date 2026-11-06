@@ -36,13 +36,16 @@ class Router {
   /// The page behind `session` went away (navigation, reload, crash, window closed).
   void end_session(std::uint64_t session);
 
-  /// A new backend process is starting (its epoch begins; it's ready after its hello).
+  /// A new backend process is starting: its epoch begins and the host says hello to it (it's
+  /// ready after its own hello).
   void backend_started();
   void from_backend(std::span<const std::byte> message);
   /// The backend process is gone.
   void backend_stopped();
   /// The app is closing: tell the backend and every page.
   void closing();
+  /// Tells every page a lifecycle state without an epoch (`restarting`, `failed`).
+  void announce(const char* name);
 
   bool backend_ready() const { return ready_; }
   std::uint64_t epoch() const { return epoch_; }

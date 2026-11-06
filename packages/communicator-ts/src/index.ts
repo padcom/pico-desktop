@@ -16,6 +16,8 @@ export {
   Communicator,
 } from './communicator'
 
+export { type NativeBridge, bridgeTransport } from './bridge'
+
 export { CommunicatorError } from './errors'
 
 export type { AnyServices, EventSpec, MethodSpec, ServiceMap, SubscriptionSpec } from './services'

@@ -47,6 +47,8 @@ class HostClient : public CefClient,
   // CefRequestHandler
   bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request,
                       bool user_gesture, bool is_redirect) override;
+  void OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser, TerminationStatus status, int error_code,
+                                 const CefString& error_string) override;
   bool OnOpenURLFromTab(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, const CefString& target_url,
                         CefRequestHandler::WindowOpenDisposition target_disposition, bool user_gesture) override;
 

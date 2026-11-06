@@ -197,6 +197,12 @@ void Router::end_session(std::uint64_t session) {
 void Router::backend_started() {
   ++epoch_;
   ready_ = false;
+  // {"protocol": [1, 1], "role": "host"}
+  ipc::Writer w;
+  w.map(4).uint(0).uint(1).uint(1).uint(static_cast<std::uint64_t>(Kind::lifecycle)).uint(3).text("hello");
+  w.uint(4).map(2).text("protocol").array(2).uint(ipc::kProtocolVersion).uint(ipc::kProtocolVersion);
+  w.text("role").text("host");
+  out_.to_backend(w.take());
 }
 
 void Router::from_backend(std::span<const std::byte> message) {
@@ -313,6 +319,12 @@ void Router::closing() {
   }
   for (const auto& [window, session] : current_) {
     out_.to_session(session, lifecycle("closing", std::nullopt));
+  }
+}
+
+void Router::announce(const char* name) {
+  for (const auto& [window, session] : current_) {
+    out_.to_session(session, lifecycle(name, std::nullopt));
   }
 }
 

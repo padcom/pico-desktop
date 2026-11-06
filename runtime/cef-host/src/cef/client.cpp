@@ -3,8 +3,10 @@
 #include <unistd.h>
 
 #include <string>
+#include <vector>
 
 #include "host.hpp"
+#include "link.hpp"
 #include "include/cef_app.h"
 #include "include/cef_process_message.h"
 #include "include/views/cef_browser_view.h"
@@ -23,23 +25,40 @@ constexpr std::string_view kTestPrefix = "pd-test: ";
 bool HostClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                                           CefProcessId source_process, CefRefPtr<CefProcessMessage> message) {
   CEF_REQUIRE_UI_THREAD();
-  if (message->GetName() != kBridgeSend) {
+  const std::string name = message->GetName().ToString();
+  if (source_process != PID_RENDERER || (name != kBridgeSend && name != kBridgeClosed)) {
     return false;
   }
+  CefRefPtr<CefListValue> in = message->GetArgumentList();
+  if (!frame || in->GetType(0) != VTYPE_INT) {
+    return true;
+  }
+  if (name == kBridgeClosed) {
+    link().page_closed(frame->GetIdentifier().ToString(), in->GetInt(0));
+    return true;
+  }
   // Check again here: the renderer is the less trusted side.
-  const std::string url = frame ? frame->GetURL().ToString() : std::string();
-  if (!frame || !bridge_allowed(browser_state().options.policy, url, frame->IsMain())) {
+  const std::string url = frame->GetURL().ToString();
+  if (!bridge_allowed(browser_state().options.policy, url, frame->IsMain())) {
     log_line("pd-host: rejected a bridge message from an untrusted frame (" + url + ")");
     return true;
   }
-  CefRefPtr<CefListValue> in = message->GetArgumentList();
-  // F1: echo. F3 routes the envelope to the Pico backend instead.
-  CefRefPtr<CefProcessMessage> reply = CefProcessMessage::Create(kBridgeReply);
-  CefRefPtr<CefListValue> out = reply->GetArgumentList();
-  out->SetInt(0, in->GetInt(0));
-  out->SetString(1, "pong:" + in->GetString(1).ToString());
-  frame->SendProcessMessage(PID_RENDERER, reply);
+  CefRefPtr<CefBinaryValue> bytes = in->GetType(1) == VTYPE_BINARY ? in->GetBinary(1) : nullptr;
+  if (!bytes || bytes->GetSize() == 0 || bytes->GetSize() > kMaxBridgeMessage) {
+    log_line("pd-host: dropped a bridge message that isn't 1 byte to 4 MiB");
+    return true;
+  }
+  std::vector<std::byte> data(bytes->GetSize());
+  bytes->GetData(data.data(), data.size(), 0);
+  link().from_page(browser, frame, in->GetInt(0), data);
   return true;
+}
+
+void HostClient::OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser, TerminationStatus status, int error_code,
+                                           const CefString& error_string) {
+  CEF_REQUIRE_UI_THREAD();
+  log_line("pd-host: the renderer ended (status " + std::to_string(status) + ")");
+  link().browser_gone(browser->GetIdentifier());
 }
 
 bool HostClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t level, const CefString& message,
@@ -127,7 +146,9 @@ void HostClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
   if (state.browser && state.browser->IsSame(browser)) {
     state.browser = nullptr;
   }
+  link().browser_gone(browser->GetIdentifier());
   if (--state.open_browsers == 0) {
+    link().closing();
     CefQuitMessageLoop();
   }
 }

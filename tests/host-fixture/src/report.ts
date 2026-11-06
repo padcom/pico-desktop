@@ -60,28 +60,6 @@ export function waitFor(condition: () => boolean, ms = 2000): Promise<boolean> {
   })
 }
 
-/**
- * The next bridge message, or a failure description after `ms`.
- *
- * @param ms how long to wait for it
- * @returns the message and the renderer's live bridge contexts, or what went wrong
- */
-export function nextBridgeMessage(ms = 2000): Promise<{ text: string, liveContexts: number } | string> {
-  return new Promise(resolve => {
-    const bridge = window.picoDesktop
-    if (!bridge) {
-      resolve('no bridge')
-
-      return
-    }
-    const timer = setTimeout(() => resolve('no reply within the timeout'), ms)
-    bridge.onmessage = (text, liveContexts) => {
-      clearTimeout(timer)
-      resolve({ text, liveContexts })
-    }
-  })
-}
-
 export function done() {
   document.getElementById('status')!.textContent = 'done'
   log('done')

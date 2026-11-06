@@ -224,7 +224,11 @@ importers:
         specifier: workspace:*
         version: link:../protocol
 
-  tests/host-fixture: {}
+  tests/host-fixture:
+    dependencies:
+      '@pico-desktop/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
 
   tooling/cli: {}
 

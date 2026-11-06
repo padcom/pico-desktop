@@ -1,6 +1,7 @@
 #include "app.hpp"
 
 #include "host.hpp"
+#include "link.hpp"
 #include "include/cef_command_line.h"
 #include "include/cef_scheme.h"
 #include "scheme.hpp"
@@ -18,6 +19,7 @@ void HostApp::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) {
 
 void HostApp::OnContextInitialized() {
   register_asset_scheme(browser_state().options);
+  link().start();
   create_app_window();
 }
 

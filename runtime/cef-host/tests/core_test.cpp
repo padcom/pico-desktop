@@ -158,7 +158,13 @@ static void options() {
       CHECK(o->mode == Mode::run);
       CHECK(!o->dev);
       CHECK(o->open_external);
+      CHECK(o->backend.empty());
     }
+  }
+  {
+    const auto r = parse({"--app-dir=/x", "--backend=/opt/app/backend"});
+    const auto* o = std::get_if<Options>(&r);
+    CHECK(o && o->backend == "/opt/app/backend");
   }
   {
     const auto r = parse({"--app-dir=/x", "--self-test", "--no-external-open", "--enable-logging"});

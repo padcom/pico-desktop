@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "pico_desktop/host/restart.hpp"
 #include "pico_desktop/host/router.hpp"
 #include "pico_desktop/ipc/cbor.hpp"
 
@@ -132,6 +133,9 @@ void readiness() {
 
   router.backend_started();
   CHECK(!router.backend_ready());
+  CHECK(out.backend.size() == 1);
+  const auto hello = header(out.backend[0]);
+  CHECK(hello.kind == Kind::lifecycle && hello.name == "hello");
   router.from_backend(lifecycle("hello"));
   CHECK(router.backend_ready());
   CHECK(out.sessions.size() == 1);
@@ -328,6 +332,10 @@ void restart() {
   CHECK(router.epoch() == 2 && out.sessions.size() == 2 && header(out.sessions[0].second).epoch == 2u);
 
   out.clear();
+  router.announce("restarting");
+  CHECK(out.sessions.size() == 2 && header(out.sessions[1].second).name == "restarting");
+
+  out.clear();
   router.closing();
   CHECK(out.backend.size() == 1 && header(out.backend[0]).name == "closing");
   CHECK(out.sessions.size() == 2 && header(out.sessions[0].second).name == "closing");
@@ -362,9 +370,25 @@ void echo() {
   CHECK(has_code(plain.sessions[0].second, "DISCONNECTED"));
 }
 
+void restart_budget() {
+  using namespace std::chrono_literals;
+  RestartBudget budget(RestartBudget::Limits{3, 100ms, 300ms, 10s});
+  auto t = RestartBudget::Clock::time_point{};
+  CHECK(budget.next(t) == 100ms);
+  CHECK(budget.next(t) == 200ms);
+  CHECK(budget.next(t) == 300ms);  // capped
+  CHECK(!budget.next(t));          // spent
+  // Ready briefly: still spent. Ready long enough: a fresh budget.
+  budget.ready(t);
+  CHECK(!budget.next(t + 1s));
+  budget.ready(t + 1s);
+  CHECK(budget.next(t + 12s) == 100ms);
+}
+
 }  // namespace
 
 int main() {
+  restart_budget();
   readiness();
   renumbering();
   cancelling();

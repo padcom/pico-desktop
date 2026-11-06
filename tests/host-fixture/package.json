@@ -9,5 +9,8 @@
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@pico-desktop/protocol": "workspace:*"
   }
 }

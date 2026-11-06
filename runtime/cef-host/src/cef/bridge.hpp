@@ -1,6 +1,6 @@
 // The renderer side of the native bridge: `window.picoDesktop`, injected only into frames the
-// policy trusts (the app's origin, main frame), and removed with the context. F1 carries text and
-// the browser process echoes it; F3 replaces the echo with routing to Pico.
+// policy trusts (the app's origin, main frame), and removed with the context. It carries protocol
+// envelopes as ArrayBuffers: `send(buffer)` and `onmessage(buffer, liveContexts)`.
 #pragma once
 
 #include <cstdint>

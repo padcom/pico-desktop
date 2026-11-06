@@ -1,11 +1,12 @@
 // First page: assets, origin, CSP, traversal, the bridge and the navigation policy. It ends by
-// sending a message and navigating away at once; the second page checks that the reply never
+// sending a request and navigating away at once; the second page checks that the answer never
 // reaches it.
 import './style.css'
 import logo from './logo.svg'
 import { probePlatform } from './probes'
-import { type NamedCheck, type Outcome, nextBridgeMessage, runInOrder, sleep } from './report'
+import { type NamedCheck, type Outcome, runInOrder, sleep } from './report'
 import { double } from './util'
+import { answerTo, failsWith, hello, listen, send, sendBytes } from './wire'
 
 const stillHere = location.href
 
@@ -85,15 +86,29 @@ async function navigationBlocked(url: string, ms: number): Promise<Outcome> {
   return location.href === stillHere || `navigated to ${location.href}`
 }
 
-async function bridgeRoundTrip(): Promise<Outcome> {
-  const reply = nextBridgeMessage()
-  window.picoDesktop!.send('ping')
-  const result = await reply
-  if (typeof result === 'string') {
-    return result
-  }
+function isPing(p: unknown): Outcome {
+  const { text, bytes } = (p ?? {}) as { text?: string, bytes?: unknown }
+  const echoed = `${text}:${bytes instanceof Uint8Array ? bytes.join() : typeof bytes}`
 
-  return result.text === 'pong:ping' || `got ${result.text}`
+  return echoed === 'ping:1,2,3' || `got ${echoed}`
+}
+
+async function bridgeRoundTrip(): Promise<Outcome> {
+  hello()
+  send({ k: 'request', id: 1, n: 'host.echo', p: { text: 'ping', bytes: new Uint8Array([1, 2, 3]) } })
+  const answer = await answerTo(1)
+
+  return typeof answer === 'string' ? answer : isPing(answer.envelope.p)
+}
+
+async function malformedIgnored(): Promise<Outcome> {
+  sendBytes(new Uint8Array([0xff]))
+  // The wrong protocol version.
+  sendBytes(new Uint8Array([0xa1, 0x00, 0x02]))
+  send({ k: 'request', id: 4, n: 'host.echo', p: 'still here' })
+  const answer = await answerTo(4)
+
+  return typeof answer !== 'string' || answer
 }
 
 function bridgeReadOnly(): Outcome {
@@ -151,7 +166,18 @@ const security: NamedCheck[] = [
 
 const bridge: NamedCheck[] = [
   ['bridge in the trusted main frame', bridgePresent],
-  ['bridge round trip', bridgeRoundTrip],
+  ['bridge round trip (CBOR, host.echo)', bridgeRoundTrip],
+  ['a call without a backend fails with DISCONNECTED', () => {
+    send({ k: 'request', id: 2, n: 'greeting.hello' })
+
+    return failsWith(2, 'DISCONNECTED')
+  }],
+  ['a page can\'t address a window', () => {
+    send({ k: 'request', id: 3, n: 'host.echo', w: 7 })
+
+    return failsWith(3, 'INVALID_MESSAGE')
+  }],
+  ['malformed messages are dropped, the bridge keeps working', malformedIgnored],
   ['bridge is read-only', bridgeReadOnly],
   ['no bridge in a same-origin subframe', sameOriginFrame],
   ['no bridge in a srcdoc subframe', srcdocFrame],
@@ -167,8 +193,9 @@ async function main() {
   await runInOrder([...assets, ...security, ...bridge, ...navigation])
   await probePlatform()
   // Leave a reply in flight and replace this page: the second page must never receive it.
-  window.picoDesktop!.send('late')
+  send({ k: 'request', id: 99, n: 'host.echo', p: 'late' })
   location.href = './second.html'
 }
 
+listen()
 void main()

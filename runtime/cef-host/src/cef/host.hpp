@@ -2,6 +2,7 @@
 // -fno-threadsafe-statics: no throwing, no function-local statics shared across threads.
 #pragma once
 
+#include <cstddef>
 #include <string>
 
 #include "include/cef_browser.h"
@@ -10,9 +11,14 @@
 namespace pico_desktop::host::cef {
 
 // Process messages between a renderer's bridge and the browser process. Each carries the
-// sending V8 context's ID first, so a reply can't reach a page that replaced the sender.
-inline constexpr const char* kBridgeSend = "pd.send";    // renderer → browser: [context id, text]
-inline constexpr const char* kBridgeReply = "pd.reply";  // browser → renderer: [context id, text]
+// sending V8 context's ID first, so a reply can't reach a page that replaced the sender. Messages
+// are protocol envelopes (CBOR bytes), carried as binary values.
+inline constexpr const char* kBridgeSend = "pd.send";      // renderer → browser: [context id, bytes]
+inline constexpr const char* kBridgeReply = "pd.reply";    // browser → renderer: [context id, bytes]
+inline constexpr const char* kBridgeClosed = "pd.closed";  // renderer → browser: [context id]
+
+/// The largest message either side of the bridge accepts (docs/protocol.md §2).
+inline constexpr std::size_t kMaxBridgeMessage = 4 * 1024 * 1024;
 
 // Switches the browser process adds to its children's command lines (renderers don't see the
 // host's options).

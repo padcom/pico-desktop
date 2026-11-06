@@ -23,6 +23,7 @@ std::string usage() {
          "  --app-dir=<dir>        the built frontend (index.html and its assets)\n"
          "  --app-id=<id>          the app's ID, the trusted origin's host (default: app)\n"
          "  --origin=https|app     https://<id>.localhost/ (default) or app://<id>/\n"
+         "  --backend=<program>    the compiled Pico backend (started with the protocol on stdin/stdout)\n"
          "  --dev                  development policy: DevTools (F12), --dev-url, remote debugging\n"
          "  --dev-url=<origin>     load the Vite dev server instead of --app-dir (needs --dev)\n"
          "  --self-test            let the page test itself, check the sandbox, exit with the result\n"
@@ -59,6 +60,8 @@ ParseResult parse_options(const std::vector<std::string>& args) {
       } else {
         return "invalid --origin '" + *o + "': use app or https";
       }
+    } else if (auto b = value_of(arg, "--backend")) {
+      options.backend = *b;
     } else if (auto u = value_of(arg, "--dev-url")) {
       dev_url = *u;
     } else if (arg == "--dev") {

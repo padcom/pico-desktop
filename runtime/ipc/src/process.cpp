@@ -1,6 +1,7 @@
 #include "pico_desktop/ipc/process.hpp"
 
 #include <fcntl.h>
+#include <signal.h>
 #include <spawn.h>
 #include <unistd.h>
 
@@ -30,8 +31,23 @@ std::optional<ChildProcess> spawn_piped(const std::string& program, const std::v
     argv.push_back(a.data());
   }
   argv.push_back(nullptr);
+  // The child starts with default signal handling and nothing blocked, whatever the host (and
+  // Chromium) changed: a backend whose stdout reader is gone gets SIGPIPE as usual.
+  posix_spawnattr_t attributes;
+  posix_spawnattr_init(&attributes);
+  sigset_t defaults;
+  sigemptyset(&defaults);
+  sigaddset(&defaults, SIGPIPE);
+  sigaddset(&defaults, SIGTERM);
+  sigaddset(&defaults, SIGINT);
+  sigset_t none;
+  sigemptyset(&none);
+  posix_spawnattr_setsigdefault(&attributes, &defaults);
+  posix_spawnattr_setsigmask(&attributes, &none);
+  posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK);
   pid_t pid = -1;
-  const int rc = posix_spawn(&pid, program.c_str(), &actions, nullptr, argv.data(), environ);
+  const int rc = posix_spawn(&pid, program.c_str(), &actions, &attributes, argv.data(), environ);
+  posix_spawnattr_destroy(&attributes);
   posix_spawn_file_actions_destroy(&actions);
   close(in[0]);
   close(out[1]);

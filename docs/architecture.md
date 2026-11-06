@@ -38,6 +38,14 @@ Desktop adds is the Pico backend.
 | **NativeServices** | Window controls, file dialogs, clipboard, notifications, lifecycle events, exposed as services (mainly to Pico), each behind a declared capability | Expose unrestricted primitives to JavaScript |
 | **SecurityPolicy** | Origin/frame allowlist, navigation policy (external URLs open in the system browser), handler and capability permissions, DevTools only in development, no remote debugging in production, never silently disabling the sandbox | — |
 
+Where they live so far (`runtime/cef-host`):
+- **BridgeRouter:**
+  - `src/cef/bridge.cpp`, the renderer half: `picoDesktop.send(ArrayBuffer)` / `onmessage`, one session per V8 context;
+  - `src/core/router.cpp`, the CEF-free routing core, unit-tested in `tests/router_test.cpp`: it renumbers each session's request IDs, adds and strips `w`, drops late answers, and cleans up when a session ends or the backend stops;
+  - `src/cef/link.cpp`, which joins them.
+- **BackendSupervisor:** `src/cef/link.cpp`. It runs `--backend=<program>` on framed pipes with a reader and a writer thread, so the UI thread never blocks, and restarts it with backoff per `RestartBudget` (`include/pico_desktop/host/restart.hpp`). Health checks and the hang handling are F5.
+- In `--self-test` mode the router answers `host.echo` itself, so the bridge is tested without a backend.
+
 ## The application interface (what an app provides to the host)
 
 A Pico Desktop application is data plus two programs; the host is the same binary for every app.

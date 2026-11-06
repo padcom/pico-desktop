@@ -40,6 +40,7 @@ add_executable(pico-desktop-host
   src/cef/bridge.cpp
   src/cef/client.cpp
   src/cef/external.cpp
+  src/cef/link.cpp
   src/cef/main.cpp
   src/cef/scheme.cpp
   src/cef/window.cpp)

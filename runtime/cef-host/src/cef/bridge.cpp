@@ -1,29 +1,32 @@
 #include "bridge.hpp"
 
+#include <vector>
+
 #include "host.hpp"
 #include "include/cef_command_line.h"
 #include "include/cef_process_message.h"
+#include "include/cef_values.h"
 
 namespace pico_desktop::host::cef {
 
 namespace {
 
-constexpr std::size_t kMaxMessageBytes = 1 << 20;  // bounded until F2 specifies frame limits
-
-/// `picoDesktop.send(text)`: hands the text to the browser process, tagged with this context.
+/// `picoDesktop.send(buffer)`: hands one envelope (an ArrayBuffer of CBOR) to the browser
+/// process, tagged with this context. The host checks it; the renderer only bounds its size.
 class SendHandler : public CefV8Handler {
  public:
   explicit SendHandler(std::int32_t context_id) : context_id_(context_id) {}
 
   bool Execute(const CefString& name, CefRefPtr<CefV8Value> object, const CefV8ValueList& arguments,
                CefRefPtr<CefV8Value>& retval, CefString& exception) override {
-    if (arguments.size() != 1 || !arguments[0]->IsString()) {
-      exception = "picoDesktop.send(text) takes one string";
+    if (arguments.size() != 1 || !arguments[0]->IsArrayBuffer()) {
+      exception = "picoDesktop.send(buffer) takes one ArrayBuffer";
       return true;
     }
-    const CefString text = arguments[0]->GetStringValue();
-    if (text.length() > kMaxMessageBytes) {
-      exception = "picoDesktop.send: message too large";
+    CefRefPtr<CefV8Value> buffer = arguments[0];
+    const std::size_t size = buffer->GetArrayBufferByteLength();
+    if (size == 0 || size > kMaxBridgeMessage) {
+      exception = "picoDesktop.send: a message is 1 byte to 4 MiB";
       return true;
     }
     CefRefPtr<CefV8Context> context = CefV8Context::GetCurrentContext();
@@ -35,7 +38,7 @@ class SendHandler : public CefV8Handler {
     CefRefPtr<CefProcessMessage> message = CefProcessMessage::Create(kBridgeSend);
     CefRefPtr<CefListValue> args = message->GetArgumentList();
     args->SetInt(0, context_id_);
-    args->SetString(1, text);
+    args->SetBinary(1, CefBinaryValue::Create(buffer->GetArrayBufferData(), size));
     frame->SendProcessMessage(PID_BROWSER, message);
     retval = CefV8Value::CreateUndefined();
     return true;
@@ -78,6 +81,11 @@ void RendererBridge::on_context_created(CefRefPtr<CefFrame> frame, CefRefPtr<Cef
 void RendererBridge::on_context_released(CefRefPtr<CefFrame> frame, CefRefPtr<CefV8Context> context) {
   for (auto it = contexts_.begin(); it != contexts_.end(); ++it) {
     if (it->second.context->IsSame(context)) {
+      // The browser ends this page's session: its pending calls are cancelled, its subscriptions
+      // closed, and questions the backend asked it fail.
+      CefRefPtr<CefProcessMessage> closed = CefProcessMessage::Create(kBridgeClosed);
+      closed->GetArgumentList()->SetInt(0, it->first);
+      frame->SendProcessMessage(PID_BROWSER, closed);
       contexts_.erase(it);
       return;
     }
@@ -90,6 +98,10 @@ bool RendererBridge::on_reply(CefRefPtr<CefFrame> frame, CefRefPtr<CefProcessMes
   }
   CefRefPtr<CefListValue> args = message->GetArgumentList();
   const auto it = contexts_.find(args->GetInt(0));
+  CefRefPtr<CefBinaryValue> bytes = args->GetType(1) == VTYPE_BINARY ? args->GetBinary(1) : nullptr;
+  if (!bytes) {
+    return true;
+  }
   // A reply for a context that's gone (navigation, reload) or that belongs to another frame is
   // dropped: it must never reach the page that replaced the sender.
   if (it == contexts_.end() || it->second.frame_id != frame->GetIdentifier()) {
@@ -102,7 +114,9 @@ bool RendererBridge::on_reply(CefRefPtr<CefFrame> frame, CefRefPtr<CefProcessMes
   CefRefPtr<CefV8Value> bridge = context->GetGlobal()->GetValue("picoDesktop");
   CefRefPtr<CefV8Value> handler = bridge ? bridge->GetValue("onmessage") : nullptr;
   if (handler && handler->IsFunction()) {
-    CefV8ValueList call_args{CefV8Value::CreateString(args->GetString(1)),
+    std::vector<std::byte> data(bytes->GetSize());
+    bytes->GetData(data.data(), data.size(), 0);
+    CefV8ValueList call_args{CefV8Value::CreateArrayBufferWithCopy(data.data(), data.size()),
                              CefV8Value::CreateInt(static_cast<std::int32_t>(contexts_.size()))};
     handler->ExecuteFunction(bridge, call_args);
   }

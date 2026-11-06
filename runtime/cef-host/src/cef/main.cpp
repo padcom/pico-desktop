@@ -2,6 +2,7 @@
 // browser process and as every Chromium subprocess.
 #include <unistd.h>
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -11,6 +12,7 @@
 
 #include "app.hpp"
 #include "host.hpp"
+#include "link.hpp"
 #include "include/cef_app.h"
 #include "include/cef_command_line.h"
 #include "include/cef_version.h"
@@ -87,6 +89,7 @@ int run_browser(int argc, char** argv) {
   std::error_code error;
   fs::create_directories(cache, error);
   init_browser_state(std::move(options));
+  init_link(browser_state().options);
 
   CefMainArgs main_args(argc, argv);
   CefRefPtr<HostApp> app = new HostApp(true);
@@ -106,6 +109,8 @@ int run_browser(int argc, char** argv) {
     return 1;
   }
   CefRunMessageLoop();
+  // The backend got `closing` when the last window closed; give it a moment to finish.
+  link().stop(std::chrono::milliseconds(2000));
   CefShutdown();
 
   const BrowserState& state = browser_state();
