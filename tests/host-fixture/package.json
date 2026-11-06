@@ -1,0 +1,13 @@
+{
+  "name": "@pico-desktop/host-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A Vite-built page that tests the CEF host from inside (pico-desktop-host --self-test)",
+  "author": "Matthias Hryniszak <padcom@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p ."
+  }
+}

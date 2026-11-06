@@ -32,7 +32,7 @@ Desktop adds is the Pico backend.
 |---|---|---|
 | **ApplicationHost** | Startup and CEF initialization (sandbox on), the runtime manifest, the single-instance policy (default: single; second launch focuses the window), orderly shutdown | Application logic |
 | **WindowManager** | CEF Views windows: one user-facing window in v1, but every window has a stable window ID and session routing so multi-window needs no protocol change | Decide what a window shows beyond the app's entry page |
-| **ResourceManager** | Serving bundled assets under the trusted origin (ADR-0003), path confinement (no traversal), MIME types, CSP headers | Run an HTTP listener in production |
+| **ResourceManager** | Serving bundled assets under the trusted origin `https://<app-id>.localhost` (ADR-0003), path confinement (no traversal), MIME types, CSP headers | Run an HTTP listener in production |
 | **BridgeRouter** | Injecting the bridge only into the trusted origin's allowed frames; routing envelopes renderer ↔ host ↔ backend by window, renderer context and backend epoch; frame size and queue limits; correlation of host-handled calls | Interpret application payloads beyond the envelope |
 | **BackendSupervisor** | Launching the Pico process, readiness handshake, health checks, bounded restart with backoff and a budget, cooperative stop → grace period → forced kill, capturing stderr logs | Replay in-flight calls or reconstruct hardware state |
 | **NativeServices** | Window controls, file dialogs, clipboard, notifications, lifecycle events, exposed as services (mainly to Pico), each behind a declared capability | Expose unrestricted primitives to JavaScript |

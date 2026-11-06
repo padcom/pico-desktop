@@ -40,6 +40,13 @@ pnpm check                 # lint, build, typecheck, test, native build + ctest,
 Individual steps: `pnpm lint`, `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnpm native`,
 `pnpm pico:test`.
 
+The CEF host (Linux for now, see [docs/platform-linux.md](docs/platform-linux.md)):
+
+```sh
+pnpm cef              # fetch + verify the pinned CEF, build the host, run its self-tests in a window
+build/cef/runtime/cef-host/pico-desktop-host --app-dir=<built frontend> [--app-id=<id>] [--dev]
+```
+
 ## License
 
 MIT for Pico Desktop's own code (see [LICENSE](LICENSE)); third-party components keep their

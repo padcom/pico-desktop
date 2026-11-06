@@ -1,0 +1,228 @@
+// Unit tests for the host's CEF-free core: asset resolution (traversal), MIME types, the
+// navigation/bridge policy and option parsing.
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <variant>
+#include <vector>
+
+#include "pico_desktop/host/assets.hpp"
+#include "pico_desktop/host/options.hpp"
+#include "pico_desktop/host/policy.hpp"
+#include "pico_desktop/host/sandbox.hpp"
+
+namespace fs = std::filesystem;
+using namespace pico_desktop::host;
+using namespace std::string_literals;
+
+static int failures = 0;
+
+#define CHECK(expr)                                                  \
+  do {                                                               \
+    if (!(expr)) {                                                   \
+      std::fprintf(stderr, "%s:%d: FAIL: %s\n", __FILE__, __LINE__, #expr); \
+      ++failures;                                                    \
+    }                                                                \
+  } while (0)
+
+static void write(const fs::path& p, const std::string& text) {
+  fs::create_directories(p.parent_path());
+  std::ofstream(p) << text;
+}
+
+static void assets(const fs::path& tmp) {
+  const fs::path root = tmp / "app";
+  write(root / "index.html", "<!doctype html>");
+  write(root / "assets" / "main.js", "1");
+  write(root / "sub" / "index.html", "sub");
+  write(root / "a b.txt", "space");
+  write(tmp / "secret.txt", "outside");
+  fs::create_directories(root / "empty");
+  std::error_code ec;
+  fs::create_symlink(tmp / "secret.txt", root / "link-out.txt", ec);
+  fs::create_symlink(root / "assets" / "main.js", root / "link-in.js", ec);
+  const fs::path canon = fs::canonical(root);
+
+  CHECK(resolve_asset(root, "/") == canon / "index.html");
+  CHECK(resolve_asset(root, "/index.html") == canon / "index.html");
+  CHECK(resolve_asset(root, "/assets/main.js") == canon / "assets" / "main.js");
+  CHECK(resolve_asset(root, "/assets/main.js?v=1#x") == canon / "assets" / "main.js");
+  CHECK(resolve_asset(root, "/sub/") == canon / "sub" / "index.html");
+  CHECK(resolve_asset(root, "/sub") == canon / "sub" / "index.html");
+  CHECK(resolve_asset(root, "/a%20b.txt") == canon / "a b.txt");
+  CHECK(resolve_asset(root, "/./assets//main.js") == canon / "assets" / "main.js");
+  CHECK(resolve_asset(root, "/link-in.js") == canon / "assets" / "main.js");
+
+  // Traversal and other escapes.
+  CHECK(!resolve_asset(root, "/../secret.txt"));
+  CHECK(!resolve_asset(root, "/assets/../../secret.txt"));
+  CHECK(!resolve_asset(root, "/%2e%2e/secret.txt"));
+  CHECK(!resolve_asset(root, "/%2E%2E/secret.txt"));
+  CHECK(!resolve_asset(root, "/assets%2f..%2f..%2fsecret.txt"));
+  CHECK(!resolve_asset(root, "/..%5csecret.txt"));
+  CHECK(!resolve_asset(root, "/index.html%00.js"));
+  CHECK(!resolve_asset(root, "/bad%zz"));
+  CHECK(!resolve_asset(root, "/trailing%2"));
+  CHECK(!resolve_asset(root, "/link-out.txt"));
+  CHECK(!resolve_asset(root, "relative.html"));
+  CHECK(!resolve_asset(root, ""));
+  // Missing files and directories without an index.
+  CHECK(!resolve_asset(root, "/missing.js"));
+  CHECK(!resolve_asset(root, "/empty/"));
+  CHECK(!resolve_asset(tmp / "no-such-root", "/index.html"));
+
+  CHECK(percent_decode("a%2Fb") == std::string("a/b"));
+  CHECK(!percent_decode("%"));
+  CHECK(!percent_decode("%4"));
+  CHECK(!percent_decode("%00"));
+
+  CHECK(mime_type_for("x/index.HTML") == "text/html");
+  CHECK(mime_type_for("main.js") == "text/javascript");
+  CHECK(mime_type_for("style.css") == "text/css");
+  CHECK(mime_type_for("logo.svg") == "image/svg+xml");
+  CHECK(mime_type_for("blob.bin") == "application/octet-stream");
+}
+
+static void policy() {
+  Policy defaults;
+  CHECK(defaults.scheme == OriginScheme::https);
+  Policy p;
+  p.app_id = "hello";
+  p.scheme = OriginScheme::app;
+  CHECK(trusted_origin(p) == "app://hello");
+  CHECK(start_url(p) == "app://hello/index.html");
+  CHECK(is_trusted_url(p, "app://hello/"));
+  CHECK(is_trusted_url(p, "app://hello/assets/x.js?q"));
+  CHECK(!is_trusted_url(p, "app://hello.evil/"));
+  CHECK(!is_trusted_url(p, "app://hellothere/"));
+  CHECK(!is_trusted_url(p, "app://other/"));
+  CHECK(!is_trusted_url(p, "https://hello.localhost/"));
+
+  CHECK(decide_navigation(p, "app://hello/page.html") == Navigation::allow);
+  CHECK(decide_navigation(p, "https://example.com/") == Navigation::open_external);
+  CHECK(decide_navigation(p, "http://example.com/") == Navigation::open_external);
+  CHECK(decide_navigation(p, "mailto:a@b.c") == Navigation::open_external);
+  CHECK(decide_navigation(p, "file:///etc/passwd") == Navigation::block);
+  CHECK(decide_navigation(p, "data:text/html,hi") == Navigation::block);
+  CHECK(decide_navigation(p, "javascript:alert(1)") == Navigation::block);
+  CHECK(decide_navigation(p, "chrome://settings") == Navigation::block);
+
+  CHECK(bridge_allowed(p, "app://hello/index.html", true));
+  CHECK(!bridge_allowed(p, "app://hello/frame.html", false));
+  CHECK(!bridge_allowed(p, "about:srcdoc", false));
+  CHECK(!bridge_allowed(p, "https://example.com/", true));
+  Policy sub = p;
+  sub.bridge_in_subframes = true;
+  CHECK(bridge_allowed(sub, "app://hello/frame.html", false));
+  CHECK(!bridge_allowed(sub, "data:text/html,x", false));
+
+  Policy https = p;
+  https.scheme = OriginScheme::https;
+  CHECK(trusted_origin(https) == "https://hello.localhost");
+  CHECK(is_trusted_url(https, "https://hello.localhost/index.html"));
+  CHECK(!is_trusted_url(https, "https://hello.localhost.evil.com/"));
+  CHECK(decide_navigation(https, "https://example.com/") == Navigation::open_external);
+
+  Policy dev = p;
+  dev.dev_origin = "http://localhost:5173";
+  CHECK(start_url(dev) == "http://localhost:5173/");
+  CHECK(decide_navigation(dev, "http://localhost:5173/src/main.ts") == Navigation::allow);
+  CHECK(decide_navigation(dev, "http://localhost:5174/") == Navigation::open_external);
+
+  CHECK(is_valid_app_id("hello"));
+  CHECK(is_valid_app_id("com.example.hello-world"));
+  CHECK(!is_valid_app_id(""));
+  CHECK(!is_valid_app_id("Hello"));
+  CHECK(!is_valid_app_id("a..b"));
+  CHECK(!is_valid_app_id("-a"));
+  CHECK(!is_valid_app_id("a-"));
+  CHECK(!is_valid_app_id("a/b"));
+  CHECK(!is_valid_app_id("a:1"));
+}
+
+static ParseResult parse(std::vector<std::string> args) {
+  return parse_options(args);
+}
+
+static void options() {
+  {
+    const auto r = parse({"--app-dir=/x", "--app-id=com.example.app", "--origin=https"});
+    CHECK(std::holds_alternative<Options>(r));
+    if (const auto* o = std::get_if<Options>(&r)) {
+      CHECK(o->app_dir == "/x");
+      CHECK(o->policy.app_id == "com.example.app");
+      CHECK(o->policy.scheme == OriginScheme::https);
+      CHECK(o->mode == Mode::run);
+      CHECK(!o->dev);
+      CHECK(o->open_external);
+    }
+  }
+  {
+    const auto r = parse({"--app-dir=/x", "--self-test", "--no-external-open", "--enable-logging"});
+    const auto* o = std::get_if<Options>(&r);
+    CHECK(o && o->mode == Mode::self_test && !o->open_external);
+  }
+  CHECK(std::holds_alternative<std::string>(parse({})));
+  CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--app-id=Bad"})));
+  CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--origin=file"})));
+  CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "stray"})));
+  // Production never opens a debugging port; the dev server needs the dev policy.
+  CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--remote-debugging-port=9222"})));
+  CHECK(std::holds_alternative<Options>(parse({"--app-dir=/x", "--dev", "--remote-debugging-port=9222"})));
+  CHECK(std::holds_alternative<std::string>(parse({"--dev-url=http://localhost:5173"})));
+  CHECK(std::holds_alternative<std::string>(parse({"--dev", "--dev-url=http://example.com:80"})));
+  {
+    const auto r = parse({"--dev", "--dev-url=http://localhost:5173/"});
+    const auto* o = std::get_if<Options>(&r);
+    CHECK(o && o->policy.dev_origin == std::string("http://localhost:5173"));
+  }
+  {
+    const auto r = parse({"--version", "stray"});
+    const auto* o = std::get_if<Options>(&r);
+    CHECK(o && o->mode == Mode::version);
+  }
+}
+
+static void sandbox() {
+  const auto sandboxed = parse_proc_status("Name:\tchrome\nSeccomp:\t2\nSeccomp_filters:\t1\nNSpid:\t4242\t1\n");
+  CHECK(sandboxed.seccomp_mode == 2);
+  CHECK(sandboxed.nspid_levels == 2);
+  const auto plain = parse_proc_status("Seccomp:\t0\nNSpid:\t17\n");
+  CHECK(plain.seccomp_mode == 0);
+  CHECK(plain.nspid_levels == 1);
+  CHECK(parse_proc_status("Name: x\n").seccomp_mode == -1);
+
+  CHECK(parse_proc_stat_ppid("123 (pico-desktop-host) S 77 123 123 0") == 77);
+  CHECK(parse_proc_stat_ppid("9 (we ird) (name)) R 5 9") == 5);
+  CHECK(!parse_proc_stat_ppid("garbage"));
+
+  const std::string cmdline = "/app/host\0--type=renderer\0--lang=en\0"s;
+  CHECK(parse_cmdline_type(cmdline) == "renderer");
+  CHECK(parse_cmdline_type("/app/host\0--app-dir=x\0"s).empty());
+  CHECK(parse_cmdline_type("/app/host --type=zygote --no-zygote-sandbox") == "zygote");
+
+  CHECK(renderers_sandboxed({{1, "renderer", 2, true}, {2, "gpu-process", 0, false}}));
+  CHECK(!renderers_sandboxed({{1, "renderer", 2, false}}));
+  CHECK(!renderers_sandboxed({{1, "renderer", 0, true}}));
+  CHECK(!renderers_sandboxed({{2, "gpu-process", 2, true}}));
+  CHECK(!renderers_sandboxed({}));
+}
+
+int main() {
+  const fs::path tmp = fs::temp_directory_path() /
+                       ("pd-host-core-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+  fs::remove_all(tmp);
+  fs::create_directories(tmp);
+  assets(tmp);
+  policy();
+  options();
+  sandbox();
+  fs::remove_all(tmp);
+  if (failures == 0) {
+    std::puts("host.core: all checks passed");
+  }
+  return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+}

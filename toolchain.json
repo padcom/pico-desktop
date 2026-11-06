@@ -3,8 +3,14 @@
   "node": "26.9.0",
   "pnpm": "12.18.0",
   "typescript": "5.9.3",
-  "cmake": { "minimum": "3.28", "developedWith": "4.4.5" },
-  "cxx": { "standard": 20, "developedWith": "g++ 14.2.0 (Debian 14.2.0-19)" },
+  "cmake": {
+    "minimum": "3.28",
+    "developedWith": "4.4.5"
+  },
+  "cxx": {
+    "standard": 20,
+    "developedWith": "g++ 14.2.0 (Debian 14.2.0-19)"
+  },
   "pico": {
     "minimum": "0.4.2",
     "releasedPin": "0.4.1",
@@ -12,18 +18,37 @@
     "$comment": "0.4.2 (stdout flush #82, bulk copies #84; on pico-lang main) isn't released yet: develop with the local ppl build; CI's Pico job waits for 0.4.2."
   },
   "cef": {
-    "status": "provisional",
+    "status": "pinned for linux-arm64 (verified in F1); provisional for the other targets",
     "version": "156.0.15+gcf671c0+chromium-156.0.8078.80",
     "chromium": "156.0.8078.80",
     "source": "https://cef-builds.spotifycdn.com/index.json (Spotify Automated Builds, channel stable)",
     "distribution": "minimal",
     "archives": {
-      "linux-arm64": { "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_linuxarm64_minimal.tar.bz2", "sha1": "85602db8e813ad824b45ae54218476aa3d91d561" },
-      "linux-x64": { "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_linux64_minimal.tar.bz2", "sha1": "09235427222e026a4f34399742df27c5d98a4f8a" },
-      "windows-arm64": { "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_windowsarm64_minimal.tar.bz2", "sha1": "446515cfaed802200749083ea64f8718e885c91f" },
-      "windows-x64": { "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_windows64_minimal.tar.bz2", "sha1": "b690e035689ee20ba9d2500ac8953815bc7ed46a" },
-      "macos-arm64": { "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_macosarm64_minimal.tar.bz2", "sha1": "bcdd1877edb300b0fb91d8f71c0b14aae256cd0f" },
-      "macos-x64": { "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_macosx64_minimal.tar.bz2", "sha1": "13756e3029307720fe00898d54aef8a64c9b4043" }
+      "linux-arm64": {
+        "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_linuxarm64_minimal.tar.bz2",
+        "sha1": "85602db8e813ad824b45ae54218476aa3d91d561",
+        "sha256": "806663a9eca2a8f7be185480ce7e779c5864b5cdd52bd77489053bdb1933feb8"
+      },
+      "linux-x64": {
+        "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_linux64_minimal.tar.bz2",
+        "sha1": "09235427222e026a4f34399742df27c5d98a4f8a"
+      },
+      "windows-arm64": {
+        "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_windowsarm64_minimal.tar.bz2",
+        "sha1": "446515cfaed802200749083ea64f8718e885c91f"
+      },
+      "windows-x64": {
+        "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_windows64_minimal.tar.bz2",
+        "sha1": "b690e035689ee20ba9d2500ac8953815bc7ed46a"
+      },
+      "macos-arm64": {
+        "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_macosarm64_minimal.tar.bz2",
+        "sha1": "bcdd1877edb300b0fb91d8f71c0b14aae256cd0f"
+      },
+      "macos-x64": {
+        "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_macosx64_minimal.tar.bz2",
+        "sha1": "13756e3029307720fe00898d54aef8a64c9b4043"
+      }
     }
   }
 }

@@ -27,6 +27,11 @@
     "native:build": "cmake --build --preset default",
     "native:test": "ctest --preset default",
     "native": "pnpm native:configure && pnpm native:build && pnpm native:test",
+    "cef:fetch": "node scripts/fetch-cef.mjs",
+    "cef:configure": "PD_CEF_ROOT=$(node scripts/fetch-cef.mjs) cmake --preset cef",
+    "cef:build": "cmake --build --preset cef",
+    "cef:test": "pnpm --filter @pico-desktop/host-fixture build && ctest --preset cef",
+    "cef": "pnpm cef:configure && pnpm cef:build && pnpm cef:test",
     "pico:test": "pico test packages/communicator-pico",
     "check": "pnpm lint && pnpm build && pnpm typecheck && pnpm test && pnpm native && pnpm pico:test"
   },

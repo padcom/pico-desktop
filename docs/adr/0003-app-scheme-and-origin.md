@@ -1,6 +1,6 @@
-# ADR-0003: A registered secure custom scheme for bundled assets
+# ADR-0003: The trusted origin is `https://<app-id>.localhost`, served by the host
 
-**Status:** Proposed; decided by the F1 experiment · **Date:** 2026-11-06
+**Status:** Accepted (F1 experiment, 2026-11-06) · supersedes the working default `app://<app-id>`
 
 ## Context
 Production apps load their Vite-built assets from the bundle, with no HTTP server. The page needs
@@ -8,17 +8,52 @@ a secure origin (for Web APIs and CSP), working ES modules with relative imports
 resource handler that can't be tricked into reading outside the bundle. The native bridge must
 only be injected into this trusted origin.
 
-## Decision (working default)
-Register a **custom standard + secure scheme** (`app://<app-id>/…`) served by CEF resource
-handlers from the bundle's asset directory.
+Two candidates were implemented in `pico-desktop-host` (`--origin=https|app`) and run through the
+same Vite-built self-test fixture (`tests/host-fixture`, `ctest -R host.self-test`), CEF 156,
+linux-arm64:
 
-The alternative is an **HTTPS-like internal origin** (for example `https://<app-id>.localhost/`) intercepted by CEF
-handlers. F1 tests both against: ES module loading and relative imports, `fetch` of bundled
-files, CSP, CORS behaviour, Service Workers/storage partitioning, DevTools source maps, and path
-traversal attempts. The one that passes with less special-casing wins; this ADR is updated with
-the results.
+- **`app://<app-id>/`**: a custom scheme registered as standard, secure, CORS- and fetch-enabled,
+  served by a CEF scheme handler.
+- **`https://<app-id>.localhost/`**: the built-in https scheme, intercepted for that host by the same
+  CEF scheme handler.
+
+## Results
+
+Both passed all 24 functional checks: the expected origin, secure context, static and dynamic ES
+module imports with `base: './'`, CSS and image assets, `fetch` of bundled files, 404s, four
+path-traversal encodings, a CSP header that blocks inline script, the bridge only in the trusted
+main frame (not same-origin or `srcdoc` subframes), navigation and popup policy, context cleanup
+across navigation, and the renderer sandbox.
+
+The web-platform probes (`pd-info:` lines) differed:
+
+| Feature | `app://` | `https://<id>.localhost` |
+|---|---|---|
+| localStorage, IndexedDB, `navigator.storage`, clipboard, `crypto` | works | works |
+| Cookies (`document.cookie`) | **not stored** (needs `CefCookieManager::SetSupportedSchemes`) | works |
+| Cache API | **"Request scheme 'app' is unsupported"** | works |
+| Service Workers | **"The URL protocol of the current origin is not supported"** | registers |
+
+Chromium hardcodes the Cache API and Service Workers to http(s); no CEF option fixes them for a
+custom scheme.
+
+## Decision
+The trusted origin is **`https://<app-id>.localhost`** (the default in the host). It passes
+everything without special-casing, and libraries written for the web (offline caches, workers,
+auth cookies) work unchanged. `app://<app-id>` stays available behind `--origin=app` and keeps
+running in CI, so a regression on either side is visible.
+
+## Why this is safe
+- `.localhost` names never resolve off the machine, and the host's scheme handler answers *every*
+  request for `<app-id>.localhost`, so nothing for the trusted origin ever reaches the network or
+  a local server.
+- Other `https` URLs are other origins: top-level navigations to them are blocked or handed to the
+  system browser (user gesture only), and the CSP (`connect-src 'self'`, `frame-src 'self'`,
+  `script-src 'self'`) keeps the page from fetching or framing them.
+- The bridge is injected by origin *and* re-checked in the browser process for every message.
 
 ## Consequences
-- The bridge's origin allowlist is a single trusted origin per app (plus the Vite dev-server
-  origin under the development policy only).
-- External URLs never load in the app window: they open in the system browser.
+- App IDs must be valid DNS labels (`com.example.app` → `https://com.example.app.localhost/`); the host
+  validates them.
+- In development the page is the Vite dev server (`http://localhost:<port>`) under the dev policy
+  (F4); production never uses a network listener.

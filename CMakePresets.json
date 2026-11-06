@@ -1,26 +1,73 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "default",
       "displayName": "Debug build of the native runtime",
       "binaryDir": "${sourceDir}/build/default",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "release",
       "displayName": "Release build of the native runtime",
       "binaryDir": "${sourceDir}/build/release",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "cef",
+      "displayName": "The CEF host (Release; CEF_ROOT from $env{PD_CEF_ROOT})",
+      "binaryDir": "${sourceDir}/build/cef",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "PD_WITH_CEF": "ON",
+        "CEF_ROOT": "$env{PD_CEF_ROOT}"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "default", "configurePreset": "default" },
-    { "name": "release", "configurePreset": "release" }
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "cef",
+      "configurePreset": "cef"
+    }
   ],
   "testPresets": [
-    { "name": "default", "configurePreset": "default", "output": { "outputOnFailure": true } },
-    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } }
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "cef",
+      "configurePreset": "cef",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
   ]
 }

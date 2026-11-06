@@ -16,7 +16,7 @@ export default [
   ...config['flat/node'],
   {
     // Runs in the CEF renderer (and in a plain browser with a mock transport).
-    files: ['packages/communicator-ts/**'],
+    files: ['packages/communicator-ts/**', 'tests/host-fixture/src/**', 'tests/host-fixture/public/**'],
     languageOptions: {
       globals: { ...globals.browser },
     },

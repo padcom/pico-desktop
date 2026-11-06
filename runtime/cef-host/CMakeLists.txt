@@ -1,12 +1,75 @@
-add_executable(pico-desktop-host src/main.cpp)
-target_link_libraries(pico-desktop-host PRIVATE pd_ipc)
+# The host's CEF-free core: asset resolution, the security policy, options, sandbox inspection.
+add_library(pd_host_core STATIC
+  src/core/assets.cpp
+  src/core/options.cpp
+  src/core/policy.cpp
+  src/core/sandbox.cpp)
+target_include_directories(pd_host_core PUBLIC include)
+pd_warnings(pd_host_core)
+
+add_executable(pd_host_core_test tests/core_test.cpp)
+target_link_libraries(pd_host_core_test PRIVATE pd_host_core)
+pd_warnings(pd_host_core_test)
+add_test(NAME host.core COMMAND pd_host_core_test)
+
+if(NOT PD_WITH_CEF)
+  # Without CEF: a stub that only identifies itself (so packaging and CI have a binary to run).
+  add_executable(pico-desktop-host src/stub_main.cpp)
+  target_link_libraries(pico-desktop-host PRIVATE pd_ipc)
+  target_compile_definitions(pico-desktop-host PRIVATE PD_VERSION="${PROJECT_VERSION}")
+  pd_warnings(pico-desktop-host)
+  add_test(NAME host.version COMMAND pico-desktop-host --version)
+  set_tests_properties(host.version PROPERTIES PASS_REGULAR_EXPRESSION "^pico-desktop-host ${PROJECT_VERSION}")
+  add_test(NAME host.unknown-option COMMAND pico-desktop-host --bogus)
+  set_tests_properties(host.unknown-option PROPERTIES WILL_FAIL TRUE)
+  return()
+endif()
+
+# The CEF Views host. One executable is both the browser process and every Chromium subprocess
+# (renderer, GPU, utility, zygote) on Linux.
+add_executable(pico-desktop-host
+  src/cef/app.cpp
+  src/cef/bridge.cpp
+  src/cef/client.cpp
+  src/cef/external.cpp
+  src/cef/main.cpp
+  src/cef/scheme.cpp
+  src/cef/window.cpp)
+SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
+add_dependencies(pico-desktop-host libcef_dll_wrapper)
+target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
 target_compile_definitions(pico-desktop-host PRIVATE PD_VERSION="${PROJECT_VERSION}")
 
-if(PD_WITH_CEF)
-  message(FATAL_ERROR "PD_WITH_CEF: the CEF integration is phase F1 and isn't implemented yet")
+if(OS_LINUX)
+  ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
+  target_link_libraries(pico-desktop-host PRIVATE libcef_lib)
+  # CEF's `-rpath,.` is relative to the working directory; find libcef.so next to the executable.
+  set_target_properties(pico-desktop-host PROPERTIES BUILD_RPATH "\$ORIGIN" INSTALL_RPATH "\$ORIGIN")
+  # Development layout: CEF's binaries and resources are linked next to the executable (packaging
+  # copies them, F6). The SUID chrome-sandbox isn't used: the sandbox runs on user namespaces.
+  foreach(file IN LISTS CEF_BINARY_FILES)
+    add_custom_command(TARGET pico-desktop-host POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E create_symlink "${CEF_BINARY_DIR_RELEASE}/${file}" "$<TARGET_FILE_DIR:pico-desktop-host>/${file}")
+  endforeach()
+  foreach(file IN LISTS CEF_RESOURCE_FILES)
+    add_custom_command(TARGET pico-desktop-host POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E create_symlink "${CEF_RESOURCE_DIR}/${file}" "$<TARGET_FILE_DIR:pico-desktop-host>/${file}")
+  endforeach()
+else()
+  message(FATAL_ERROR "the CEF host is implemented for Linux first (linux-arm64 is the priority target)")
 endif()
 
 add_test(NAME host.version COMMAND pico-desktop-host --version)
-set_tests_properties(host.version PROPERTIES PASS_REGULAR_EXPRESSION "^pico-desktop-host ${PROJECT_VERSION}")
-add_test(NAME host.unknown-option COMMAND pico-desktop-host --bogus)
-set_tests_properties(host.unknown-option PROPERTIES WILL_FAIL TRUE)
+set_tests_properties(host.version PROPERTIES PASS_REGULAR_EXPRESSION "^pico-desktop-host ${PROJECT_VERSION} \\(CEF ")
+add_test(NAME host.refuses-remote-debugging COMMAND pico-desktop-host --app-dir=/nonexistent --remote-debugging-port=9222)
+set_tests_properties(host.refuses-remote-debugging PROPERTIES WILL_FAIL TRUE)
+
+# Self-tests in a real window: the fixture page tests itself under each trusted-origin scheme,
+# and the host checks the sandbox and that no process outlives it. Needs a display and the built
+# fixture (`pnpm --filter @pico-desktop/host-fixture build`); skipped otherwise.
+set(PD_FIXTURE_DIR "${PROJECT_SOURCE_DIR}/tests/host-fixture/dist" CACHE PATH "The built host self-test fixture")
+foreach(origin IN ITEMS app https)
+  add_test(NAME host.self-test.${origin}
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/run-self-test.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR} ${origin})
+  set_tests_properties(host.self-test.${origin} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+endforeach()

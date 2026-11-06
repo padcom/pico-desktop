@@ -35,11 +35,12 @@ windows-x64; no macos-x64, #86).
   stable build published for all six targets as of 2026-11-06.
 - **Source:** Spotify's CEF automated builds (`https://cef-builds.spotifycdn.com/`), listed in
   `index.json`; *minimal* distributions (no sample apps or debug symbols).
-- **Integrity:** the index publishes SHA-1 per archive (recorded in `toolchain.json`). F1's
-  download script verifies them and additionally records a SHA-256 of each archive we use, which
-  becomes the pin for the runtime archives Pico Desktop publishes (F6).
-- **linux-arm64:** a prebuilt minimal archive exists (431 MB), so building CEF from source isn't
-  needed for the priority target.
+- **Integrity:** the index publishes SHA-1 per archive (recorded in `toolchain.json`).
+  `scripts/fetch-cef.mjs` (`pnpm cef:fetch`) refuses an archive whose SHA-1 differs, and records
+  its SHA-256; linux-arm64's (`806663a9…feb8`) is pinned in `toolchain.json`, and becomes the
+  basis of the runtime archives Pico Desktop publishes (F6).
+- **linux-arm64:** the prebuilt minimal archive (431 MB, 2.6 GB unpacked) works: the host
+  builds against it and passes its self-tests (F1, `docs/platform-linux.md`).
 - The CEF revision is pinned per Pico Desktop release and not updated opportunistically
   (PROJECT_DESCRIPTION.md §8).
 
