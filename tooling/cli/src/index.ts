@@ -1,5 +1,4 @@
-// The pico-desktop CLI (PROJECT_DESCRIPTION.md §7): create, generate, dev and test; build and
-// package come with F6.
+// The pico-desktop CLI (PROJECT_DESCRIPTION.md §7): create, generate, dev, test, build and package.
 import { parseArgs } from 'node:util'
 import pkg from '../package.json' with { type: 'json' }
 import { ConfigError, type ResolvedConfig, loadConfig } from './config'
@@ -7,6 +6,8 @@ import { create } from './create'
 import { dev } from './dev'
 import { generate } from './generate'
 import type { Output } from './io'
+import { build } from './build'
+import { packageApp } from './package-command'
 import { test } from './test-command'
 
 export { CAPABILITIES, type Capability, type ContractConfig, type UserConfig, defineConfig } from './config'
@@ -27,8 +28,8 @@ Commands:
   dev [--trace-ipc]   the app with HMR; Pico edits rebuild and restart the backend in the same window
   generate   the contracts → TypeScript and Pico
   test       Vitest and pico test
-  build      (F6)
-  package    (F6)
+  build      a portable bundle for this machine (dist/<name>-<version>-<target>/)
+  package    that bundle as dist/<name>-<version>-<target>.tar.gz (+ .sha256)
 
 Options:
   -h, --help     Show this help
@@ -58,12 +59,6 @@ const createCommand: Handler = (args, io) => {
   return Promise.resolve(create({ dir: positionals[0]!, id: values.id, framework: values.framework }, io))
 }
 
-const later = (command: string): Handler => (_args, io) => {
-  io.err(`pico-desktop ${command}: not implemented yet (see PLAN.md, phase F6)`)
-
-  return Promise.resolve(2)
-}
-
 const say = (text: string): Handler => (_args, io) => {
   io.out(text)
 
@@ -83,8 +78,8 @@ const handlers: Record<string, Handler> = {
   },
   'generate': inApp(generateCommand),
   'test': inApp(test),
-  'build': later('build'),
-  'package': later('package'),
+  'build': inApp(build),
+  'package': inApp(packageApp),
 }
 
 const unknown: Handler = ([first], io) => {
@@ -111,7 +106,7 @@ async function reportingConfigErrors(run: () => Promise<number>, io: Output): Pr
  *
  * @param args the arguments, without node and the script
  * @param io where output and errors go
- * @returns the exit code: 0 on success, 1 for a usage or configuration error, 2 for a command that isn't implemented yet
+ * @returns the exit code: 0 on success, 1 for a failure or a usage or configuration error
  */
 export function main(args: string[], io: Output): Promise<number> {
   const [first, ...rest] = args

@@ -46,6 +46,7 @@ add_executable(pico-desktop-host
   src/cef/main.cpp
   src/cef/scheme.cpp
   src/cef/services.cpp
+  src/cef/signals.cpp
   src/cef/window.cpp)
 SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
 add_dependencies(pico-desktop-host libcef_dll_wrapper)
@@ -67,6 +68,23 @@ if(OS_LINUX)
     add_custom_command(TARGET pico-desktop-host POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E create_symlink "${CEF_RESOURCE_DIR}/${file}" "$<TARGET_FILE_DIR:pico-desktop-host>/${file}")
   endforeach()
+  # `cmake --install … --component runtime` lays out the runtime: the host and CEF's files side by
+  # side, with the notices (scripts/stage-runtime.mjs strips, hashes and archives it).
+  install(TARGETS pico-desktop-host RUNTIME DESTINATION . COMPONENT runtime)
+  foreach(file IN LISTS CEF_BINARY_FILES)
+    install(PROGRAMS "${CEF_BINARY_DIR_RELEASE}/${file}" DESTINATION . COMPONENT runtime)
+  endforeach()
+  foreach(file IN LISTS CEF_RESOURCE_FILES)
+    if(IS_DIRECTORY "${CEF_RESOURCE_DIR}/${file}")
+      install(DIRECTORY "${CEF_RESOURCE_DIR}/${file}" DESTINATION . COMPONENT runtime)
+    else()
+      install(FILES "${CEF_RESOURCE_DIR}/${file}" DESTINATION . COMPONENT runtime)
+    endif()
+  endforeach()
+  install(FILES "${CEF_ROOT}/LICENSE.txt" DESTINATION licenses RENAME CEF-LICENSE.txt COMPONENT runtime)
+  install(FILES "${CEF_ROOT}/CREDITS.html" DESTINATION licenses RENAME CHROMIUM-CREDITS.html COMPONENT runtime)
+  install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION licenses RENAME PICO-DESKTOP-LICENSE.txt
+          COMPONENT runtime)
 else()
   message(FATAL_ERROR "the CEF host is implemented for Linux first (linux-arm64 is the priority target)")
 endif()
@@ -121,3 +139,9 @@ set_tests_properties(hello-world.self-test PROPERTIES SKIP_RETURN_CODE 77 TIMEOU
 add_test(NAME cli.dev-loop
   COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/dev-loop.sh $<TARGET_FILE:pico-desktop-host>)
 set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+
+# The F6 bundle on a freshly created app (tooling/cli/tests/bundle.sh): build, run it with a bare
+# environment, SIGTERM, package, verify, unpack and run again, and a tampered runtime refused.
+# Needs pico, the built CLI and a staged runtime (`pnpm runtime`); skipped otherwise.
+add_test(NAME cli.bundle COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/bundle.sh)
+set_tests_properties(cli.bundle PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)

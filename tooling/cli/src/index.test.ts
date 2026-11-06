@@ -29,12 +29,6 @@ describe('cli', () => {
     expect((await run()).code).toBe(1)
   })
 
-  it('reports build and package as not implemented yet', async () => {
-    const { code, err } = await run('build')
-    expect(code).toBe(2)
-    expect(err).toContain('not implemented yet')
-  })
-
   it('rejects unknown commands', async () => {
     const { code, err } = await run('deploy')
     expect(code).toBe(1)

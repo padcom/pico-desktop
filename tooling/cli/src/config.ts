@@ -29,6 +29,8 @@ export interface UserConfig {
   contracts?: ContractConfig[]
   /** The pico-desktop-host executable (default: $PICO_DESKTOP_HOST, then the framework's build). */
   host?: string
+  /** The runtime `build` bundles: a directory or a .tar.gz (default: $PICO_DESKTOP_RUNTIME, then the framework's). */
+  runtime?: string
 }
 
 export interface ResolvedConfig {
@@ -39,6 +41,7 @@ export interface ResolvedConfig {
   backend: { root: string, entry: string }
   contracts: ContractConfig[]
   host: string | undefined
+  runtime: string | undefined
 }
 
 /**
@@ -102,6 +105,7 @@ export function resolveConfig(root: string, user: UserConfig): ResolvedConfig {
     backend: { root: at(backend.root), entry: backend.entry },
     contracts,
     host: user.host === undefined ? undefined : at(user.host),
+    runtime: user.runtime === undefined ? undefined : at(user.runtime),
   }
 }
 

@@ -16,6 +16,7 @@ describe('resolveConfig', () => {
         pico: '/app/apps/backend/generated/app.pi',
       }],
       host: undefined,
+      runtime: undefined,
     })
   })
 
@@ -24,7 +25,6 @@ describe('resolveConfig', () => {
     expect(config.backend.root).toBe('/app/pico')
     expect(config.host).toBe('/app/bin/host')
   })
-
 })
 
 describe('resolveConfig checks', () => {

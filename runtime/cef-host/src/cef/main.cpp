@@ -12,6 +12,7 @@
 
 #include "app.hpp"
 #include "control.hpp"
+#include "signals.hpp"
 #include "host.hpp"
 #include "link.hpp"
 #include "include/cef_app.h"
@@ -130,6 +131,7 @@ int run_browser(int argc, char** argv) {
                  CefGetExitCode());
     return 1;
   }
+  start_signal_watch();
   if (browser_state().options.control_stdin) {
     start_control_reader();
   }
