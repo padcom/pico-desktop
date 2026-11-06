@@ -9,6 +9,8 @@ pnpm cef:fetch        # downloads and verifies the pinned CEF (toolchain.json) i
 pnpm cef              # configure (preset `cef`), build, build the fixture, ctest (including the self-tests)
 ```
 
+- Building needs the X11 development files (`libx11-dev` on Debian/Ubuntu): CEF's standard link
+  libraries include `-lX11`.
 - CEF's minimal distribution only has `Release/libcef.so`, so the `cef` preset is a Release build.
 - CEF's CMake picks `x86_64` on Linux arm64 (it looks for the processor name `arm64`, Linux says
   `aarch64`); the root `CMakeLists.txt` sets `PROJECT_ARCH=arm64` itself.
