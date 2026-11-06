@@ -47,6 +47,11 @@ The host never sets `--no-sandbox` and never disables it; `CefSettings.no_sandbo
   | gpu-process | 0 | no (normal on Linux) |
 
   The test fails unless every renderer has seccomp-bpf *and* its own PID namespace.
+- **Ubuntu 23.10+ restricts unprivileged user namespaces through AppArmor**
+  (`kernel.apparmor_restrict_unprivileged_userns=1`). CI lifts that restriction for its runner
+  (`sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`); for users the app needs an
+  AppArmor profile that allows `userns` for its executable, or the SUID `chrome-sandbox`.
+  Choosing between them is part of the AppImage work (F7).
 - Where user namespaces are restricted (some distributions' AppArmor policy, hardened kernels),
   Chromium can't start sandboxed renderers. The host never falls back to `--no-sandbox`; it
   prints a message naming user namespaces when `CefInitialize` fails. **Open (F5/F7):** detect

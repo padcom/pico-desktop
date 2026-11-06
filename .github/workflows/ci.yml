@@ -35,6 +35,36 @@ jobs:
       - run: cmake --build --preset default
       - run: ctest --preset default
 
+  cef-host:
+    name: CEF host (build, self-tests under Xvfb)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Cache the pinned CEF
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pico-desktop/cef
+          key: cef-linux-arm64-${{ hashFiles('toolchain.json') }}
+      - name: Fetch and verify CEF
+        run: pnpm cef:fetch
+      - name: Runtime libraries and Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth libnss3 libatk1.0-0t64 \
+            libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
+            libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 libgtk-3-0t64
+      - name: Allow unprivileged user namespaces (the sandbox needs them; it's never disabled)
+        # Ubuntu 24.04 restricts them through AppArmor by default (see docs/platform-linux.md).
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Build the host and run its self-tests
+        run: pnpm cef
+
   pico:
     name: Pico (communicator-pico, probes)
     runs-on: ubuntu-24.04-arm
