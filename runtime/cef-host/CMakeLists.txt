@@ -82,3 +82,10 @@ foreach(origin IN ITEMS app https)
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/run-self-test.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR} ${origin})
   set_tests_properties(host.self-test.${origin} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endforeach()
+
+# The F3 vertical slice end to end: the hello-world app's self-test build and its compiled Pico
+# backend in a real window (`pnpm --filter @pico-desktop/hello-world build:self-test` and
+# `backend`, which needs pico); skipped when they aren't built.
+add_test(NAME hello-world.self-test
+  COMMAND ${PROJECT_SOURCE_DIR}/apps/hello-world/scripts/self-test.sh $<TARGET_FILE:pico-desktop-host>)
+set_tests_properties(hello-world.self-test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 150 RUN_SERIAL TRUE)

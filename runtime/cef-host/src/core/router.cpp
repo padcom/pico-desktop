@@ -109,8 +109,13 @@ void Router::session_hello(std::uint64_t session, std::uint64_t window) {
 
 void Router::session_request(std::uint64_t session, std::uint64_t window, std::span<const std::byte> message,
                              std::uint64_t ui_id, bool subscribe, const std::string& name) {
-  if (host_echo_ && !subscribe && name == "host.echo") {
-    echo(session, message, ui_id);
+  if (self_test_ && !subscribe && name == "host.echo") {
+    answer_here(session, ui_id, ipc::raw_field(message, 4));
+    return;
+  }
+  if (self_test_ && !subscribe && name == "host.killBackend") {
+    answer_here(session, ui_id, std::nullopt);
+    out_.kill_backend();
     return;
   }
   if (!ready_) {
@@ -122,8 +127,7 @@ void Router::session_request(std::uint64_t session, std::uint64_t window, std::s
   out_.to_backend(ipc::with_window(ipc::with_field(message, ipc::kKeyId, id), window));
 }
 
-void Router::echo(std::uint64_t session, std::span<const std::byte> message, std::uint64_t ui_id) {
-  const auto payload = ipc::raw_field(message, 4);
+void Router::answer_here(std::uint64_t session, std::uint64_t ui_id, std::optional<std::vector<std::byte>> payload) {
   ipc::Writer w;
   w.map(payload ? 4 : 3).uint(0).uint(1).uint(1).uint(static_cast<std::uint64_t>(Kind::response)).uint(2).uint(ui_id);
   if (payload) {

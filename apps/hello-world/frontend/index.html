@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hello, Pico</title>
+    <script type="module" src="./src/main.ts"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Hello, Pico</h1>
+      <p class="status">Backend: <span id="state">connecting</span> · clock <span id="clock">–</span></p>
+      <form id="greet">
+        <label>Name <input id="name" value="Pico" autocomplete="off" /></label>
+        <button id="hello" type="submit">Say hello</button>
+        <button id="ask" type="button">Let Pico ask first</button>
+      </form>
+      <p id="message" class="message"></p>
+      <p>Greetings so far: <span id="count">0</span></p>
+      <section id="confirm" class="confirm" hidden>
+        <p id="question"></p>
+        <button id="yes" type="button">Yes</button>
+        <button id="no" type="button">No</button>
+      </section>
+    </main>
+  </body>
+</html>

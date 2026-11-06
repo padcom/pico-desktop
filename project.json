@@ -1,0 +1,3 @@
+{
+  "workspace": ["packages/communicator-pico", "apps/hello-world/backend"]
+}

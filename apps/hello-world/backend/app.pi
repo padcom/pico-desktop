@@ -1,0 +1,94 @@
+// The hello-world backend: greets (counting greetings), asks the frontend before greeting when
+// told to, tells the window after each greeting, and publishes a clock. Pico 0.4 has no async
+// closures, so handlers are named async functions sharing the module's state.
+import { Cbor, Communicator, CommunicatorError, RequestContext, Sink, Transport } from "pico-desktop/communicator"
+import {
+  ConfirmRequest,
+  Greeted,
+  Greeting,
+  Tick,
+  decodeClockParams,
+  decodeConfirmResponse,
+  decodeHelloRequest,
+  encodeConfirmRequest,
+  encodeGreeted,
+  encodeGreeting,
+  encodeTick,
+} from "./generated/hello"
+
+class State {
+  public communicator: Communicator? = null
+  public greetings: u32 = 0
+}
+
+const state = new State()
+
+/// The backend on `transport` (the app runs it on stdio; tests on a memory link).
+export function createBackend(transport: Transport): Communicator {
+  const c = new Communicator(transport)
+  state.communicator = c
+  state.greetings = 0
+  c.handle("greeting.hello", hello)
+  c.handle("greeting.ask", ask)
+  c.publish("clock.ticks", ticks)
+  c
+}
+
+function communicator(): Communicator {
+  const c = state.communicator
+  if (c == null) {
+    panic("hello-world: createBackend wasn't called")
+  }
+  c
+}
+
+/// "Hello, <name>!" (a name is required), counted, and announced to the window that asked.
+async function greet(name: string, window: u64?): Promise<Greeting> throws Error {
+  const trimmed = name.trim()
+  if (trimmed.length == 0) {
+    throw new CommunicatorError("EMPTY_NAME", "say who to greet")
+  }
+  state.greetings += 1
+  const greeting = Greeting { message: `Hello, ${trimmed}!`, count: state.greetings }
+  await communicator().emit("greeting.greeted", encodeGreeted(Greeted { name: trimmed, count: greeting.count }), window)
+  greeting
+}
+
+async function hello(payload: Cbor?, ctx: RequestContext): Promise<Cbor?> throws Error {
+  const request = decodeHelloRequest(payload ?? Cbor.Null, "$")
+  encodeGreeting(await greet(request.name, ctx.window))
+}
+
+/// Asks the frontend first (a backend → frontend call), then greets, or doesn't.
+async function ask(payload: Cbor?, ctx: RequestContext): Promise<Cbor?> throws Error {
+  const request = decodeHelloRequest(payload ?? Cbor.Null, "$")
+  const question = encodeConfirmRequest(ConfirmRequest { question: `Say hello to ${request.name}?` })
+  const answer = decodeConfirmResponse((await communicator().request("ui.confirm", question, ctx.window)) ?? Cbor.Null, "$")
+  if (!answer.ok) {
+    return encodeGreeting(Greeting { message: `Maybe later, ${request.name}.`, count: state.greetings })
+  }
+  encodeGreeting(await greet(request.name, ctx.window))
+}
+
+/// A tick every `intervalMs` (default 1 s) until the subscriber unsubscribes.
+class Clock {
+  sink: Sink
+  public n: u32 = 0
+  public timer: int = 0
+
+  constructor(sink: Sink) {
+    this.sink = sink
+  }
+
+  public tick(): void {
+    n += 1
+    sink.next(encodeTick(Tick { n: n }))
+  }
+}
+
+function ticks(params: Cbor?, sink: Sink): void throws Error {
+  const interval = decodeClockParams(params ?? Cbor.Null, "$").intervalMs ?? 1000
+  const clock = new Clock(sink)
+  clock.timer = setInterval(() => clock.tick(), interval as int)
+  sink.onClose = () => clearInterval(clock.timer)
+}

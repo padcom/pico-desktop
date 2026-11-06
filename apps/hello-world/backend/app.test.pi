@@ -1,0 +1,111 @@
+// The hello-world backend against a scripted frontend on an in-memory link.
+import { describe, it, expect } from "std/test"
+import { Cbor, Envelope, MemoryEnd, decodeEnvelope, encodeEnvelope, envelope, integer, memoryPair } from "pico-desktop/communicator"
+import { createBackend } from "./app"
+import {
+  ClockParams,
+  ConfirmResponse,
+  HelloRequest,
+  decodeConfirmRequest,
+  decodeGreeted,
+  decodeGreeting,
+  decodeTick,
+  encodeClockParams,
+  encodeConfirmResponse,
+  encodeHelloRequest,
+} from "./generated/hello"
+
+/// The frontend's end of the link, with the backend running on the other one.
+class Frontend {
+  public peer: MemoryEnd
+
+  constructor() {
+    const ends = memoryPair()
+    this.peer = ends[1]
+    createBackend(ends[0]).run()
+  }
+
+  public async next(): Promise<Envelope> throws Error {
+    const m = await peer.receive()
+    if (m == null) {
+      throw new Error("the link closed")
+    }
+    decodeEnvelope(m)
+  }
+
+  public async send(e: Envelope): Promise<void> throws Error {
+    await peer.send(encodeEnvelope(e))
+  }
+
+  public async call(kind: string, id: u64, name: string, payload: Cbor?): Promise<void> throws Error {
+    const e = envelope(if (kind == "subscribe") "subscribe" else "request")
+    e.id = id
+    e.n = name
+    e.p = payload
+    e.w = 1
+    await send(e)
+  }
+}
+
+async function connected(): Promise<Frontend> throws Error {
+  const f = new Frontend()
+  expect((await f.next()).n ?? "").toBe("hello")
+  f
+}
+
+async function greets(): Promise<void> throws Error {
+  const f = await connected()
+  await f.call("request", 1, "greeting.hello", encodeHelloRequest(HelloRequest { name: " Pico " }))
+  const event = await f.next()
+  expect(event.k == "event" && event.n == "greeting.greeted" && event.w == 1).toBe(true)
+  expect(decodeGreeted(event.p ?? Cbor.Null, "$").count as int).toBe(1)
+  const response = await f.next()
+  const greeting = decodeGreeting(response.p ?? Cbor.Null, "$")
+  expect(response.id == 1 && greeting.message == "Hello, Pico!" && greeting.count == 1).toBe(true)
+
+  await f.call("request", 2, "greeting.hello", encodeHelloRequest(HelloRequest { name: "  " }))
+  expect((await f.next()).err?.code ?? "").toBe("EMPTY_NAME")
+  const wrong = new Map<string, Cbor>()
+  wrong.set("name", integer(5))
+  await f.call("request", 3, "greeting.hello", Cbor.Dict(wrong))
+  const invalid = await f.next()
+  expect(invalid.err?.code ?? "").toBe("INVALID_PAYLOAD")
+  expect(invalid.err?.message ?? "").toBe("$.name: expected text")
+}
+
+async function asksFirst(): Promise<void> throws Error {
+  const f = await connected()
+  await f.call("request", 1, "greeting.ask", encodeHelloRequest(HelloRequest { name: "Ada" }))
+  const question = await f.next()
+  expect(question.k == "request" && question.n == "ui.confirm" && question.w == 1).toBe(true)
+  expect(decodeConfirmRequest(question.p ?? Cbor.Null, "$").question).toBe("Say hello to Ada?")
+  const no = envelope("response")
+  no.id = question.id
+  no.w = 1
+  no.p = encodeConfirmResponse(ConfirmResponse { ok: false })
+  await f.send(no)
+  const answer = await f.next()
+  expect(answer.id == 1 && decodeGreeting(answer.p ?? Cbor.Null, "$").message == "Maybe later, Ada.").toBe(true)
+}
+
+async function ticks(): Promise<void> throws Error {
+  const f = await connected()
+  await f.call("subscribe", 1, "clock.ticks", encodeClockParams(ClockParams { intervalMs: 5 }))
+  const accepted = await f.next()
+  expect(accepted.k == "response" && accepted.s != null).toBe(true)
+  const first = await f.next()
+  const second = await f.next()
+  expect(first.s == accepted.s && decodeTick(first.p ?? Cbor.Null, "$").n == 1).toBe(true)
+  expect(decodeTick(second.p ?? Cbor.Null, "$").n as int).toBe(2)
+  const stop = envelope("unsubscribe")
+  stop.s = accepted.s
+  stop.w = 1
+  await f.send(stop)
+  f.peer.close()
+}
+
+describe("the hello-world backend", () => {
+  it("greets, counting, and tells the window", greets)
+  it("asks the frontend before greeting", asksFirst)
+  it("publishes a clock", ticks)
+})

@@ -62,7 +62,36 @@ jobs:
       - name: Allow unprivileged user namespaces (the sandbox needs them; it's never disabled)
         # Ubuntu 24.04 restricts them through AppArmor by default (see docs/platform-linux.md).
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - name: Build the host and run its self-tests
+      - name: Resolve the pinned Pico release (hello-world's backend needs it)
+        id: pico
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(jq -r .pico.minimum toolchain.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" -R padcom/pico-lang > /dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::pico $version isn't released yet; the hello-world end-to-end test is skipped"
+          fi
+      - name: Install Pico
+        if: steps.pico.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=${{ steps.pico.outputs.version }}
+          gh release download "v$v" -R padcom/pico-lang -p "pico-$v-linux-arm64.tar.gz" -D "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/pico" && tar -xzf "$RUNNER_TEMP/pico-$v-linux-arm64.tar.gz" -C "$RUNNER_TEMP/pico"
+          bin=$(dirname "$(find "$RUNNER_TEMP/pico" -type f -name pico -perm -u+x | head -1)")
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: Build hello-world (self-test frontend, Pico backend)
+        if: steps.pico.outputs.available == 'true'
+        run: |
+          pnpm --filter @pico-desktop/hello-world... build
+          pnpm --filter @pico-desktop/hello-world build:self-test
+          pnpm --filter @pico-desktop/hello-world backend
+      - name: Build the host and run its self-tests (and hello-world end to end, when built)
         run: pnpm cef
 
   pico:
@@ -95,6 +124,11 @@ jobs:
         run: pico --version
       - if: steps.pico.outputs.available == 'true'
         run: pico test packages/communicator-pico
+      - name: hello-world backend tests and lint
+        if: steps.pico.outputs.available == 'true'
+        working-directory: apps/hello-world/backend
+        # Absolute paths: pico-lang #93.
+        run: pico test "$PWD" && pico lint "$PWD"
       - if: steps.pico.outputs.available == 'true'
         uses: actions/setup-node@v4
         with:

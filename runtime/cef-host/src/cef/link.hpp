@@ -47,6 +47,7 @@ class Link : public RouterOutput {
   void to_backend(Bytes message) override;
   void to_session(std::uint64_t session, Bytes message) override;
   void log(const std::string& line) override;
+  void kill_backend() override;
 
  private:
   struct Page {

@@ -32,7 +32,8 @@
     "cef:build": "cmake --build --preset cef",
     "cef:test": "pnpm --filter @pico-desktop/host-fixture... build && ctest --preset cef",
     "cef": "pnpm cef:configure && pnpm cef:build && pnpm cef:test",
-    "pico:test": "pico test packages/communicator-pico",
+    "pico:test": "pico test packages/communicator-pico && pnpm --filter @pico-desktop/hello-world backend:test",
+    "hello-world:self-test": "pnpm --filter @pico-desktop/hello-world... build && pnpm --filter @pico-desktop/hello-world self-test",
     "check": "pnpm lint && pnpm build && pnpm typecheck && pnpm test && pnpm native && pnpm pico:test"
   },
   "devDependencies": {

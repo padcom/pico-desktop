@@ -1,0 +1,25 @@
+; The hello-world contract (ADR-0005): what the frontend and the Pico backend say to each other.
+; The backend answers greeting.hello and greeting.ask and publishes clock.ticks; the frontend
+; answers ui.confirm (the backend asks it from greeting.ask); the backend emits greeting.greeted
+; after each greeting.
+services = {
+  "greeting.hello": ["method", hello-request, greeting],
+  "greeting.ask": ["method", hello-request, greeting],
+  "ui.confirm": ["method", confirm-request, confirm-response],
+  "greeting.greeted": ["event", greeted],
+  "clock.ticks": ["subscription", clock-params, tick],
+}
+
+hello-request = { name: tstr }
+
+greeting = { message: tstr, count: uint .size 4 }
+
+greeted = { name: tstr, count: uint .size 4 }
+
+confirm-request = { question: tstr }
+
+confirm-response = { ok: bool }
+
+clock-params = { ? intervalMs: uint .size 4 }
+
+tick = { n: uint .size 4 }

@@ -146,6 +146,13 @@ void Link::to_session(std::uint64_t session, Bytes message) {
 
 void Link::log(const std::string& line) { log_line(line); }
 
+void Link::kill_backend() {
+  if (process_) {
+    log("pd-host: killing the backend (self-test)");
+    kill(process_->child.pid, SIGKILL);
+  }
+}
+
 // ---------------------------------------------------------------------------------- backend
 
 void Link::spawn() {

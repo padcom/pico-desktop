@@ -1,0 +1,5 @@
+// The hello-world backend process: the host starts it with the protocol on stdin/stdout.
+import { StdioTransport } from "pico-desktop/communicator"
+import { createBackend } from "./app"
+
+await createBackend(new StdioTransport()).run()

@@ -1,0 +1,8 @@
+{
+  "name": "pico-desktop/hello-world-backend",
+  "version": "0.0.0",
+  "entry": "main.pi",
+  "dependencies": {
+    "pico-desktop/communicator": "0.0.0"
+  }
+}

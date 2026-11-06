@@ -85,8 +85,10 @@ F2 (`CONNECTION_STATES` in `@pico-desktop/communicator`, `ConnectionState` in
 | `tooling/cli` | The `pico-desktop` CLI | F4 |
 | `tooling/vite-plugin` | Vite integration | F4/F6 |
 | `tooling/templates` | `pico-desktop create` templates | F4 |
-| `apps/hello-world` | The first end-to-end app | F3 |
-| `tests/integration`, `tests/e2e` | Cross-process and developer-scenario tests | F3–F7 |
+| `apps/hello-world` | The first end-to-end app: a contract, a Vite frontend, a Pico backend and a real-window self-test | F3 |
+| `project.json` | The Pico workspace: `communicator-pico` and the app backends, which import it as `pico-desktop/communicator` | F3 |
+| `tests/host-fixture` | The host's own self-test page (no backend; the host answers `host.echo`) | F1/F3 |
+| `tests/integration`, `tests/e2e` | Cross-process and developer-scenario tests | F4–F7 |
 | `probes/` | Workstream 0 Pico capability probes | done |
 
 ## Boundaries the code must keep

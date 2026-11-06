@@ -28,12 +28,14 @@ static int failures = 0;
 namespace {
 
 struct Fake : RouterOutput {
+  int kills = 0;
   std::vector<Bytes> backend;
   std::vector<std::pair<std::uint64_t, Bytes>> sessions;
   std::vector<std::string> lines;
   void to_backend(Bytes message) override { backend.push_back(std::move(message)); }
   void to_session(std::uint64_t session, Bytes message) override { sessions.emplace_back(session, std::move(message)); }
   void log(const std::string& line) override { lines.push_back(line); }
+  void kill_backend() override { ++kills; }
   void clear() {
     backend.clear();
     sessions.clear();
@@ -363,11 +365,15 @@ void echo() {
   CHECK(header(reply).kind == Kind::response && header(reply).id == 4u);
   CHECK(ipc::raw_field(reply, 4) == ipc::raw_field(call(Kind::request, 4, "host.echo"), 4));
 
+  router.from_session(1, 10, call(Kind::request, 5, "host.killBackend"));
+  CHECK(out.kills == 1 && out.sessions.size() == 2 && header(out.sessions[1].second).id == 5u);
+
   Fake plain;
   Router off(plain);
   off.from_session(1, 10, lifecycle("hello"));
   off.from_session(1, 10, call(Kind::request, 4, "host.echo"));
-  CHECK(has_code(plain.sessions[0].second, "DISCONNECTED"));
+  off.from_session(1, 10, call(Kind::request, 5, "host.killBackend"));
+  CHECK(has_code(plain.sessions[0].second, "DISCONNECTED") && plain.kills == 0);
 }
 
 void restart_budget() {

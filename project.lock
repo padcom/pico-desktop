@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "packages": [
+    {
+      "name": "pico-desktop/communicator",
+      "version": "0.0.0",
+      "path": "packages/communicator-pico"
+    },
+    {
+      "name": "pico-desktop/hello-world-backend",
+      "version": "0.0.0",
+      "path": "apps/hello-world/backend",
+      "dependencies": {
+        "pico-desktop/communicator": "pico-desktop/communicator@0.0.0"
+      }
+    }
+  ]
+}

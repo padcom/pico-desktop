@@ -24,12 +24,15 @@ class RouterOutput {
   virtual void to_backend(Bytes message) = 0;
   virtual void to_session(std::uint64_t session, Bytes message) = 0;
   virtual void log(const std::string& line) = 0;
+  /// Self-tests only (`host.killBackend`): end the backend abruptly, like a crash.
+  virtual void kill_backend() {}
 };
 
 class Router {
  public:
-  /// `host_echo`: answer `host.echo` requests in the host (self-tests only).
-  explicit Router(RouterOutput& out, bool host_echo = false) : out_(out), host_echo_(host_echo) {}
+  /// `self_test`: the host answers `host.echo` (with the request's payload) and `host.killBackend`
+  /// itself; no app can call them otherwise.
+  explicit Router(RouterOutput& out, bool self_test = false) : out_(out), self_test_(self_test) {}
 
   /// A message from a page's Communicator, in window `window`.
   void from_session(std::uint64_t session, std::uint64_t window, std::span<const std::byte> message);
@@ -65,7 +68,8 @@ class Router {
   void session_cancel(std::uint64_t session, std::uint64_t ui_id);
   void session_unsubscribe(std::uint64_t session, std::uint64_t window, std::span<const std::byte> message,
                            std::uint64_t s);
-  void echo(std::uint64_t session, std::span<const std::byte> message, std::uint64_t ui_id);
+  /// Answers request `ui_id` of `session` itself, with `payload` (raw CBOR) or none.
+  void answer_here(std::uint64_t session, std::uint64_t ui_id, std::optional<std::vector<std::byte>> payload);
 
   void backend_answer(std::span<const std::byte> message, std::uint64_t id, std::optional<std::uint64_t> s);
   void backend_request(std::span<const std::byte> message, std::uint64_t id, std::optional<std::uint64_t> window);
@@ -81,7 +85,7 @@ class Router {
   bool is_current(std::uint64_t session) const;
 
   RouterOutput& out_;
-  bool host_echo_;
+  bool self_test_;
   bool ready_ = false;
   std::uint64_t epoch_ = 0;
   std::uint64_t next_id_ = 1;
