@@ -11,43 +11,43 @@ export struct SerialPort {
 
 export function decodeSerialPort(v: Cbor, path: string): SerialPort throws InvalidPayload {
   const m = members(v, path, ["path", "vendorId", "productId", "serial"])
-  const vendorIdCbor = m.get("vendorId")
-  let vendorId: u16? = null
-  if (vendorIdCbor != null) {
-    vendorId = (uint(vendorIdCbor, `${path}.vendorId`, 65535) as u16)
+  const cbor1 = m.get("vendorId")
+  let opt1: u16? = null
+  if (cbor1 != null) {
+    opt1 = (uint(cbor1, `${path}.vendorId`, 65535) as u16)
   }
-  const productIdCbor = m.get("productId")
-  let productId: u16? = null
-  if (productIdCbor != null) {
-    productId = (uint(productIdCbor, `${path}.productId`, 65535) as u16)
+  const cbor2 = m.get("productId")
+  let opt2: u16? = null
+  if (cbor2 != null) {
+    opt2 = (uint(cbor2, `${path}.productId`, 65535) as u16)
   }
-  const serialCbor = m.get("serial")
-  let serial: string? = null
-  if (serialCbor != null) {
-    serial = text(serialCbor, `${path}.serial`)
+  const cbor3 = m.get("serial")
+  let opt3: string? = null
+  if (cbor3 != null) {
+    opt3 = text(cbor3, `${path}.serial`)
   }
   SerialPort {
     path: text(required(m, "path", path), `${path}.path`),
-    vendorId: vendorId,
-    productId: productId,
-    serial: serial,
+    vendorId: opt1,
+    productId: opt2,
+    serial: opt3,
   }
 }
 
 export function encodeSerialPort(v: SerialPort): Cbor {
   const m = new Map<string, Cbor>()
   m.set("path", Cbor.Text(v.path))
-  const vendorIdValue = v.vendorId
-  if (vendorIdValue != null) {
-    m.set("vendorId", Cbor.Uint(vendorIdValue as u64))
+  const opt1 = v.vendorId
+  if (opt1 != null) {
+    m.set("vendorId", Cbor.Uint(opt1 as u64))
   }
-  const productIdValue = v.productId
-  if (productIdValue != null) {
-    m.set("productId", Cbor.Uint(productIdValue as u64))
+  const opt2 = v.productId
+  if (opt2 != null) {
+    m.set("productId", Cbor.Uint(opt2 as u64))
   }
-  const serialValue = v.serial
-  if (serialValue != null) {
-    m.set("serial", Cbor.Text(serialValue))
+  const opt3 = v.serial
+  if (opt3 != null) {
+    m.set("serial", Cbor.Text(opt3))
   }
   Cbor.Dict(m)
 }
@@ -79,15 +79,15 @@ export struct OpenParams {
 
 export function decodeOpenParams(v: Cbor, path: string): OpenParams throws InvalidPayload {
   const m = members(v, path, ["path", "baud", "parity"])
-  const parityCbor = m.get("parity")
-  let parity: OpenParamsParity? = null
-  if (parityCbor != null) {
-    parity = decodeOpenParamsParity(parityCbor, `${path}.parity`)
+  const cbor2 = m.get("parity")
+  let opt2: OpenParamsParity? = null
+  if (cbor2 != null) {
+    opt2 = decodeOpenParamsParity(cbor2, `${path}.parity`)
   }
   OpenParams {
     path: text(required(m, "path", path), `${path}.path`),
     baud: (uint(required(m, "baud", path), `${path}.baud`, 4294967295) as u32),
-    parity: parity,
+    parity: opt2,
   }
 }
 
@@ -95,9 +95,9 @@ export function encodeOpenParams(v: OpenParams): Cbor {
   const m = new Map<string, Cbor>()
   m.set("path", Cbor.Text(v.path))
   m.set("baud", Cbor.Uint(v.baud as u64))
-  const parityValue = v.parity
-  if (parityValue != null) {
-    m.set("parity", encodeOpenParamsParity(parityValue))
+  const opt2 = v.parity
+  if (opt2 != null) {
+    m.set("parity", encodeOpenParamsParity(opt2))
   }
   Cbor.Dict(m)
 }
@@ -110,15 +110,15 @@ export struct WriteParams {
 
 export function decodeWriteParams(v: Cbor, path: string): WriteParams throws InvalidPayload {
   const m = members(v, path, ["handle", "data", "packet"])
-  const packetCbor = m.get("packet")
-  let packet: Packet? = null
-  if (packetCbor != null) {
-    packet = decodePacket(packetCbor, `${path}.packet`)
+  const cbor2 = m.get("packet")
+  let opt2: Packet? = null
+  if (cbor2 != null) {
+    opt2 = decodePacket(cbor2, `${path}.packet`)
   }
   WriteParams {
     handle: (uint(required(m, "handle", path), `${path}.handle`, 4294967295) as u32),
     data: bytes(required(m, "data", path), `${path}.data`),
-    packet: packet,
+    packet: opt2,
   }
 }
 
@@ -126,9 +126,9 @@ export function encodeWriteParams(v: WriteParams): Cbor {
   const m = new Map<string, Cbor>()
   m.set("handle", Cbor.Uint(v.handle as u64))
   m.set("data", Cbor.Bytes(v.data))
-  const packetValue = v.packet
-  if (packetValue != null) {
-    m.set("packet", encodePacket(packetValue))
+  const opt2 = v.packet
+  if (opt2 != null) {
+    m.set("packet", encodePacket(opt2))
   }
   Cbor.Dict(m)
 }
@@ -253,23 +253,23 @@ export struct TelemetryBattery {
 
 export function decodeTelemetryBattery(v: Cbor, path: string): TelemetryBattery throws InvalidPayload {
   const m = members(v, path, ["voltage", "remaining"])
-  const remainingCbor = m.get("remaining")
-  let remaining: u64? = null
-  if (remainingCbor != null) {
-    remaining = (uint(remainingCbor, `${path}.remaining`, 100) as u64)
+  const cbor1 = m.get("remaining")
+  let opt1: u64? = null
+  if (cbor1 != null) {
+    opt1 = (uint(cbor1, `${path}.remaining`, 100) as u64)
   }
   TelemetryBattery {
     voltage: float(required(m, "voltage", path), `${path}.voltage`),
-    remaining: remaining,
+    remaining: opt1,
   }
 }
 
 export function encodeTelemetryBattery(v: TelemetryBattery): Cbor {
   const m = new Map<string, Cbor>()
   m.set("voltage", Cbor.Float(v.voltage))
-  const remainingValue = v.remaining
-  if (remainingValue != null) {
-    m.set("remaining", Cbor.Uint(remainingValue as u64))
+  const opt1 = v.remaining
+  if (opt1 != null) {
+    m.set("remaining", Cbor.Uint(opt1 as u64))
   }
   Cbor.Dict(m)
 }
@@ -302,15 +302,15 @@ export struct Telemetry {
 
 export function decodeTelemetry(v: Cbor, path: string): Telemetry throws InvalidPayload {
   const m = members(v, path, ["timeUs", "attitude", "battery", "mode"])
-  const batteryCbor = m.get("battery")
-  let battery: TelemetryBattery? = null
-  if (batteryCbor != null) {
-    battery = decodeTelemetryBattery(batteryCbor, `${path}.battery`)
+  const cbor2 = m.get("battery")
+  let opt2: TelemetryBattery? = null
+  if (cbor2 != null) {
+    opt2 = decodeTelemetryBattery(cbor2, `${path}.battery`)
   }
   Telemetry {
     timeUs: (uint(required(m, "timeUs", path), `${path}.timeUs`, 18446744073709551615) as u64),
     attitude: decodeTelemetryAttitude(required(m, "attitude", path), `${path}.attitude`),
-    battery: battery,
+    battery: opt2,
     mode: decodeTelemetryMode(required(m, "mode", path), `${path}.mode`),
   }
 }
@@ -319,9 +319,9 @@ export function encodeTelemetry(v: Telemetry): Cbor {
   const m = new Map<string, Cbor>()
   m.set("timeUs", Cbor.Uint(v.timeUs as u64))
   m.set("attitude", encodeTelemetryAttitude(v.attitude))
-  const batteryValue = v.battery
-  if (batteryValue != null) {
-    m.set("battery", encodeTelemetryBattery(batteryValue))
+  const opt2 = v.battery
+  if (opt2 != null) {
+    m.set("battery", encodeTelemetryBattery(opt2))
   }
   m.set("mode", encodeTelemetryMode(v.mode))
   Cbor.Dict(m)

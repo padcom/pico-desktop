@@ -143,36 +143,52 @@ class PicoGenerator {
       `export function decode${name}(v: Cbor, path: string): ${name} throws InvalidPayload {`,
       `  const m = members(v, path, ${known})`,
     ]
-    for (const f of fields.filter(field => field.optional)) {
-      // A typed `let` (not `if (…) null else …`, which doesn't widen a literal union to `T?`).
-      const owner = name + typeName(f.name)
-      decoder.push(
-        `  const ${f.name}Cbor = m.get(${JSON.stringify(f.name)})`,
-        `  let ${f.name}: ${this.picoType(f.type, owner)}? = null`,
-        `  if (${f.name}Cbor != null) {`,
-        `    ${f.name} = ${this.decodeExpr(f.type, `${f.name}Cbor`, `\`\${path}.${f.name}\``, owner)}`,
-        '  }',
-      )
-    }
+    decoder.push(...this.optionalLocals(name, fields))
     decoder.push(`  ${name} {`)
 
-    for (const f of fields) {
+    fields.forEach((f, i) => {
       const at = `\`\${path}.${f.name}\``
       const owner = name + typeName(f.name)
-      const value = f.optional ? f.name : this.decodeExpr(f.type, `required(m, ${JSON.stringify(f.name)}, path)`, at, owner)
+      const value = f.optional ? `opt${i}` : this.decodeExpr(f.type, `required(m, ${JSON.stringify(f.name)}, path)`, at, owner)
       decoder.push(`    ${f.name}: ${value},`)
-    }
+    })
     decoder.push('  }', '}\n')
     this.out.push(...lines, ...decoder, ...this.structEncoder(name, fields))
   }
 
+  /**
+   * The decoder's locals for optional fields: numbered (`opt0`), since a field's own name could
+   * be `path`, `v` or `m`, which the decoder already uses.
+   *
+   * @param name the struct
+   * @param fields its fields
+   * @returns the lines
+   */
+  private optionalLocals(name: string, fields: Field[]): string[] {
+    return fields.flatMap((f, i) => {
+      if (!f.optional) {
+        return []
+      }
+      // A typed `let` (not `if (…) null else …`, which doesn't widen a literal union to `T?`).
+      const owner = name + typeName(f.name)
+
+      return [
+        `  const cbor${i} = m.get(${JSON.stringify(f.name)})`,
+        `  let opt${i}: ${this.picoType(f.type, owner)}? = null`,
+        `  if (cbor${i} != null) {`,
+        `    opt${i} = ${this.decodeExpr(f.type, `cbor${i}`, `\`\${path}.${f.name}\``, owner)}`,
+        '  }',
+      ]
+    })
+  }
+
   private structEncoder(name: string, fields: Field[]): string[] {
     const lines = [`export function encode${name}(v: ${name}): Cbor {`, '  const m = new Map<string, Cbor>()']
-    for (const f of fields) {
+    fields.forEach((f, i) => {
       const key = JSON.stringify(f.name)
       const owner = name + typeName(f.name)
       if (f.optional) {
-        const local = `${f.name}Value`
+        const local = `opt${i}`
         lines.push(
           `  const ${local} = v.${f.name}`,
           `  if (${local} != null) {`,
@@ -182,7 +198,7 @@ class PicoGenerator {
       } else {
         lines.push(`  m.set(${key}, ${this.encodeExpr(f.type, `v.${f.name}`, owner)})`)
       }
-    }
+    })
     lines.push('  Cbor.Dict(m)', '}\n')
 
     return lines

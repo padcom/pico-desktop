@@ -207,6 +207,17 @@ function halfToF64(half: int): f64 {
   sign * Math.pow(2.0, (exponent - 15) as f64) * (1.0 + fraction / 1024.0)
 }
 
+/// One strict UTF-8 decoder for every text item (its constructor only throws for unknown labels).
+function strictUtf8(): TextDecoder {
+  try {
+    new TextDecoder("utf-8", { fatal: true })
+  } catch (e: RangeError) {
+    panic("utf-8 is always a known encoding")
+  }
+}
+
+const UTF8 = strictUtf8()
+
 class Reader {
   bytes: Uint8Array
   pos: int = 0
@@ -282,7 +293,7 @@ class Reader {
     const n = length(info, 1)
     const start = need(n)
     try {
-      new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(start, start + n))
+      UTF8.decode(bytes.subarray(start, start + n))
     } catch (e: TypeError) {
       throw new CborError("text is not valid UTF-8")
     }
