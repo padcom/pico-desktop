@@ -62,6 +62,14 @@ const DEFAULT_CONTRACTS: ContractConfig[] = [{
   pico: 'apps/backend/generated/app.pi',
 }]
 
+function runtimeLocation(root: string, runtime: string | undefined): string | undefined {
+  if (runtime === undefined || /^https?:\/\//u.test(runtime)) {
+    return runtime
+  }
+
+  return resolve(root, runtime)
+}
+
 function checkedCapabilities(user: UserConfig): Capability[] {
   const given: unknown[] = user.capabilities ?? []
   const unknown = given.find(c => !(CAPABILITIES as readonly unknown[]).includes(c))
@@ -105,7 +113,7 @@ export function resolveConfig(root: string, user: UserConfig): ResolvedConfig {
     backend: { root: at(backend.root), entry: backend.entry },
     contracts,
     host: user.host === undefined ? undefined : at(user.host),
-    runtime: user.runtime === undefined ? undefined : at(user.runtime),
+    runtime: runtimeLocation(root, user.runtime),
   }
 }
 

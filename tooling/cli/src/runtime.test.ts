@@ -4,7 +4,8 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { RuntimeError, unpackRuntime, verifyRuntime } from './runtime'
+import { createServer } from 'node:http'
+import { RuntimeError, fetchRuntime, unpackRuntime, verifyRuntime } from './runtime'
 
 const scratch = mkdtempSync(join(tmpdir(), 'pd-runtime-'))
 
@@ -86,5 +87,50 @@ describe('unpackRuntime', () => {
     expect(existsSync(join(scratch, 'cache2', 'forged'))).toBe(false)
     rmSync(`${file}.sha256`)
     await expect(unpackRuntime(file, join(scratch, 'cache2'))).rejects.toThrow(/no forged\.tar\.gz\.sha256/u)
+  })
+})
+
+/**
+ * Serves `files` on 127.0.0.1 (anything else is a 404).
+ *
+ * @param files path → body
+ * @returns the server and its port
+ */
+async function serve(files: Record<string, Buffer>) {
+  const server = createServer((req, res) => {
+    const body = files[req.url ?? '']
+    res.writeHead(body ? 200 : 404)
+    res.end(body)
+  })
+  await new Promise<void>(resolve => {
+    server.listen(0, '127.0.0.1', resolve)
+  })
+
+  return { server, port: (server.address() as { port: number }).port }
+}
+
+describe('fetchRuntime', () => {
+  it('downloads an archive and its .sha256, checks and unpacks it, and works offline afterwards', async () => {
+    fakeRuntime('served')
+    const archive = join(scratch, 'served.tar.gz')
+    execFileSync('tar', ['-C', scratch, '-czf', archive, 'served'])
+    const files: Record<string, Buffer> = {
+      '/r/served.tar.gz': readFileSync(archive),
+      '/r/served.tar.gz.sha256': Buffer.from(`${sha256(readFileSync(archive))}  served.tar.gz\n`),
+    }
+    const { server, port } = await serve(files)
+    const cache = join(scratch, 'downloaded')
+    const dir = await fetchRuntime(`http://127.0.0.1:${port}/r/served.tar.gz`, cache)
+    expect(verifyRuntime(dir, 'linux-arm64').version).toBe('0.0.0')
+    await expect(fetchRuntime(`http://127.0.0.1:${port}/r/missing.tar.gz`, cache)).rejects.toThrow(/HTTP 404/u)
+    server.close()
+    expect(await fetchRuntime(`http://127.0.0.1:${port}/r/served.tar.gz`, cache)).toBe(dir) // offline
+  })
+
+  it('refuses a runtime that speaks another protocol', () => {
+    const dir = fakeRuntime('future')
+    const manifest = JSON.parse(readFileSync(join(dir, 'runtime.json'), 'utf8')) as Record<string, unknown>
+    writeFileSync(join(dir, 'runtime.json'), JSON.stringify({ ...manifest, protocol: 2 }))
+    expect(() => verifyRuntime(dir, 'linux-arm64')).toThrow(/speaks protocol 2/u)
   })
 })

@@ -3,6 +3,7 @@
 //   dist/<name>-<version>-<target>/
 //     <name>          the launcher
 //     manifest.json   the app, its capabilities, the runtime it carries and every file's SHA-256
+//     sbom.cdx.json   what's in it (CycloneDX)
 //     app/            the built frontend
 //     backend/        the compiled Pico backend (release)
 //     runtime/        pico-desktop-host and CEF (checked file by file first), with their licenses
@@ -16,8 +17,9 @@ import { generate } from './generate'
 import type { Output } from './io'
 import { capture } from './processes'
 import {
-  RuntimeError, type RuntimeManifest, currentTarget, locateRuntime, runtimeCache, unpackRuntime, verifyRuntime,
+  RuntimeError, type RuntimeManifest, currentTarget, fetchRuntime, locateRuntime, runtimeCache, unpackRuntime, verifyRuntime,
 } from './runtime'
+import { frontendDependencies, sbom } from './sbom'
 import { findPico } from './tools'
 
 export interface Bundle {
@@ -54,9 +56,16 @@ export function launcher(config: ResolvedConfig): string {
   ].join('\n')
 }
 
+function runtimeDir(located: string): Promise<string> {
+  if (/^https?:\/\//u.test(located)) {
+    return fetchRuntime(located, runtimeCache())
+  }
+
+  return located.endsWith('.tar.gz') ? unpackRuntime(located, runtimeCache()) : Promise.resolve(located)
+}
+
 async function resolvedRuntime(config: ResolvedConfig, target: string): Promise<{ dir: string, manifest: RuntimeManifest }> {
-  const located = locateRuntime(config.runtime, target)
-  const dir = located.endsWith('.tar.gz') ? await unpackRuntime(located, runtimeCache()) : located
+  const dir = await runtimeDir(locateRuntime(config.runtime, target))
 
   return { dir, manifest: verifyRuntime(dir, target) }
 }
@@ -164,7 +173,10 @@ export async function buildBundle(config: ResolvedConfig, io: Output): Promise<B
   cpSync(runtime.dir, join(dir, 'runtime'), { recursive: true, dereference: true })
   writeFileSync(join(dir, name), launcher(config))
   chmodSync(join(dir, name), 0o755)
-  writeManifest(config, dir, runtime.manifest, await picoVersion())
+  const pico = await picoVersion()
+  writeManifest(config, dir, runtime.manifest, pico)
+  const bom = sbom(config, runtime.manifest, pico, frontendDependencies(config.frontend.root))
+  writeFileSync(join(dir, 'sbom.cdx.json'), `${JSON.stringify(bom, null, 2)}\n`)
 
   return { dir, name }
 }

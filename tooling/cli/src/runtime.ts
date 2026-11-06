@@ -2,7 +2,7 @@
 // pico-desktop-host and CEF's files, with runtime.json listing every file's SHA-256. It's used
 // only after every file checks out, so a tampered or incomplete runtime is refused by name.
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +20,9 @@ export interface RuntimeManifest {
 }
 
 export class RuntimeError extends Error {}
+
+/** The protocol the apps this CLI builds speak (docs/protocol.md). */
+export const PROTOCOL = 1
 
 const TARGETS: Record<string, string> = { 'linux-arm64': 'linux/arm64', 'linux-x64': 'linux/x64' }
 
@@ -53,6 +56,15 @@ function readManifest(dir: string): RuntimeManifest {
   return JSON.parse(readFileSync(path, 'utf8')) as RuntimeManifest
 }
 
+function checkHeader(dir: string, manifest: RuntimeManifest, target: string) {
+  if (manifest.target !== target) {
+    throw new RuntimeError(`${dir} is a runtime for ${manifest.target}, not ${target}`)
+  }
+  if (manifest.protocol !== PROTOCOL) {
+    throw new RuntimeError(`${dir} speaks protocol ${manifest.protocol}; this CLI's apps speak ${PROTOCOL}: use a matching one`)
+  }
+}
+
 /**
  * Checks a runtime directory against its manifest: the target, then every file's SHA-256, and no
  * files it doesn't list.
@@ -63,9 +75,7 @@ function readManifest(dir: string): RuntimeManifest {
  */
 export function verifyRuntime(dir: string, target: string): RuntimeManifest {
   const manifest = readManifest(dir)
-  if (manifest.target !== target) {
-    throw new RuntimeError(`${dir} is a runtime for ${manifest.target}, not ${target}`)
-  }
+  checkHeader(dir, manifest, target)
   const listed = Object.entries(manifest.files)
   const bad = listed.find(([file, hash]) => !existsSync(join(dir, file)) || sha256(join(dir, file)) !== hash)
   if (bad) {
@@ -128,6 +138,39 @@ export async function unpackRuntime(archive: string, cache: string): Promise<str
   return dir
 }
 
+async function download(url: string, to: string) {
+  let response: Response
+  try {
+    response = await fetch(url)
+  } catch (error) {
+    throw new RuntimeError(`couldn't download ${url} (${String(error)}); a runtime used before is reused offline`)
+  }
+
+  if (!response.ok) {
+    throw new RuntimeError(`couldn't download ${url}: HTTP ${response.status}`)
+  }
+  writeFileSync(to, Buffer.from(await response.arrayBuffer()))
+}
+
+/**
+ * Downloads a runtime archive and its .sha256 into the cache (once: a cached, unpacked runtime is
+ * reused offline) and unpacks it.
+ *
+ * @param url the archive's URL (`…/<name>.tar.gz`; `<url>.sha256` next to it)
+ * @param cache the cache directory
+ * @returns the unpacked runtime's directory
+ */
+export async function fetchRuntime(url: string, cache: string): Promise<string> {
+  const file = join(cache, 'downloads', basename(new URL(url).pathname))
+  if (!existsSync(join(cache, basename(file).replace(/\.tar\.gz$/u, ''), 'runtime.json'))) {
+    mkdirSync(join(cache, 'downloads'), { recursive: true })
+    await download(url, file)
+    await download(`${url}.sha256`, `${file}.sha256`)
+  }
+
+  return unpackRuntime(file, cache)
+}
+
 /** The framework checkout's staged runtimes (when the CLI runs from a checkout). */
 const FRAMEWORK_RUNTIMES = fileURLToPath(new URL(/* @vite-ignore */ '../../../build/runtime', import.meta.url))
 
@@ -144,8 +187,8 @@ function stagedRuntime(target: string): string {
 }
 
 /**
- * The runtime to build with: `runtime` in the config or $PICO_DESKTOP_RUNTIME (a directory or a
- * .tar.gz), else the framework checkout's staged one for this target.
+ * The runtime to build with: `runtime` in the config or $PICO_DESKTOP_RUNTIME (a directory, a
+ * .tar.gz, or an https:// URL of one), else the framework checkout's staged one for this target.
  *
  * @param configured the config's `runtime` (absolute), if any
  * @param target this machine's target

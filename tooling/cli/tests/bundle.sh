@@ -64,10 +64,13 @@ pnpm install --offline > "$scratch/install.log" 2>&1 || { cat "$scratch/install.
 PICO_DESKTOP_RUNTIME=$runtime node "$cli" build > "$scratch/build.log" 2>&1 || { cat "$scratch/build.log"; echo "FAIL: build"; exit 1; }
 bundle=$(ls -d dist/demo-0.1.0-linux-*/ | head -1)
 bundle=${bundle%/}
-for f in demo manifest.json app/index.html backend/backend runtime/pico-desktop-host runtime/runtime.json \
+for f in demo manifest.json sbom.cdx.json app/index.html backend/backend runtime/pico-desktop-host runtime/runtime.json \
          runtime/licenses/CEF-LICENSE.txt runtime/licenses/CHROMIUM-CREDITS.html; do
   [[ -e "$bundle/$f" ]] || fail "the bundle has no $f"
 done
+node -e 'const b = require(process.argv[1]); const names = b.components.map(c => c.name);
+  if (!names.includes("cef") || !names.includes("@pico-desktop/communicator")) process.exit(1)' "$PWD/$bundle/sbom.cdx.json" \
+  || fail "the SBOM doesn't list CEF and the frontend's dependencies"
 run_bundle "$PWD/$bundle/demo" "$scratch/run.log"
 
 PICO_DESKTOP_RUNTIME=$runtime node "$cli" package > "$scratch/package.log" 2>&1 || { cat "$scratch/package.log"; fail "package"; }
