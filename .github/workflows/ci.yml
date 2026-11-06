@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  js:
+    name: JS (lint, build, typecheck, test)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  native:
+    name: Native runtime (CMake, ctest)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake --version
+      - run: cmake --preset default
+      - run: cmake --build --preset default
+      - run: ctest --preset default
+
+  pico:
+    name: Pico (communicator-pico, probes)
+    runs-on: ubuntu-24.04-arm
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve the pinned Pico release
+        id: pico
+        run: |
+          version=$(jq -r .pico.minimum toolchain.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" -R padcom/pico-lang > /dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::pico $version isn't released yet (needs pico-lang #82); skipping the Pico job"
+          fi
+      - name: Install Pico
+        if: steps.pico.outputs.available == 'true'
+        run: |
+          v=${{ steps.pico.outputs.version }}
+          gh release download "v$v" -R padcom/pico-lang -p "pico-$v-linux-arm64.tar.gz" -D "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/pico" && tar -xzf "$RUNNER_TEMP/pico-$v-linux-arm64.tar.gz" -C "$RUNNER_TEMP/pico"
+          bin=$(dirname "$(find "$RUNNER_TEMP/pico" -type f -name pico -perm -u+x | head -1)")
+          echo "$bin" >> "$GITHUB_PATH"
+      - if: steps.pico.outputs.available == 'true'
+        run: pico --version
+      - if: steps.pico.outputs.available == 'true'
+        run: pico test packages/communicator-pico
+      - if: steps.pico.outputs.available == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Capability probes
+        if: steps.pico.outputs.available == 'true'
+        working-directory: probes
+        run: |
+          pico test
+          pico build --release src/stdio_echo.pi -o bin/stdio_echo
+          node harness/stdio-harness.mjs

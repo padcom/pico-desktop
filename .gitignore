@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+build/
+*.log
+.DS_Store
+# pico build outputs
+probes/bin/
+**/target/

@@ -1,0 +1,67 @@
+// Probe: C interop needed by pico-serialport (termios) — verified on Linux only.
+//
+// WORKAROUND (pico 0.4.0): `ptr.of(u8.buffer)` addresses the ArrayBuffer GC
+// object ({class, handle, byteLength}), NOT its bytes — passing it to C
+// corrupts memory (segfault seen). And `int as ptr<T>` is rejected (E0305).
+// So buffers cross the FFI as their byte address (`usize`), taken from the
+// internal `ArrayBuffer.__handle` field (a calloc'd pointer) + byteOffset.
+// Upstream: https://github.com/padcom/pico-lang/issues/83
+import { describe, it, expect } from "std/test"
+import * as t from "c:termios.h"
+import * as u from "c:unistd.h"
+import * as f from "c:fcntl.h"
+
+extern "C" {
+  function posix_openpt(flags: c_int): c_int
+  function grantpt(fd: c_int): c_int
+  function unlockpt(fd: c_int): c_int
+  function memset(p: usize, c: c_int, n: usize): usize
+  function tcgetattr(fd: c_int, p: usize): c_int
+  function tcsetattr(fd: c_int, when: c_int, p: usize): c_int
+  function cfmakeraw(p: usize): void
+  function cfsetspeed(p: usize, speed: u32): c_int
+  function cfgetispeed(p: usize): u32
+}
+
+function addr(b: Uint8Array): usize {
+  (b.buffer.__handle + b.byteOffset) as usize
+}
+
+function constants(): void {
+  expect(t.B115200 as int > 0).toBe(true)
+  expect(t.CS8 as int > 0).toBe(true)
+}
+
+function bufferAddress(): void {
+  const b = new Uint8Array(16)
+  memset(addr(b.subarray(2)), 0x41, 4 as usize)
+  expect(b.get(1)).toBe(0)
+  expect(b.get(2)).toBe(0x41)
+  expect(b.get(5)).toBe(0x41)
+  expect(b.get(6)).toBe(0)
+}
+
+function ptyTermios(): void {
+  // A pseudo-terminal stands in for a serial device: open, configure 115200 8N1 raw.
+  const fd = posix_openpt(f.O_RDWR | f.O_NOCTTY)
+  expect(fd as int >= 0).toBe(true)
+  expect(grantpt(fd) as int).toBe(0)
+  expect(unlockpt(fd) as int).toBe(0)
+  const tio = new Uint8Array(256) // >= sizeof(struct termios) on every libc
+  expect(tcgetattr(fd, addr(tio)) as int).toBe(0)
+  cfmakeraw(addr(tio))
+  expect(cfsetspeed(addr(tio), t.B115200 as u32) as int).toBe(0)
+  expect(tcsetattr(fd, t.TCSANOW, addr(tio)) as int).toBe(0)
+  // Read back from the kernel into a fresh buffer: the settings were applied.
+  const back = new Uint8Array(256)
+  expect(tcgetattr(fd, addr(back)) as int).toBe(0)
+  expect(cfgetispeed(addr(back)) as int).toBe(t.B115200 as int)
+  expect(u.isatty(fd) as int).toBe(1)
+  u.close(fd)
+}
+
+describe("ffi", () => {
+  it("termios.h constants import", constants)
+  it("buffer byte address (incl. subarray offset) reaches C", bufferAddress)
+  it("pty: tcgetattr / cfmakeraw / cfsetspeed / tcsetattr, verified by read-back", ptyTermios)
+})

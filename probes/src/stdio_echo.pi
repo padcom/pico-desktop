@@ -1,0 +1,92 @@
+// Probe: length-prefixed binary framing over stdin/stdout.
+//
+// Frame = u32 big-endian payload length + payload bytes.
+// For every frame received the probe writes one frame back whose payload is
+// the received payload with every byte XOR 0xFF (proves real processing, not
+// a passthrough). stdout carries only frames; diagnostics go to stderr.
+// On stdin EOF it logs a summary to stderr and exits 0.
+import { stdin, stdout, stderr } from "std/process"
+
+// Relies on stdout.write flushing before it settles (pico-lang #82, fixed after
+// 0.4.0: needs a compiler built with it, i.e. 0.4.2 or the local ppl build).
+
+const MAX_FRAME: int = 16 * 1024 * 1024
+
+// Accumulates chunks; frames are consumed from a read offset and the buffer is
+// compacted only when it needs to grow, so N frames in one chunk cost O(N).
+class FrameReader {
+  private buf: Uint8Array = new Uint8Array(65536)
+  private start: int = 0
+  private end: int = 0
+
+  public push(chunk: Uint8Array): void {
+    const live = this.end - this.start
+    if (this.end + chunk.length > this.buf.length) {
+      let cap = this.buf.length
+      while (cap < live + chunk.length) {
+        cap = cap * 2
+      }
+      const grown = if (cap == this.buf.length) this.buf else new Uint8Array(cap)
+      for (let i = 0; i < live; i++) {
+        grown.set(i, this.buf.get(this.start + i))
+      }
+      this.buf = grown
+      this.start = 0
+      this.end = live
+    }
+    for (let i = 0; i < chunk.length; i++) {
+      this.buf.set(this.end + i, chunk.get(i))
+    }
+    this.end = this.end + chunk.length
+  }
+
+  // The next complete frame's payload, or null if more bytes are needed.
+  public next(): Uint8Array? {
+    const s = this.start
+    if (this.end - s < 4) {
+      return null
+    }
+    const n = (this.buf.get(s) << 24) | (this.buf.get(s + 1) << 16) | (this.buf.get(s + 2) << 8) | this.buf.get(s + 3)
+    if (n > MAX_FRAME) {
+      panic(`frame too large: ${n}`)
+    }
+    if (this.end - s < 4 + n) {
+      return null
+    }
+    this.start = s + 4 + n
+    return this.buf.subarray(s + 4, s + 4 + n)
+  }
+}
+
+function encodeFrame(payload: Uint8Array): Uint8Array {
+  const n = payload.length
+  const out = new Uint8Array(4 + n)
+  out.set(0, (n >> 24) & 0xff)
+  out.set(1, (n >> 16) & 0xff)
+  out.set(2, (n >> 8) & 0xff)
+  out.set(3, n & 0xff)
+  for (let i = 0; i < n; i++) {
+    out.set(4 + i, payload.get(i) ^ 0xff)
+  }
+  return out
+}
+
+async function main(): Promise<void> throws Error {
+  await stderr.writeText("stdio_echo: ready\n")
+  const reader = new FrameReader()
+  let frames = 0
+  let bytes = 0
+  for await (const chunk of stdin) {
+    reader.push(chunk)
+    let f = reader.next()
+    while (f != null) {
+      await stdout.write(encodeFrame(f))
+      frames = frames + 1
+      bytes = bytes + f.length
+      f = reader.next()
+    }
+  }
+  await stderr.writeText(`stdio_echo: eof after ${frames} frames, ${bytes} payload bytes\n`)
+}
+
+await main()

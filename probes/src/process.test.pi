@@ -1,0 +1,82 @@
+// Probe: Pico as a parent process — spawn, pipes, exit status, kill, errors.
+import { describe, it, expect } from "std/test"
+import { Command, ProcessError } from "std/process"
+import { delay } from "std/timers"
+
+async function catRoundTrip(): Promise<void> throws Error {
+  const child = new Command("cat", stdin: "pipe", stdout: "pipe").spawn()
+  const data = new Uint8Array(200000)
+  for (let i = 0; i < data.length; i++) {
+    data.set(i, i * 7)
+  }
+  // Write concurrently with reading: awaiting a write bigger than the pipe
+  // buffers before reading deadlocks (cat blocks on its full stdout).
+  const writing = child.stdin.write(data)
+  child.stdin.close()
+  let got = 0
+  let ok = true
+  for await (const chunk of child.stdout) {
+    for (let i = 0; i < chunk.length; i++) {
+      if (chunk.get(i) != data.get(got + i)) {
+        ok = false
+      }
+    }
+    got = got + chunk.length
+  }
+  await writing
+  const st = await child.status()
+  expect(got).toBe(200000)
+  expect(ok).toBe(true)
+  expect(st.success).toBe(true)
+}
+
+async function exitCode(): Promise<void> throws Error {
+  const st = await Command.shell("exit 3").status()
+  // `as int`: expect(i32) is ambiguous (E0332), https://github.com/padcom/pico-lang/issues/87
+  expect(st.code as int).toBe(3)
+  expect(st.success).toBe(false)
+}
+
+async function killChild(): Promise<void> throws Error {
+  const child = new Command("sleep", ["30"]).spawn()
+  await delay(50)
+  child.kill("SIGTERM")
+  const st = await child.status()
+  expect(st.signal != null).toBe(true)
+  expect(st.code as int).toBe(128 + 15)
+}
+
+async function missingProgram(): Promise<void> throws Error {
+  let kind = ""
+  try {
+    await new Command("definitely-not-a-program-xyz").status()
+  } catch (e: ProcessError) {
+    kind = e.kind
+  }
+  expect(kind).toBe("NotFound")
+}
+
+async function framedChild(): Promise<void> throws Error {
+  // Pico parent <-> Pico child (bin/stdio_echo) speaking the framed protocol.
+  const child = new Command("./bin/stdio_echo", stdin: "pipe", stdout: "pipe", stderr: "null").spawn()
+  const frame = Uint8Array.from([0, 0, 0, 2, 0x0f, 0xf0])
+  await child.stdin.write(frame)
+  const reply = await child.stdout.read()
+  child.stdin.close()
+  const st = await child.status()
+  expect(reply != null).toBe(true)
+  if (reply != null) {
+    expect(reply.length).toBe(6)
+    expect(reply.get(4)).toBe(0xf0)
+    expect(reply.get(5)).toBe(0x0f)
+  }
+  expect(st.success).toBe(true)
+}
+
+describe("std/process as parent", () => {
+  it("round-trips 200 kB of binary through cat", catRoundTrip)
+  it("reports exit codes", exitCode)
+  it("kills a child and reports the signal", killChild)
+  it("reports a missing program as NotFound", missingProgram)
+  it("talks the framed protocol to a Pico child", framedChild)
+})

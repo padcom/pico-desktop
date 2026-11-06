@@ -1,0 +1,29 @@
+{
+  "name": "pico-desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The pico-desktop CLI: create, dev, test, build, package",
+  "author": "Matthias Hryniszak <padcom@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.umd.cjs"
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc -p .",
+    "test": "vitest run --root .",
+    "start": "node bin/pico-desktop.mjs"
+  },
+  "bin": {
+    "pico-desktop": "./bin/pico-desktop.mjs"
+  }
+}

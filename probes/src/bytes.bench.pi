@@ -1,0 +1,20 @@
+// Probe: raw byte-copy cost with Uint8Array get/set (no bulk copy API in 0.4.0).
+// Upstream: https://github.com/padcom/pico-lang/issues/84
+import { bench } from "std/test"
+
+const SRC = new Uint8Array(1024 * 1024)
+const DST = new Uint8Array(1024 * 1024)
+
+function copy1mb(): void {
+  for (let i = 0; i < SRC.length; i++) {
+    DST.set(i, SRC.get(i))
+  }
+}
+
+function slice1mb(): void {
+  const c = SRC.slice(0, SRC.length)
+  DST.set(0, c.get(0))
+}
+
+bench("copy 1 MB byte-by-byte", copy1mb)
+bench("slice 1 MB", slice1mb)

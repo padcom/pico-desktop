@@ -1,0 +1,145 @@
+// Probe: core language features the Communicator / CBOR codec will rely on.
+import { describe, it, expect } from "std/test"
+import { delay } from "std/timers"
+
+class Counter {
+  private n: int = 0
+  public inc(): int {
+    this.n = this.n + 1
+    return this.n
+  }
+}
+
+class CodecError extends Error {
+  constructor(message: string) {
+    super(message)
+  }
+}
+
+function fail(msg: string): void throws CodecError {
+  throw new CodecError(msg)
+}
+
+describe("bytes", () => {
+  it("allocates, sets, slices and subarrays", () => {
+    const b = new Uint8Array(4)
+    b.set(0, 0xff)
+    b.set(1, 256 + 7)
+    expect(b.get(0)).toBe(255)
+    expect(b.get(1)).toBe(7)
+    expect(b.slice(0, 2).length).toBe(2)
+    const v = b.subarray(1)
+    v.set(0, 9)
+    expect(b.get(1)).toBe(9)
+  })
+  it("builds from int[]", () => {
+    const b = Uint8Array.from([1, 2, 3, 300])
+    expect(b.get(3)).toBe(44)
+  })
+  it("handles a 1 MB buffer", () => {
+    const b = new Uint8Array(1024 * 1024)
+    for (let i = 0; i < b.length; i++) {
+      b.set(i, i)
+    }
+    expect(b.get(1024 * 1024 - 1)).toBe(255)
+  })
+})
+
+describe("integers", () => {
+  it("int is 64-bit", () => {
+    const big: int = 9007199254740993 // 2^53 + 1, not representable in f64
+    expect(big + 1).toBe(9007199254740994)
+    const max: i64 = 9223372036854775807
+    expect(max > 0).toBe(true)
+  })
+  it("bitwise ops for big-endian packing", () => {
+    const n: int = 0x0102030405060708
+    expect((n >> 56) & 0xff).toBe(1)
+    expect(n & 0xff).toBe(8)
+    expect((1 << 40)).toBe(1099511627776)
+  })
+})
+
+describe("strings", () => {
+  it("UTF-8 encode/decode", () => {
+    const bytes = new TextEncoder().encode("zażółć ✓")
+    expect(bytes.length).toBe(14)
+    expect(new TextDecoder().decode(bytes)).toBe("zażółć ✓")
+  })
+})
+
+describe("classes, callbacks, errors", () => {
+  it("class with private state", () => {
+    const c = new Counter()
+    c.inc()
+    expect(c.inc()).toBe(2)
+  })
+  it("callbacks in a Map", () => {
+    const handlers = new Map<string, (x: int) => int>()
+    handlers.set("double", (x: int) => x * 2)
+    const h = handlers.get("double")
+    expect(h != null).toBe(true)
+    if (h != null) {
+      expect(h(21)).toBe(42)
+    }
+  })
+  it("custom error classes are catchable", () => {
+    let caught = ""
+    try {
+      fail("bad frame")
+    } catch (e) {
+      caught = e.message
+    }
+    expect(caught).toBe("bad frame")
+  })
+})
+
+// Async closures are missing in 0.4.0 (E0900), so async tests are named
+// functions: https://github.com/padcom/pico-lang/issues/52
+// `.then(() => …)` on Promise<void> needs a `(v: void)` parameter:
+// https://github.com/padcom/pico-lang/issues/88
+async function awaitsTimers(): Promise<void> throws Error {
+  const start = Date.now()
+  await delay(20)
+  expect(Date.now() - start >= 20).toBe(true)
+}
+
+async function cancelsWithSignal(): Promise<void> throws Error {
+  const ac = new AbortController()
+  setTimeout(() => ac.abort(), 10)
+  let aborted = false
+  try {
+    await delay(5000, ac.signal)
+  } catch (e) {
+    aborted = true
+  }
+  expect(aborted).toBe(true)
+}
+
+async function manualPromise(): Promise<void> throws Error {
+  const pending = new Map<int, (v: string) => void>()
+  const p = new Promise<string, Error>((resolve, reject) => {
+    pending.set(1, resolve)
+  })
+  setTimeout(() => {
+    const r = pending.get(1)
+    if (r != null) {
+      r("pong")
+    }
+  }, 5)
+  expect(await p).toBe("pong")
+}
+
+async function racesTimeout(): Promise<void> throws Error {
+  const slow = delay(1000).then<string>((v: void) => "slow")
+  const fast = delay(5).then<string>((v: void) => "fast")
+  const winner: string = await Promise.race([slow, fast])
+  expect(winner).toBe("fast")
+}
+
+describe("async", () => {
+  it("awaits timers", awaitsTimers)
+  it("cancels with AbortSignal", cancelsWithSignal)
+  it("resolves a manually-settled promise (request correlation pattern)", manualPromise)
+  it("races a timeout", racesTimeout)
+})

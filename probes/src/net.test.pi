@@ -1,0 +1,86 @@
+// Probe: TCP and UDP sockets (needed by pico-mavlink, not by the framework).
+import { describe, it, expect } from "std/test"
+import { listen, connect, bind, Conn, NetError } from "std/net"
+
+async function serveEcho(conn: Conn): Promise<void> throws Error {
+  for await (const chunk of conn) {
+    await conn.write(chunk)
+  }
+  conn.close()
+}
+
+async function tcpEcho(): Promise<void> throws Error {
+  const listener = await listen(0)
+  const port = listener.addr.port
+  const accepting = listener.accept()
+  const client = await connect(port)
+  const server = await accepting
+  expect(server != null).toBe(true)
+  if (server == null) {
+    return
+  }
+  serveEcho(server)
+  const payload = new Uint8Array(100000)
+  for (let i = 0; i < payload.length; i++) {
+    payload.set(i, i)
+  }
+  await client.write(payload)
+  client.closeWrite()
+  let got = 0
+  let ok = true
+  for await (const chunk of client) {
+    for (let i = 0; i < chunk.length; i++) {
+      if (chunk.get(i) != ((got + i) & 0xff)) {
+        ok = false
+      }
+    }
+    got = got + chunk.length
+  }
+  client.close()
+  listener.close()
+  expect(got).toBe(100000)
+  expect(ok).toBe(true)
+}
+
+async function tcpRefused(): Promise<void> throws Error {
+  const listener = await listen(0)
+  const port = listener.addr.port
+  listener.close()
+  let kind = ""
+  try {
+    await connect(port)
+  } catch (e: NetError) {
+    kind = e.kind
+  }
+  expect(kind).toBe("ConnectionRefused")
+}
+
+async function udpDatagrams(): Promise<void> throws Error {
+  const a = await bind(0)
+  const b = await bind(0)
+  // MAVLink-sized datagram (max MAVLink 2 frame is 280 bytes).
+  const pkt = new Uint8Array(280)
+  for (let i = 0; i < pkt.length; i++) {
+    pkt.set(i, 255 - (i & 0xff))
+  }
+  await a.send(pkt, b.addr.port)
+  const d = await b.receive()
+  expect(d != null).toBe(true)
+  if (d != null) {
+    expect(d.data.length).toBe(280)
+    expect(d.data.get(0)).toBe(255)
+    expect(d.addr.port).toBe(a.addr.port)
+    // Reply to sender address (how a GCS answers an autopilot).
+    await b.send(Uint8Array.from([1, 2, 3]), d.addr.port, d.addr.hostname)
+  }
+  const r = await a.receive()
+  expect(r != null && r.data.length == 3).toBe(true)
+  a.close()
+  b.close()
+}
+
+describe("std/net", () => {
+  it("TCP: 100 kB echo over loopback", tcpEcho)
+  it("TCP: connection refused has a portable kind", tcpRefused)
+  it("UDP: datagrams both ways, reply to sender", udpDatagrams)
+})

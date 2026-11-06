@@ -1,0 +1,46 @@
+{
+  "name": "pico-desktop-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pico Desktop: native desktop apps with a Pico backend and a TypeScript/Vite UI on CEF",
+  "author": "Matthias Hryniszak <padcom@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/padcom/pico-desktop#readme",
+  "bugs": {
+    "url": "https://github.com/padcom/pico-desktop/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/padcom/pico-desktop.git"
+  },
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=26.9.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "native:configure": "cmake --preset default",
+    "native:build": "cmake --build --preset default",
+    "native:test": "ctest --preset default",
+    "native": "pnpm native:configure && pnpm native:build && pnpm native:test",
+    "pico:test": "pico test packages/communicator-pico",
+    "check": "pnpm lint && pnpm build && pnpm typecheck && pnpm test && pnpm native && pnpm pico:test"
+  },
+  "devDependencies": {
+    "@microsoft/api-extractor": "7.60.1",
+    "@padcom/eslint-config-typescript": "0.20.2",
+    "@padcom/vite-config-default": "0.11.0",
+    "@padcom/vite-config-lib": "0.13.1",
+    "@types/node": "26.6.6",
+    "@vitest/coverage-v8": "5.1.0",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.6",
+    "vitest": "5.1.0"
+  }
+}
