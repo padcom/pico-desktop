@@ -47,5 +47,5 @@ Contracts are written in **CDDL**, with these conventions:
 - **Next:** F3 builds the Communicators on the generated TypeScript (`Services` registry, validators) and the generated Pico decoders; encoders and handlers come with it.
 - **The JSON Schema front-end stays as experiment evidence only.** It isn't a supported input.
 - **Found along the way (filed):**
-  - in Pico, a string-literal union can't be assigned to its optional type (the generator uses Pico enums instead);
+  - in Pico, a string-literal union can't be assigned to its optional type (pico-lang #92; the generator uses Pico enums instead);
   - in Pico, an enum variant named `Map` can't be matched with a `Map { … }` pattern (pico-lang #89).
