@@ -191,6 +191,46 @@ const run = (test: Check, value: unknown): string | null => {
 }
 `
 
+const PARTS: Record<Service['kind'], [string, 'request' | 'response' | 'payload' | 'params' | 'value'][]> = {
+  method: [['request', 'request'], ['response', 'response']],
+  event: [['payload', 'payload']],
+  subscription: [['params', 'params'], ['value', 'value']],
+}
+
+/**
+ * The Communicator's `validate` option: every part of every service, checked against the contract.
+ *
+ * @param w the writer
+ * @param contract the contract
+ * @returns the source
+ */
+function validator(w: TypeScriptWriter, contract: Contract): string {
+  const entries = contract.services.map(s => {
+    const check = ([field, part]: [string, string]) => {
+      const type = (s as Record<string, any>)[field] as Type
+
+      return `${part}: (value: any, path: string) => ${w.check(type)}`
+    }
+    const checks = PARTS[s.kind].map(check)
+
+    return `  ${JSON.stringify(s.name)}: {\n    ${checks.join(',\n    ')},\n  },`
+  })
+
+  return [
+    'const services: Record<string, Partial<Record<string, Check>>> = {',
+    ...entries,
+    '}',
+    '',
+    '/** Checks an incoming payload against the contract (the Communicator\'s `validate` option). */',
+    'export const validate = (name: string, part: string, value: unknown): string | null => {',
+    '  const check = services[name]?.[part]',
+    '',
+    '  // An absent payload is null on the wire.',
+    '  return check ? run(check, value ?? null) : null',
+    '}',
+  ].join('\n')
+}
+
 /**
  * The TypeScript module for a contract.
  *
@@ -209,6 +249,7 @@ export function generateTypeScript(contract: Contract): string {
   }
   const services = contract.services.map(s => w.service(s)).join('\n')
   parts.push(`/** The services, for a typed Communicator. */\nexport interface Services {\n${services}\n}`)
+  parts.push(validator(w, contract))
 
   return `${parts.join('\n\n')}\n`
 }

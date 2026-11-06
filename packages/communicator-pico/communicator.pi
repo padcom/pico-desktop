@@ -4,6 +4,7 @@
 // functions that get a Sink.
 import { Cbor } from "./cbor"
 import { Envelope, ErrorInfo, MessageKind, PROTOCOL_VERSION, ProtocolError, decodeEnvelope, encodeEnvelope, envelope } from "./envelope"
+import { InvalidPayload } from "./payload"
 import { Transport } from "./transport"
 
 /// A failed call: a protocol error code (or an application's own) and an optional payload.
@@ -31,7 +32,8 @@ export class RequestContext {
   }
 }
 
-/// Answers a request: the response payload (or null), or throws (a CommunicatorError's code is sent as is).
+/// Answers a request: the response payload (or null), or throws (a CommunicatorError's code is sent
+/// as is; an InvalidPayload from a generated decoder becomes INVALID_PAYLOAD).
 export type Handler = (payload: Cbor?, context: RequestContext) => Promise<Cbor?, Error>
 
 /// Starts a subscription: deliver values through the sink until it's closed.
@@ -266,6 +268,10 @@ export class Communicator {
     } catch (error: CommunicatorError) {
       r = reply(e, "error")
       r.err = ErrorInfo { code: error.code, message: error.message, data: error.data }
+    } catch (error: InvalidPayload) {
+      // A generated decoder refused the request: the caller's fault, not the handler's.
+      r = reply(e, "error")
+      r.err = ErrorInfo { code: "INVALID_PAYLOAD", message: error.message, data: null }
     } catch (error) {
       r = reply(e, "error")
       const code = if (controller.signal.aborted) "CANCELLED" else "HANDLER_ERROR"

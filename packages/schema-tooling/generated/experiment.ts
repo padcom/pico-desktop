@@ -144,3 +144,37 @@ export interface Services {
   "ui.ready": { kind: 'event', payload: {  } }
   "drone.telemetry": { kind: 'subscription', params: { "rateHz"?: number }, value: Telemetry }
 }
+
+const services: Record<string, Partial<Record<string, Check>>> = {
+  "serial.list": {
+    request: (value: any, path: string) => value === null || fail(path, 'null'),
+    response: (value: any, path: string) => list(value, path, (value, path) => validateSerialPortInto(value, path)),
+  },
+  "serial.open": {
+    request: (value: any, path: string) => validateOpenParamsInto(value, path),
+    response: (value: any, path: string) => map(value, path, ["handle"]) && (value["handle"] === undefined ? fail(`${path}.handle`, 'present') : nested(value["handle"], `${path}.handle`, (value, path) => uint(value, path, 0xffffffff))),
+  },
+  "serial.write": {
+    request: (value: any, path: string) => validateWriteParamsInto(value, path),
+    response: (value: any, path: string) => map(value, path, ["written"]) && (value["written"] === undefined ? fail(`${path}.written`, 'present') : nested(value["written"], `${path}.written`, (value, path) => uint(value, path, Number.MAX_SAFE_INTEGER) && (typeof value !== 'bigint' || value < 2n ** 64n))),
+  },
+  "tree.get": {
+    request: (value: any, path: string) => value === null || fail(path, 'null'),
+    response: (value: any, path: string) => validateTreeInto(value, path),
+  },
+  "ui.ready": {
+    payload: (value: any, path: string) => map(value, path, []),
+  },
+  "drone.telemetry": {
+    params: (value: any, path: string) => map(value, path, ["rateHz"]) && (value["rateHz"] === undefined || nested(value["rateHz"], `${path}.rateHz`, (value, path) => uint(value, path, 0xff))),
+    value: (value: any, path: string) => validateTelemetryInto(value, path),
+  },
+}
+
+/** Checks an incoming payload against the contract (the Communicator's `validate` option). */
+export const validate = (name: string, part: string, value: unknown): string | null => {
+  const check = services[name]?.[part]
+
+  // An absent payload is null on the wire.
+  return check ? run(check, value ?? null) : null
+}

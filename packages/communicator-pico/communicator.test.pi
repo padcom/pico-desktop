@@ -5,6 +5,7 @@ import { Cbor, integer } from "./cbor"
 import { Envelope, decodeEnvelope, encodeEnvelope, envelope } from "./envelope"
 import { Communicator, CommunicatorError, RequestContext, Sink } from "./communicator"
 import { MemoryEnd, memoryPair } from "./transport"
+import { text } from "./payload"
 
 /// The frontend's end of the link, with the Communicator under test running on the other one.
 class Rig {
@@ -64,6 +65,10 @@ async function fail(_payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throw
   throw new Error("boom")
 }
 
+async function strict(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {
+  Cbor.Text(text(payload ?? Cbor.Null, "$"))
+}
+
 async function slow(payload: Cbor?, ctx: RequestContext): Promise<Cbor?> throws Error {
   await delay(5000, ctx.signal)
   null
@@ -87,6 +92,11 @@ async function answersRequests(): Promise<void> throws Error {
   const f = await rig.next()
   expect(f.err?.code ?? "").toBe("HANDLER_ERROR")
   expect(f.err?.message ?? "").toBe("boom")
+  rig.c.handle("strict", strict)
+  await rig.send(request(11, "strict", integer(5), 3))
+  const invalid = await rig.next()
+  expect(invalid.err?.code ?? "").toBe("INVALID_PAYLOAD")
+  expect(invalid.err?.message ?? "").toBe("$: expected text")
   await rig.send(request(10, "fs.delete", null, 3))
   expect((await rig.next()).err?.code ?? "").toBe("UNKNOWN_METHOD")
 }

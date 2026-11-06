@@ -39,7 +39,7 @@ describe('generation', () => {
 describe('the generated TypeScript validators', () => {
   for (const c of corpus) {
     it(`${c.valid ? 'accept' : 'reject'} ${c.name}`, async () => {
-      const generated = await import('../generated/experiment') as Record<string, (value: unknown) => string | null>
+      const generated = await import('../generated/experiment') as unknown as Record<string, (value: unknown) => string | null>
       const problem = generated[`validate${typeName(c.type)}`]!(decode(encode(c.value)))
       expect(problem === null, problem ?? 'accepted').toBe(c.valid)
     })
