@@ -162,6 +162,19 @@ static void options() {
     }
   }
   {
+    const auto r = parse({"--app-dir=/x", "--dev", "--control=stdin"});
+    const auto* o = std::get_if<Options>(&r);
+    CHECK(o && o->control_stdin);
+  }
+  CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--control=stdin"})));  // needs --dev
+  CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--dev", "--control=tcp"})));
+  CHECK(parse_control("restart-backend") == ControlCommand::restart_backend);
+  CHECK(parse_control("  reload\r\n") == ControlCommand::reload);
+  CHECK(parse_control("quit") == ControlCommand::quit);
+  CHECK(!parse_control(""));
+  CHECK(!parse_control("   "));
+  CHECK(!parse_control("restart"));
+  {
     const auto r = parse({"--app-dir=/x", "--backend=/opt/app/backend"});
     const auto* o = std::get_if<Options>(&r);
     CHECK(o && o->backend == "/opt/app/backend");

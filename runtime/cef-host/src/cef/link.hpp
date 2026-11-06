@@ -40,6 +40,10 @@ class Link : public RouterOutput {
   void browser_gone(int browser_id);
   /// The app is closing: tell the pages and the backend (the backend gets a grace period in `stop`).
   void closing();
+  /// Development (`restart-backend`): the backend gets `closing`, and once it's gone (or killed
+  /// after a grace period) the program starts again, a rebuilt one included; the pages stay. It
+  /// doesn't use the restart budget, and it starts a backend that had `failed`.
+  void restart_backend();
   /// Ends the backend: lets the writer drain, closes its stdin, waits up to `grace`, then kills it.
   void stop(std::chrono::milliseconds grace);
 
@@ -73,6 +77,8 @@ class Link : public RouterOutput {
   void on_backend_exit(std::uint64_t generation);
   /// Starts the backend again after a backoff, or announces `failed` once the budget is spent.
   void schedule_restart();
+  /// Kills process `generation` if it's still running (a planned restart's grace period is over).
+  void force_end(std::uint64_t generation);
   /// Ends the current process: closes its stdin, reaps it (killing it after `grace`), joins its
   /// threads. Returns the wait status (-1 if unknown).
   int end_process(std::chrono::milliseconds grace);
@@ -83,6 +89,7 @@ class Link : public RouterOutput {
   Router router_;
   RestartBudget budget_;
   bool closing_ = false;
+  bool planned_restart_ = false;
   std::uint64_t generation_ = 0;
   std::unique_ptr<Process> process_;
   std::map<std::string, std::uint64_t> session_of_;  // "<frame id>#<context>" → session

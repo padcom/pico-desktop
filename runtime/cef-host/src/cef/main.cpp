@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "app.hpp"
+#include "control.hpp"
 #include "host.hpp"
 #include "link.hpp"
 #include "include/cef_app.h"
@@ -107,6 +108,9 @@ int run_browser(int argc, char** argv) {
                  "enable unprivileged user namespaces; the host never runs without the sandbox.\n",
                  CefGetExitCode());
     return 1;
+  }
+  if (browser_state().options.control_stdin) {
+    start_control_reader();
   }
   CefRunMessageLoop();
   // The backend got `closing` when the last window closed; give it a moment to finish.

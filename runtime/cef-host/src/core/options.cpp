@@ -26,6 +26,7 @@ std::string usage() {
          "  --backend=<program>    the compiled Pico backend (started with the protocol on stdin/stdout)\n"
          "  --dev                  development policy: DevTools (F12), --dev-url, remote debugging\n"
          "  --dev-url=<origin>     load the Vite dev server instead of --app-dir (needs --dev)\n"
+         "  --control=stdin        read restart-backend, reload, quit from stdin (needs --dev)\n"
          "  --self-test            let the page test itself, check the sandbox, exit with the result\n"
          "  --no-external-open     log external links instead of opening the system browser\n"
          "  -V, --version          print the version\n"
@@ -64,6 +65,11 @@ ParseResult parse_options(const std::vector<std::string>& args) {
       options.backend = *b;
     } else if (auto u = value_of(arg, "--dev-url")) {
       dev_url = *u;
+    } else if (auto c = value_of(arg, "--control")) {
+      if (*c != "stdin") {
+        return "invalid --control '" + *c + "': only stdin";
+      }
+      options.control_stdin = true;
     } else if (arg == "--dev") {
       options.dev = true;
     } else if (arg == "--self-test") {
@@ -79,6 +85,9 @@ ParseResult parse_options(const std::vector<std::string>& args) {
   }
   if (options.remote_debugging_requested && !options.dev) {
     return "remote debugging is only available with --dev (the production policy never opens a debugging port)";
+  }
+  if (options.control_stdin && !options.dev) {
+    return "--control needs --dev";
   }
   if (dev_url) {
     if (!options.dev) {
@@ -96,6 +105,24 @@ ParseResult parse_options(const std::vector<std::string>& args) {
     return "missing --app-dir\n\n" + usage();
   }
   return options;
+}
+
+std::optional<ControlCommand> parse_control(std::string_view line) {
+  const auto first = line.find_first_not_of(" \t\r\n");
+  if (first == std::string_view::npos) {
+    return std::nullopt;
+  }
+  line = line.substr(first, line.find_last_not_of(" \t\r\n") - first + 1);
+  if (line == "restart-backend") {
+    return ControlCommand::restart_backend;
+  }
+  if (line == "reload") {
+    return ControlCommand::reload;
+  }
+  if (line == "quit") {
+    return ControlCommand::quit;
+  }
+  return std::nullopt;
 }
 
 }  // namespace pico_desktop::host

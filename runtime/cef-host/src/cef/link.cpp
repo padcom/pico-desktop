@@ -23,6 +23,7 @@ namespace pico_desktop::host::cef {
 namespace {
 
 constexpr std::size_t kMaxMessage = 4 * 1024 * 1024;  // docs/protocol.md §2
+constexpr int64_t kRestartGraceMs = 2000;
 
 Link* g_link = nullptr;
 
@@ -209,7 +210,39 @@ void Link::on_backend_exit(std::uint64_t generation) {
   }
   log("pd-host: the backend exited (" + describe(status) + ")");
   router_.backend_stopped();
+  if (planned_restart_) {
+    planned_restart_ = false;
+    budget_ = RestartBudget();
+    log("pd-host: starting the backend again (requested)");
+    router_.announce("restarting");
+    spawn();
+    return;
+  }
   schedule_restart();
+}
+
+void Link::restart_backend() {
+  if (closing_ || options_.backend.empty() || planned_restart_) {
+    return;
+  }
+  if (!process_) {
+    // Failed, or waiting for a backoff: a rebuilt backend gets a fresh budget at once.
+    budget_ = RestartBudget();
+    spawn();
+    return;
+  }
+  planned_restart_ = true;
+  log("pd-host: restarting the backend (requested)");
+  router_.backend_closing();
+  CefPostDelayedTask(TID_UI, base::BindOnce(&Link::force_end, base::Unretained(this), process_->generation),
+                     kRestartGraceMs);
+}
+
+void Link::force_end(std::uint64_t generation) {
+  if (process_ && process_->generation == generation) {
+    log("pd-host: the backend didn't finish in time; killing it");
+    kill(process_->child.pid, SIGKILL);
+  }
 }
 
 void Link::schedule_restart() {

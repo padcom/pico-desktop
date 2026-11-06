@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -34,7 +35,22 @@ struct Options {
   bool open_external = true;
   /// A remote-debugging switch was given (refused outside development).
   bool remote_debugging_requested = false;
+  /// Development: read control commands from stdin, one per line (the dev CLI drives the host).
+  bool control_stdin = false;
 };
+
+/// What the dev CLI can ask of the host (`--control=stdin`).
+enum class ControlCommand {
+  /// Stop the backend (it gets `closing`) and start it again: a rebuilt backend, same window.
+  restart_backend,
+  /// Reload the page.
+  reload,
+  /// Close the window and exit.
+  quit,
+};
+
+/// The command on one control line (surrounding whitespace ignored), if it is one.
+std::optional<ControlCommand> parse_control(std::string_view line);
 
 /// `Options`, or an error message for the user.
 using ParseResult = std::variant<Options, std::string>;

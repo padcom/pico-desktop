@@ -334,6 +334,10 @@ void restart() {
   CHECK(router.epoch() == 2 && out.sessions.size() == 2 && header(out.sessions[0].second).epoch == 2u);
 
   out.clear();
+  router.backend_closing();
+  CHECK(out.backend.size() == 1 && header(out.backend[0]).name == "closing" && out.sessions.empty());
+
+  out.clear();
   router.announce("restarting");
   CHECK(out.sessions.size() == 2 && header(out.sessions[1].second).name == "restarting");
 

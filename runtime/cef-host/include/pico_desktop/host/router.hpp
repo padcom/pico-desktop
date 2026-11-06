@@ -47,6 +47,8 @@ class Router {
   void backend_stopped();
   /// The app is closing: tell the backend and every page.
   void closing();
+  /// Only the backend is asked to finish (a planned restart: the pages stay).
+  void backend_closing();
   /// Tells every page a lifecycle state without an epoch (`restarting`, `failed`).
   void announce(const char* name);
 

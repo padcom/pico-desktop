@@ -326,6 +326,8 @@ void Router::closing() {
   }
 }
 
+void Router::backend_closing() { out_.to_backend(lifecycle("closing", std::nullopt)); }
+
 void Router::announce(const char* name) {
   for (const auto& [window, session] : current_) {
     out_.to_session(session, lifecycle(name, std::nullopt));
