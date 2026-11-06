@@ -23,8 +23,13 @@ bulk byte copies (#84). Both are fixed in `padcom/pico-lang` but not released: *
 carry them (both are on pico-lang `main` since `75fc4aa`; the released 0.4.1 predates them). Until
 then, develop with the compiler built from the `pico-lang` clone next to this repository
 (`~/projects/padcom/pico/pico-lang`, `cargo build --release -p pico-cli`), first on `PATH`:
-`export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`. That clone also carries
-fixes still in review (pico-lang PR #91, finalizers and buffer memory, #90). CI's Pico job turns
+`export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`. Since 2026-11-07 that
+build comes from a local branch, `local/integration`, which is never pushed. It holds pico-lang
+`main` plus the fixes still in review: PR #91 (finalizers and buffer memory, #90) and PR #94
+(workspace imports from relative paths, #93). The framework works around #93 with absolute paths
+until #94 lands. Newer `main` is stricter than 0.4.1 in two ways the code now handles:
+`TextDecoder`'s constructor `throws RangeError` (#26), and later declarations in a block shadow
+earlier uses. CI's Pico job turns
 on by itself once the 0.4.2 release exists (see `.github/workflows/ci.yml`). Release archives are
 named `pico-<version>-<host>.tar.gz|zip` (linux-arm64, linux-x64, macos-arm64, windows-arm64,
 windows-x64; no macos-x64, #86).
