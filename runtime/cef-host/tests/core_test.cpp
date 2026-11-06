@@ -258,6 +258,9 @@ static void sandbox() {
   CHECK(!renderers_sandboxed({{1, "renderer", 0, true}}));
   CHECK(!renderers_sandboxed({{2, "gpu-process", 2, true}}));
   CHECK(!renderers_sandboxed({}));
+  CHECK(!suid_sandbox_usable("/nonexistent/chrome-sandbox"));
+  CHECK(!suid_sandbox_usable("/bin/sh"));  // not setuid
+  CHECK(sandbox_unavailable_message("/x/chrome-sandbox").find("user namespaces") != std::string::npos);
 }
 
 int main() {

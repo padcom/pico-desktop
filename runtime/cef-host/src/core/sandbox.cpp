@@ -1,5 +1,11 @@
 #include "pico_desktop/host/sandbox.hpp"
 
+#include <sched.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <cerrno>
 #include <charconv>
 #include <filesystem>
 #include <fstream>
@@ -145,6 +151,47 @@ bool renderers_sandboxed(const std::vector<ProcessSandbox>& processes) {
     }
   }
   return any;
+}
+
+bool user_namespaces_available() {
+#if defined(__linux__)
+  const pid_t child = ::fork();
+  if (child < 0) {
+    return true;  // can't tell: let Chromium decide (and report)
+  }
+  if (child == 0) {
+    ::_exit(::unshare(CLONE_NEWUSER) == 0 ? 0 : 1);
+  }
+  int status = 0;
+  while (::waitpid(child, &status, 0) < 0) {
+    if (errno != EINTR) {
+      return true;
+    }
+  }
+  return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#else
+  return true;
+#endif
+}
+
+bool suid_sandbox_usable(const std::string& helper) {
+  struct stat st {};
+  if (::stat(helper.c_str(), &st) != 0) {
+    return false;
+  }
+  return st.st_uid == 0 && (st.st_mode & 07777) == 04755;
+}
+
+std::string sandbox_unavailable_message(const std::string& helper) {
+  return "Chromium's sandbox can't start here: this system doesn't let unprivileged processes create user "
+         "namespaces, and " + helper + " isn't a setuid-root sandbox helper (owned by root, mode 4755).\n"
+         "The host never runs without its sandbox. To allow it, one of:\n"
+         "  - Ubuntu 23.10+: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 (or an AppArmor\n"
+         "    profile for this executable granting `userns`)\n"
+         "  - Debian and others: sudo sysctl -w kernel.unprivileged_userns_clone=1, and a nonzero\n"
+         "    user.max_user_namespaces\n"
+         "  - or install the helper: sudo chown root " + helper + " && sudo chmod 4755 " + helper + "\n"
+         "(see docs/platform-linux.md)";
 }
 
 }  // namespace pico_desktop::host

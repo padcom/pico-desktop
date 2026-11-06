@@ -98,6 +98,11 @@ add_test(NAME host.close
           ${PROJECT_SOURCE_DIR}/apps/hello-world)
 set_tests_properties(host.close PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 
+# No user namespaces: the host explains and refuses to start (simulated with unshare, no root).
+add_test(NAME host.no-userns
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/no-userns.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+set_tests_properties(host.no-userns PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
+
 # Hangs (liveness pings) and crash loops (the restart budget). Needs pico for the hang backend.
 add_test(NAME host.hang
   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/hang.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})

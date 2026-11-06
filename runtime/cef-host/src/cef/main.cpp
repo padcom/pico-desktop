@@ -17,6 +17,7 @@
 #include "include/cef_app.h"
 #include "include/cef_command_line.h"
 #include "include/cef_version.h"
+#include "pico_desktop/host/sandbox.hpp"
 
 namespace pico_desktop::host::cef {
 
@@ -91,6 +92,15 @@ int run_browser(int argc, char** argv) {
   const fs::path cache = cache_root(options, temporary_cache);
   if (cache.empty()) {
     std::fprintf(stderr, "pico-desktop-host: couldn't create a cache directory\n");
+    return 1;
+  }
+  // Without user namespaces Chromium falls back to its setuid helper, and without that it aborts
+  // with a trap; say what's wrong instead (the host never runs unsandboxed).
+  std::error_code exe_error;
+  const fs::path exe = fs::read_symlink("/proc/self/exe", exe_error);
+  const std::string helper = ((exe_error ? fs::path(argv[0]) : exe).parent_path() / "chrome-sandbox").string();
+  if (!user_namespaces_available() && !suid_sandbox_usable(helper)) {
+    std::fprintf(stderr, "pico-desktop-host: %s\n", sandbox_unavailable_message(helper).c_str());
     return 1;
   }
   std::error_code error;

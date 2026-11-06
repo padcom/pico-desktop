@@ -54,16 +54,22 @@ The host never sets `--no-sandbox` and never disables it; `CefSettings.no_sandbo
   (`sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`); for users the app needs an
   AppArmor profile that allows `userns` for its executable, or the SUID `chrome-sandbox`.
   Choosing between them is part of the AppImage work (F7).
-- Where user namespaces are restricted (some distributions' AppArmor policy, hardened kernels),
-  Chromium can't start sandboxed renderers. The host never falls back to `--no-sandbox`; it
-  prints a message naming user namespaces when `CefInitialize` fails. **Open (F5/F7):** detect
-  the case where initialization succeeds but renderers can't start, and report it the same way;
-  the AppImage work tests those configurations explicitly.
+- **Where user namespaces aren't available** (AppArmor's restriction, `unprivileged_userns_clone=0`,
+  `max_user_namespaces=0`), Chromium falls back to the setuid `chrome-sandbox` helper. If that
+  helper isn't installed setuid root, Chromium aborts with a trap and no explanation. So the host
+  checks before starting CEF: it tries to create a user namespace in a short-lived child. When
+  that fails and the helper isn't owned by root with mode 4755, the host prints what's missing and
+  the ways to allow it, then exits 1. It never falls back to `--no-sandbox`. ctest
+  `host.no-userns` simulates this without root: `max_user_namespaces=0` inside an unprivileged
+  user namespace. Choosing between an AppArmor profile and the setuid helper for distribution is
+  part of the AppImage work (F7).
 
 ## Shutdown
 
-Closing the window closes the browser first (unload handlers run), then the window; the message
-loop ends when the last browser is gone. `run-self-test.sh` checks that no host process (renderer,
+Asked to close (the window's close button, the dev CLI's `quit`, the backend's `host.app.quit`),
+the host first sends `closing` to the page and the backend while the window is still there. Once
+the backend has exited, or been killed after 3 s, the browser closes (unload handlers run), then
+the window. The message loop ends when the last browser is gone (ctest `host.close`). `run-self-test.sh` checks that no host process (renderer,
 GPU, utility, zygote) outlives the browser process.
 
 ## Not verified yet

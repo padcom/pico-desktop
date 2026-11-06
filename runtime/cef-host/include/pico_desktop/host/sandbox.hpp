@@ -40,4 +40,15 @@ std::vector<ProcessSandbox> inspect_descendants(int root_pid);
 /// Whether every renderer among `processes` is sandboxed, and there's at least one.
 bool renderers_sandboxed(const std::vector<ProcessSandbox>& processes);
 
+/// Whether this process may create user namespaces (tried in a short-lived child): Chromium's
+/// sandbox needs them, unless a setuid-root `chrome-sandbox` helper is installed (Linux).
+bool user_namespaces_available();
+
+/// Whether `helper` is a usable setuid sandbox: owned by root, mode 4755.
+bool suid_sandbox_usable(const std::string& helper);
+
+/// The explanation the host gives when the sandbox can't start: what's missing and how to enable
+/// it (the host never runs without its sandbox).
+std::string sandbox_unavailable_message(const std::string& helper);
+
 }  // namespace pico_desktop::host

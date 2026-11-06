@@ -111,6 +111,16 @@ async function malformedIgnored(): Promise<Outcome> {
   return typeof answer !== 'string' || answer
 }
 
+function oversizedRefused(): Outcome {
+  try {
+    window.picoDesktop!.send(new ArrayBuffer((4 * 1024 * 1024) + 1))
+
+    return 'it was accepted'
+  } catch (error) {
+    return String(error).includes('4 MiB') || String(error)
+  }
+}
+
 function bridgeReadOnly(): Outcome {
   const before = window.picoDesktop
   try {
@@ -178,6 +188,7 @@ const bridge: NamedCheck[] = [
     return failsWith(3, 'INVALID_MESSAGE')
   }],
   ['malformed messages are dropped, the bridge keeps working', malformedIgnored],
+  ['a message over 4 MiB is refused by the bridge', oversizedRefused],
   ['bridge is read-only', bridgeReadOnly],
   ['no bridge in a same-origin subframe', sameOriginFrame],
   ['no bridge in a srcdoc subframe', srcdocFrame],
