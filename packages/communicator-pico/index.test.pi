@@ -2,7 +2,7 @@ import { describe, it, expect } from "std/test"
 import { PROTOCOL_VERSION, FRAME_HEADER_BYTES, initialState } from "./index"
 
 function versions(): void {
-  expect(PROTOCOL_VERSION).toBe(0)
+  expect(PROTOCOL_VERSION).toBe(1)
   expect(FRAME_HEADER_BYTES).toBe(4)
 }
 

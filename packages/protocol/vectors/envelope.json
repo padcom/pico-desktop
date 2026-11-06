@@ -1,0 +1,305 @@
+{
+ "$comment": "Envelope vectors (docs/protocol.md §4). `envelope` uses the field names of the spec (v, k, id, n, p, err, w, e, s, d); payload values use the notation of cbor.json. Hex computed by an encoder independent of the TypeScript and Pico ones.",
+ "valid": [
+  {
+   "name": "a request",
+   "envelope": {
+    "v": 1,
+    "k": "request",
+    "id": 1,
+    "n": "serial.list",
+    "p": {}
+   },
+   "hex": "a5000101000201036b73657269616c2e6c69737404a0"
+  },
+  {
+   "name": "a request without a payload",
+   "envelope": {
+    "v": 1,
+    "k": "request",
+    "id": 2,
+    "n": "app.version"
+   },
+   "hex": "a4000101000202036b6170702e76657273696f6e"
+  },
+  {
+   "name": "a response",
+   "envelope": {
+    "v": 1,
+    "k": "response",
+    "id": 1,
+    "p": [
+     "COM1",
+     "COM2"
+    ]
+   },
+   "hex": "a4000101010201048264434f4d3164434f4d32"
+  },
+  {
+   "name": "an error",
+   "envelope": {
+    "v": 1,
+    "k": "error",
+    "id": 1,
+    "err": {
+     "code": "UNKNOWN_METHOD",
+     "message": "no handler for serial.lst"
+    }
+   },
+   "hex": "a400010102020105a2006e554e4b4e4f574e5f4d4554484f440178196e6f2068616e646c657220666f722073657269616c2e6c7374"
+  },
+  {
+   "name": "an error with data",
+   "envelope": {
+    "v": 1,
+    "k": "error",
+    "id": 9,
+    "err": {
+     "code": "HANDLER_ERROR",
+     "message": "port busy",
+     "data": {
+      "port": "COM1"
+     }
+    }
+   },
+   "hex": "a400010102020905a3006d48414e444c45525f4552524f520169706f7274206275737902a164706f727464434f4d31"
+  },
+  {
+   "name": "an event",
+   "envelope": {
+    "v": 1,
+    "k": "event",
+    "n": "ui.ready",
+    "p": {}
+   },
+   "hex": "a400010103036875692e726561647904a0"
+  },
+  {
+   "name": "a subscription event after drops",
+   "envelope": {
+    "v": 1,
+    "k": "event",
+    "n": "drone.telemetry",
+    "p": {
+     "alt": {
+      "$float": 12.5
+     }
+    },
+    "s": 3,
+    "d": 2
+   },
+   "hex": "a600010103036f64726f6e652e74656c656d6574727904a163616c74fb402900000000000008030902"
+  },
+  {
+   "name": "a subscribe",
+   "envelope": {
+    "v": 1,
+    "k": "subscribe",
+    "id": 4,
+    "n": "drone.telemetry",
+    "p": {
+     "rateHz": 10
+    }
+   },
+   "hex": "a5000101040204036f64726f6e652e74656c656d6574727904a16672617465487a0a"
+  },
+  {
+   "name": "an unsubscribe",
+   "envelope": {
+    "v": 1,
+    "k": "unsubscribe",
+    "s": 3
+   },
+   "hex": "a3000101050803"
+  },
+  {
+   "name": "an unsubscribe by the publisher, with an error",
+   "envelope": {
+    "v": 1,
+    "k": "unsubscribe",
+    "s": 3,
+    "err": {
+     "code": "DISCONNECTED",
+     "message": "vehicle lost"
+    }
+   },
+   "hex": "a40001010505a2006c444953434f4e4e4543544544016c76656869636c65206c6f73740803"
+  },
+  {
+   "name": "a cancel",
+   "envelope": {
+    "v": 1,
+    "k": "cancel",
+    "id": 1
+   },
+   "hex": "a3000101060201"
+  },
+  {
+   "name": "hello",
+   "envelope": {
+    "v": 1,
+    "k": "lifecycle",
+    "n": "hello",
+    "p": {
+     "protocol": [
+      1,
+      1
+     ],
+     "role": "frontend"
+    }
+   },
+   "hex": "a400010107036568656c6c6f04a26870726f746f636f6c82010164726f6c656866726f6e74656e64"
+  },
+  {
+   "name": "ready with an epoch",
+   "envelope": {
+    "v": 1,
+    "k": "lifecycle",
+    "n": "ready",
+    "e": 3
+   },
+   "hex": "a400010107036572656164790703"
+  },
+  {
+   "name": "a request routed for window 1 (backend link)",
+   "envelope": {
+    "v": 1,
+    "k": "request",
+    "id": 12,
+    "n": "file.read",
+    "p": {
+     "path": "/tmp/x",
+     "data": {
+      "$bytes": "00ff10"
+     },
+     "size": {
+      "$int": "18446744073709551615"
+     }
+    },
+    "w": 1
+   },
+   "hex": "a600010100020c036966696c652e7265616404a36470617468662f746d702f7864646174614300ff106473697a651bffffffffffffffff0601"
+  },
+  {
+   "name": "the largest request id",
+   "envelope": {
+    "v": 1,
+    "k": "cancel",
+    "id": 9007199254740991
+   },
+   "hex": "a300010106021b001fffffffffffff"
+  }
+ ],
+ "invalid": [
+  {
+   "name": "not a map",
+   "hex": "820100",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "text keys",
+   "hex": "a2617601616b00",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "an empty map",
+   "hex": "a0",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "no version",
+   "hex": "a20103036178",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "version 2",
+   "hex": "a300020103036178",
+   "code": "UNSUPPORTED_VERSION"
+  },
+  {
+   "name": "version 0",
+   "hex": "a300000103036178",
+   "code": "UNSUPPORTED_VERSION"
+  },
+  {
+   "name": "a text version",
+   "hex": "a30061310103036178",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "an unknown kind",
+   "hex": "a300010108036178",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "no kind",
+   "hex": "a20001036178",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "a request without an id",
+   "hex": "a300010100036178",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "a request without a name",
+   "hex": "a3000101000201",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "a negative id",
+   "hex": "a3000101060220",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "an id beyond 2^53",
+   "hex": "a300010106021b0020000000000000",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "a text id",
+   "hex": "a300010106026131",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "a number as name",
+   "hex": "a3000101030307",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "an error without err",
+   "hex": "a3000101020201",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "err as text",
+   "hex": "a40001010202010564626f6f6d",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "err without a message",
+   "hex": "a400010102020105a10068494e5445524e414c",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "an unsubscribe without a subscription",
+   "hex": "a200010105",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "a 257-byte name",
+   "hex": "a300010103037901017878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "malformed CBOR",
+   "hex": "a20001",
+   "code": "INVALID_MESSAGE"
+  },
+  {
+   "name": "a tag inside the payload",
+   "hex": "a40001010303617804c000",
+   "code": "INVALID_MESSAGE"
+  }
+ ]
+}

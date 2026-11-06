@@ -1,0 +1,623 @@
+{
+ "$comment": "Pico Desktop CBOR profile vectors (docs/protocol.md §3). Notation: JSON numbers are integers unless wrapped as {\"$float\": n | \"NaN\" | \"Infinity\" | \"-Infinity\" | \"-0\"}; {\"$int\": \"…\"} is an integer beyond 2^53; {\"$bytes\": \"hex\"} a byte string; {\"$map\": [[uint, value], …]} a uint-keyed map; JSON objects are text-keyed maps (in order). Hex bytes come from RFC 8949 Appendix A where it has them.",
+ "roundtrip": [
+  {
+   "name": "0",
+   "value": 0,
+   "hex": "00"
+  },
+  {
+   "name": "1",
+   "value": 1,
+   "hex": "01"
+  },
+  {
+   "name": "10",
+   "value": 10,
+   "hex": "0a"
+  },
+  {
+   "name": "23",
+   "value": 23,
+   "hex": "17"
+  },
+  {
+   "name": "24",
+   "value": 24,
+   "hex": "1818"
+  },
+  {
+   "name": "25",
+   "value": 25,
+   "hex": "1819"
+  },
+  {
+   "name": "100",
+   "value": 100,
+   "hex": "1864"
+  },
+  {
+   "name": "1000",
+   "value": 1000,
+   "hex": "1903e8"
+  },
+  {
+   "name": "1000000",
+   "value": 1000000,
+   "hex": "1a000f4240"
+  },
+  {
+   "name": "1000000000000",
+   "value": 1000000000000,
+   "hex": "1b000000e8d4a51000"
+  },
+  {
+   "name": "max safe integer",
+   "value": 9007199254740991,
+   "hex": "1b001fffffffffffff"
+  },
+  {
+   "name": "2^53 (a big integer in TS)",
+   "value": {
+    "$int": "9007199254740992"
+   },
+   "hex": "1b0020000000000000"
+  },
+  {
+   "name": "max u64",
+   "value": {
+    "$int": "18446744073709551615"
+   },
+   "hex": "1bffffffffffffffff"
+  },
+  {
+   "name": "-1",
+   "value": -1,
+   "hex": "20"
+  },
+  {
+   "name": "-10",
+   "value": -10,
+   "hex": "29"
+  },
+  {
+   "name": "-100",
+   "value": -100,
+   "hex": "3863"
+  },
+  {
+   "name": "-1000",
+   "value": -1000,
+   "hex": "3903e7"
+  },
+  {
+   "name": "min safe integer",
+   "value": -9007199254740991,
+   "hex": "3b001ffffffffffffe"
+  },
+  {
+   "name": "min CBOR integer",
+   "value": {
+    "$int": "-18446744073709551616"
+   },
+   "hex": "3bffffffffffffffff"
+  },
+  {
+   "name": "1.1 (double)",
+   "value": {
+    "$float": 1.1
+   },
+   "hex": "fb3ff199999999999a"
+  },
+  {
+   "name": "1.5 (double, the profile's encoding)",
+   "value": {
+    "$float": 1.5
+   },
+   "hex": "fb3ff8000000000000"
+  },
+  {
+   "name": "-4.1",
+   "value": {
+    "$float": -4.1
+   },
+   "hex": "fbc010666666666666"
+  },
+  {
+   "name": "1e300",
+   "value": {
+    "$float": 1e+300
+   },
+   "hex": "fb7e37e43c8800759c"
+  },
+  {
+   "name": "Infinity",
+   "value": {
+    "$float": "Infinity"
+   },
+   "hex": "fb7ff0000000000000"
+  },
+  {
+   "name": "-Infinity",
+   "value": {
+    "$float": "-Infinity"
+   },
+   "hex": "fbfff0000000000000"
+  },
+  {
+   "name": "NaN",
+   "value": {
+    "$float": "NaN"
+   },
+   "hex": "fb7ff8000000000000"
+  },
+  {
+   "name": "-0.0 stays a float",
+   "value": {
+    "$float": "-0"
+   },
+   "hex": "fb8000000000000000"
+  },
+  {
+   "name": "false",
+   "value": false,
+   "hex": "f4"
+  },
+  {
+   "name": "true",
+   "value": true,
+   "hex": "f5"
+  },
+  {
+   "name": "null",
+   "value": null,
+   "hex": "f6"
+  },
+  {
+   "name": "empty bytes",
+   "value": {
+    "$bytes": ""
+   },
+   "hex": "40"
+  },
+  {
+   "name": "bytes",
+   "value": {
+    "$bytes": "01020304"
+   },
+   "hex": "4401020304"
+  },
+  {
+   "name": "empty text",
+   "value": "",
+   "hex": "60"
+  },
+  {
+   "name": "a",
+   "value": "a",
+   "hex": "6161"
+  },
+  {
+   "name": "IETF",
+   "value": "IETF",
+   "hex": "6449455446"
+  },
+  {
+   "name": "quote and backslash",
+   "value": "\"\\",
+   "hex": "62225c"
+  },
+  {
+   "name": "ü",
+   "value": "ü",
+   "hex": "62c3bc"
+  },
+  {
+   "name": "水",
+   "value": "水",
+   "hex": "63e6b0b4"
+  },
+  {
+   "name": "surrogate pair",
+   "value": "𐅑",
+   "hex": "64f0908591"
+  },
+  {
+   "name": "empty array",
+   "value": [],
+   "hex": "80"
+  },
+  {
+   "name": "[1, 2, 3]",
+   "value": [
+    1,
+    2,
+    3
+   ],
+   "hex": "83010203"
+  },
+  {
+   "name": "nested arrays",
+   "value": [
+    1,
+    [
+     2,
+     3
+    ],
+    [
+     4,
+     5
+    ]
+   ],
+   "hex": "8301820203820405"
+  },
+  {
+   "name": "25-element array",
+   "value": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25
+   ],
+   "hex": "98190102030405060708090a0b0c0d0e0f101112131415161718181819"
+  },
+  {
+   "name": "empty map",
+   "value": {},
+   "hex": "a0"
+  },
+  {
+   "name": "map",
+   "value": {
+    "a": 1,
+    "b": [
+     2,
+     3
+    ]
+   },
+   "hex": "a26161016162820203"
+  },
+  {
+   "name": "array with a map",
+   "value": [
+    "a",
+    {
+     "b": "c"
+    }
+   ],
+   "hex": "826161a161626163"
+  },
+  {
+   "name": "5-entry map",
+   "value": {
+    "a": "A",
+    "b": "B",
+    "c": "C",
+    "d": "D",
+    "e": "E"
+   },
+   "hex": "a56161614161626142616361436164614461656145"
+  },
+  {
+   "name": "uint-keyed map (envelopes)",
+   "value": {
+    "$map": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      0
+     ]
+    ]
+   },
+   "hex": "a200010100"
+  },
+  {
+   "name": "32 levels of nesting (the maximum)",
+   "value": [
+    [
+     [
+      [
+       [
+        [
+         [
+          [
+           [
+            [
+             [
+              [
+               [
+                [
+                 [
+                  [
+                   [
+                    [
+                     [
+                      [
+                       [
+                        [
+                         [
+                          [
+                           [
+                            [
+                             [
+                              [
+                               [
+                                [
+                                 [
+                                  [
+                                   0
+                                  ]
+                                 ]
+                                ]
+                               ]
+                              ]
+                             ]
+                            ]
+                           ]
+                          ]
+                         ]
+                        ]
+                       ]
+                      ]
+                     ]
+                    ]
+                   ]
+                  ]
+                 ]
+                ]
+               ]
+              ]
+             ]
+            ]
+           ]
+          ]
+         ]
+        ]
+       ]
+      ]
+     ]
+    ]
+   ],
+   "hex": "818181818181818181818181818181818181818181818181818181818181818100"
+  }
+ ],
+ "decode": [
+  {
+   "name": "half 0.0",
+   "hex": "f90000",
+   "value": {
+    "$float": 0
+   }
+  },
+  {
+   "name": "half 1.0",
+   "hex": "f93c00",
+   "value": {
+    "$float": 1
+   }
+  },
+  {
+   "name": "half 1.5",
+   "hex": "f93e00",
+   "value": {
+    "$float": 1.5
+   }
+  },
+  {
+   "name": "half 65504",
+   "hex": "f97bff",
+   "value": {
+    "$float": 65504
+   }
+  },
+  {
+   "name": "half 5.960464477539063e-8 (subnormal)",
+   "hex": "f90001",
+   "value": {
+    "$float": 5.960464477539063e-08
+   }
+  },
+  {
+   "name": "half -4.0",
+   "hex": "f9c400",
+   "value": {
+    "$float": -4
+   }
+  },
+  {
+   "name": "half Infinity",
+   "hex": "f97c00",
+   "value": {
+    "$float": "Infinity"
+   }
+  },
+  {
+   "name": "half NaN",
+   "hex": "f97e00",
+   "value": {
+    "$float": "NaN"
+   }
+  },
+  {
+   "name": "half -0.0",
+   "hex": "f98000",
+   "value": {
+    "$float": "-0"
+   }
+  },
+  {
+   "name": "single 100000.0",
+   "hex": "fa47c35000",
+   "value": {
+    "$float": 100000
+   }
+  },
+  {
+   "name": "single 3.4028234663852886e38",
+   "hex": "fa7f7fffff",
+   "value": {
+    "$float": 3.4028234663852886e+38
+   }
+  },
+  {
+   "name": "single Infinity",
+   "hex": "fa7f800000",
+   "value": {
+    "$float": "Infinity"
+   }
+  },
+  {
+   "name": "non-shortest integer",
+   "hex": "1801",
+   "value": 1
+  },
+  {
+   "name": "non-shortest integer (u16)",
+   "hex": "190001",
+   "value": 1
+  },
+  {
+   "name": "non-shortest length",
+   "hex": "780161",
+   "value": "a"
+  }
+ ],
+ "invalid": [
+  {
+   "name": "tag 0 (date)",
+   "hex": "c074323031332d30332d32315432303a30343a30305a"
+  },
+  {
+   "name": "tag 2 (bignum)",
+   "hex": "c249010000000000000000"
+  },
+  {
+   "name": "indefinite byte string",
+   "hex": "5f42010243030405ff"
+  },
+  {
+   "name": "indefinite text",
+   "hex": "7f657374726561646d696e67ff"
+  },
+  {
+   "name": "indefinite array",
+   "hex": "9fff"
+  },
+  {
+   "name": "indefinite map",
+   "hex": "bf6161019f0203ffff"
+  },
+  {
+   "name": "undefined",
+   "hex": "f7"
+  },
+  {
+   "name": "simple value 16",
+   "hex": "f0"
+  },
+  {
+   "name": "simple value 255",
+   "hex": "f8ff"
+  },
+  {
+   "name": "lone break",
+   "hex": "ff"
+  },
+  {
+   "name": "reserved additional information",
+   "hex": "1c"
+  },
+  {
+   "name": "truncated head",
+   "hex": "18"
+  },
+  {
+   "name": "truncated u16",
+   "hex": "1901"
+  },
+  {
+   "name": "truncated text",
+   "hex": "62c3"
+  },
+  {
+   "name": "truncated array",
+   "hex": "8301"
+  },
+  {
+   "name": "truncated float",
+   "hex": "fb3ff1"
+  },
+  {
+   "name": "trailing bytes",
+   "hex": "0000"
+  },
+  {
+   "name": "empty input",
+   "hex": ""
+  },
+  {
+   "name": "invalid UTF-8",
+   "hex": "62c328"
+  },
+  {
+   "name": "duplicate text key",
+   "hex": "a2616101616102"
+  },
+  {
+   "name": "duplicate integer key",
+   "hex": "a200010002"
+  },
+  {
+   "name": "mixed key types",
+   "hex": "a2016161616102"
+  },
+  {
+   "name": "negative integer key",
+   "hex": "a12001"
+  },
+  {
+   "name": "byte string key",
+   "hex": "a1410001"
+  },
+  {
+   "name": "33 levels of nesting",
+   "hex": "81818181818181818181818181818181818181818181818181818181818181818100"
+  },
+  {
+   "name": "byte string longer than the input",
+   "hex": "5bffffffffffffffff"
+  },
+  {
+   "name": "array longer than the input",
+   "hex": "9b0000000100000000"
+  },
+  {
+   "name": "map longer than the input",
+   "hex": "ba00010000"
+  }
+ ]
+}

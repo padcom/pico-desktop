@@ -20,5 +20,8 @@
     "build": "vite build",
     "typecheck": "tsc -p .",
     "test": "vitest run --root ."
+  },
+  "devDependencies": {
+    "cbor2": "2.4.1"
   }
 }

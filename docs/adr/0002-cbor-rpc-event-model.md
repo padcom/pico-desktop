@@ -21,10 +21,11 @@ application payloads. Payloads include binary data and 64-bit integers.
 - Timeouts and cancellation (`AbortSignal` in TypeScript, the Pico equivalent) end the wait and
   signal the handler; they don't promise rollback.
 
-## Still to specify (F2)
-CBOR map keys and types, numeric widths, size limits, queue bounds, request-ID allocation,
-ordering, error codes, the handshake and compatibility rules. That goes in the protocol spec, with
-cross-language fixtures.
+## Specified (F2)
+Map keys and types, the CBOR profile, numeric widths, size limits, queue bounds, request-ID
+allocation, ordering, error codes, the handshake and compatibility rules are in
+[`docs/protocol.md`](../protocol.md) (version 1), with shared vectors in
+`packages/protocol/vectors/`.
 
 ## Consequences
 - The host decodes just enough of the envelope to route and validate.
