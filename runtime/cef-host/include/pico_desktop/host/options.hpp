@@ -37,6 +37,9 @@ struct Options {
   bool remote_debugging_requested = false;
   /// Development: read control commands from stdin, one per line (the dev CLI drives the host).
   bool control_stdin = false;
+  /// Allow several instances (each with its own, temporary profile). By default a second launch
+  /// brings the running instance's window to the front and exits.
+  bool multi_instance = false;
   /// Development: log every message's envelope (kind, id, name, window, subscription, size), never
   /// its payload.
   bool trace_ipc = false;

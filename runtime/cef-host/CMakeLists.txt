@@ -84,6 +84,11 @@ foreach(origin IN ITEMS app https)
   set_tests_properties(host.self-test.${origin} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endforeach()
 
+# Single instance: a second launch focuses the first and exits 0; --multi-instance runs beside it.
+add_test(NAME host.single-instance
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/single-instance.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+set_tests_properties(host.single-instance PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+
 # The F3 vertical slice end to end: the hello-world app's self-test build and its compiled Pico
 # backend in a real window (`pnpm --filter @pico-desktop/hello-world build:self-test` and
 # `backend`, which needs pico); skipped when they aren't built.

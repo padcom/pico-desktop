@@ -21,6 +21,8 @@ class HostApp : public CefApp, public CefBrowserProcessHandler, public CefRender
   // Browser process.
   void OnContextInitialized() override;
   void OnBeforeChildProcessLaunch(CefRefPtr<CefCommandLine> command_line) override;
+  bool OnAlreadyRunningAppRelaunch(CefRefPtr<CefCommandLine> command_line,
+                                   const CefString& current_directory) override;
 
   // Renderer processes.
   void OnWebKitInitialized() override;

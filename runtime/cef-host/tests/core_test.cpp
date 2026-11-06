@@ -168,6 +168,11 @@ static void options() {
   }
   CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--control=stdin"})));  // needs --dev
   CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--dev", "--control=tcp"})));
+  {
+    const auto r = parse({"--app-dir=/x", "--multi-instance"});
+    const auto* o = std::get_if<Options>(&r);
+    CHECK(o && o->multi_instance);
+  }
   CHECK(parse_control("restart-backend") == ControlCommand::restart_backend);
   CHECK(parse_control("  reload\r\n") == ControlCommand::reload);
   CHECK(parse_control("quit") == ControlCommand::quit);

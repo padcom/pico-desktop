@@ -57,6 +57,21 @@ void self_test_timeout() {
 
 }  // namespace
 
+void focus_app_window() {
+  CEF_REQUIRE_UI_THREAD();
+  CefRefPtr<CefBrowser> browser = browser_state().browser;
+  CefRefPtr<CefBrowserView> view = browser ? CefBrowserView::GetForBrowser(browser) : nullptr;
+  CefRefPtr<CefWindow> window = view ? view->GetWindow() : nullptr;
+  if (!window) {
+    return;
+  }
+  if (window->IsMinimized()) {
+    window->Restore();
+  }
+  window->Show();
+  window->Activate();
+}
+
 void create_app_window() {
   CEF_REQUIRE_UI_THREAD();
   const Options& options = browser_state().options;

@@ -51,6 +51,9 @@ void open_external(const std::string& url);
 /// Opens the app window (UI thread, after CEF is initialized).
 void create_app_window();
 
+/// Brings the app window to the front (restoring it if minimized): a second launch.
+void focus_app_window();
+
 /// Fails the self-test with `reason` and closes the window.
 void fail_self_test(CefRefPtr<CefBrowser> browser, const std::string& reason);
 

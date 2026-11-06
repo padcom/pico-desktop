@@ -33,6 +33,15 @@ void HostApp::OnBeforeChildProcessLaunch(CefRefPtr<CefCommandLine> command_line)
   command_line->AppendSwitchWithValue(kSwitchBridgeSubframes, policy.bridge_in_subframes ? "1" : "0");
 }
 
+bool HostApp::OnAlreadyRunningAppRelaunch(CefRefPtr<CefCommandLine> command_line,
+                                          const CefString& current_directory) {
+  // Single instance: a second launch of this app (the same profile) brings this window to the
+  // front. Handled here, so CEF never opens a window of its own.
+  log_line("pd-host: launched again: bringing the window to the front");
+  focus_app_window();
+  return true;
+}
+
 void HostApp::OnWebKitInitialized() {
   bridge_ = std::make_unique<RendererBridge>();
 }

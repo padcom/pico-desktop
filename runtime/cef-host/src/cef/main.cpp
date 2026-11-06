@@ -39,7 +39,13 @@ fs::path cache_root(const Options& options, bool& temporary) {
   const char* xdg = std::getenv("XDG_CACHE_HOME");
   const char* home = std::getenv("HOME");
   const fs::path base = xdg && *xdg ? fs::path(xdg) : fs::path(home ? home : "/tmp") / ".cache";
-  return base / "pico-desktop" / "apps" / options.policy.app_id;
+  const fs::path app = base / "pico-desktop" / "apps" / options.policy.app_id;
+  if (options.multi_instance) {
+    // Each instance its own profile (CEF allows one process per profile), removed on exit.
+    temporary = true;
+    return app / "instances" / std::to_string(::getpid());
+  }
+  return app;
 }
 
 }  // namespace
@@ -103,6 +109,11 @@ int run_browser(int argc, char** argv) {
   CefString(&settings.cache_path) = cache.string();
   CefString(&settings.log_file) = (cache / "cef.log").string();
   if (!CefInitialize(main_args, settings, app, nullptr)) {
+    if (CefGetExitCode() == CEF_RESULT_CODE_NORMAL_EXIT_PROCESS_NOTIFIED) {
+      std::printf("pico-desktop-host: %s is already running; its window was brought to the front\n",
+                  browser_state().options.policy.app_id.c_str());
+      return 0;
+    }
     std::fprintf(stderr,
                  "pico-desktop-host: CEF failed to initialize (exit code %d). If the sandbox can't start, "
                  "enable unprivileged user namespaces; the host never runs without the sandbox.\n",
