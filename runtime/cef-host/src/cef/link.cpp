@@ -24,6 +24,7 @@ namespace {
 
 constexpr std::size_t kMaxMessage = 4 * 1024 * 1024;  // docs/protocol.md §2
 constexpr int64_t kRestartGraceMs = 2000;
+constexpr int64_t kCloseGraceMs = 3000;
 
 Link* g_link = nullptr;
 
@@ -216,6 +217,8 @@ void Link::on_backend_exit(std::uint64_t generation) {
   }
   const int status = end_process(std::chrono::milliseconds(0));
   if (closing_) {
+    log("pd-host: the backend ended (" + describe(status) + ")");
+    finish_close();
     return;
   }
   log("pd-host: the backend exited (" + describe(status) + ")");
@@ -268,6 +271,31 @@ void Link::schedule_restart() {
   log("pd-host: starting the backend again in " + std::to_string(delay->count()) + " ms");
   router_.announce("restarting");
   CefPostDelayedTask(TID_UI, base::BindOnce(&Link::spawn, base::Unretained(this)), delay->count());
+}
+
+void Link::begin_close(base::OnceClosure done) {
+  if (close_done_ || closing_) {
+    if (done) {
+      std::move(done).Run();
+    }
+    return;
+  }
+  log("pd-host: closing: telling the page and the backend");
+  router_.closing();
+  closing_ = true;
+  close_done_ = std::move(done);
+  if (!process_) {
+    finish_close();
+    return;
+  }
+  CefPostDelayedTask(TID_UI, base::BindOnce(&Link::force_end, base::Unretained(this), process_->generation),
+                     kCloseGraceMs);
+}
+
+void Link::finish_close() {
+  if (close_done_) {
+    std::move(close_done_).Run();
+  }
 }
 
 void Link::closing() {

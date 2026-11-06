@@ -19,14 +19,7 @@ namespace pico_desktop::host::cef {
 
 namespace {
 
-void quit() {
-  CefRefPtr<CefBrowser> browser = browser_state().browser;
-  if (browser) {
-    browser->GetHost()->CloseBrowser(false);
-  } else {
-    CefQuitMessageLoop();
-  }
-}
+void quit() { close_app_window(); }
 
 void run(ControlCommand command) {
   CEF_REQUIRE_UI_THREAD();

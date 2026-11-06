@@ -51,6 +51,9 @@ void open_external(const std::string& url);
 /// Opens the app window (UI thread, after CEF is initialized).
 void create_app_window();
 
+/// Closes the app window the orderly way (what its close button does).
+void close_app_window();
+
 /// Brings the app window to the front (restoring it if minimized): a second launch.
 void focus_app_window();
 

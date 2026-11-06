@@ -16,6 +16,7 @@
 #include <string>
 #include <thread>
 
+#include "include/base/cef_callback.h"
 #include "include/cef_browser.h"
 #include "pico_desktop/host/options.hpp"
 #include "pico_desktop/host/restart.hpp"
@@ -40,6 +41,10 @@ class Link : public RouterOutput {
   void browser_gone(int browser_id);
   /// The app is closing: tell the pages and the backend (the backend gets a grace period in `stop`).
   void closing();
+  /// An orderly close (the window was asked to close): the pages and the backend get `closing`
+  /// while the window is still there; `done` runs once the backend has exited, or was killed
+  /// after the grace period. Never blocks the UI thread.
+  void begin_close(base::OnceClosure done);
   /// Development (`restart-backend`): the backend gets `closing`, and once it's gone (or killed
   /// after a grace period) the program starts again, a rebuilt one included; the pages stay. It
   /// doesn't use the restart budget, and it starts a backend that had `failed`.
@@ -81,6 +86,7 @@ class Link : public RouterOutput {
   void schedule_restart();
   /// Kills process `generation` if it's still running (a planned restart's grace period is over).
   void force_end(std::uint64_t generation);
+  void finish_close();
   /// Ends the current process: closes its stdin, reaps it (killing it after `grace`), joins its
   /// threads. Returns the wait status (-1 if unknown).
   int end_process(std::chrono::milliseconds grace);
@@ -92,6 +98,7 @@ class Link : public RouterOutput {
   RestartBudget budget_;
   bool closing_ = false;
   bool planned_restart_ = false;
+  base::OnceClosure close_done_;
   std::uint64_t generation_ = 0;
   std::unique_ptr<Process> process_;
   std::map<std::string, std::uint64_t> session_of_;  // "<frame id>#<context>" → session

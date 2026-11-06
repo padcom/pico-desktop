@@ -147,8 +147,10 @@ The host tells the frontend about the backend with `lifecycle` messages carrying
 | `failed` | the restart budget is spent; manual action is needed |
 | `closing` | the app is shutting down |
 
-To the backend the host sends `closing` when the app shuts down. The backend should finish and exit
-within the grace period, or the host terminates it (F5).
+When the window is asked to close, the host sends `closing` to the page and to the backend while the
+window is still open. The backend should finish and exit within the grace period (3 s), or the host
+kills it; then the window closes. A planned restart (development: `restart-backend`) sends `closing`
+to the backend alone, with a 2 s grace period.
 
 When an epoch ends, every request still pending across it is rejected with `DISCONNECTED`, and
 answers from the old epoch are discarded. The host enforces both, so a frontend never sees a late reply.

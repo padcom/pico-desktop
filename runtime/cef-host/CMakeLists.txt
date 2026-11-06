@@ -89,6 +89,13 @@ add_test(NAME host.single-instance
   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/single-instance.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
 set_tests_properties(host.single-instance PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 
+# The orderly close: `closing` to the page and the backend while the window stays, then the close;
+# a backend that doesn't finish is killed after the grace period. Needs hello-world built.
+add_test(NAME host.close
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/close.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR}
+          ${PROJECT_SOURCE_DIR}/apps/hello-world)
+set_tests_properties(host.close PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+
 # The F3 vertical slice end to end: the hello-world app's self-test build and its compiled Pico
 # backend in a real window (`pnpm --filter @pico-desktop/hello-world build:self-test` and
 # `backend`, which needs pico); skipped when they aren't built.
