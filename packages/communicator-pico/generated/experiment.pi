@@ -4,9 +4,9 @@ import { InvalidPayload, members, required, text, bytes, uint, float, items, tag
 
 export struct SerialPort {
   path: string
-  vendorId: u16?
-  productId: u16?
-  serial: string?
+  vendorId?: u16
+  productId?: u16
+  serial?: string
 }
 
 export function decodeSerialPort(v: Cbor, path: string): SerialPort throws InvalidPayload {
@@ -74,7 +74,7 @@ export function encodeOpenParamsParity(v: OpenParamsParity): Cbor {
 export struct OpenParams {
   path: string
   baud: u32
-  parity: OpenParamsParity?
+  parity?: OpenParamsParity
 }
 
 export function decodeOpenParams(v: Cbor, path: string): OpenParams throws InvalidPayload {
@@ -105,7 +105,7 @@ export function encodeOpenParams(v: OpenParams): Cbor {
 export struct WriteParams {
   handle: u32
   data: Uint8Array
-  packet: Packet?
+  packet?: Packet
 }
 
 export function decodeWriteParams(v: Cbor, path: string): WriteParams throws InvalidPayload {
@@ -248,7 +248,7 @@ export function encodeTelemetryAttitude(v: TelemetryAttitude): Cbor {
 
 export struct TelemetryBattery {
   voltage: f64
-  remaining: u64?
+  remaining?: u64
 }
 
 export function decodeTelemetryBattery(v: Cbor, path: string): TelemetryBattery throws InvalidPayload {
@@ -296,7 +296,7 @@ export function encodeTelemetryMode(v: TelemetryMode): Cbor {
 export struct Telemetry {
   timeUs: u64
   attitude: TelemetryAttitude
-  battery: TelemetryBattery?
+  battery?: TelemetryBattery
   mode: TelemetryMode
 }
 

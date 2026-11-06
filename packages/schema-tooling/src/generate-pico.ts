@@ -135,8 +135,9 @@ class PicoGenerator {
   }
 
   private struct(name: string, fields: Field[]) {
-    const types = fields.map(f => `${this.picoType(f.type, name + typeName(f.name))}${f.optional ? '?' : ''}`)
-    const lines = [`export struct ${name} {`, ...fields.map((f, i) => `  ${f.name}: ${types[i]}`), '}\n']
+    // `name?: T`: an optional field a struct literal may leave out (it's null then).
+    const types = fields.map(f => this.picoType(f.type, name + typeName(f.name)))
+    const lines = [`export struct ${name} {`, ...fields.map((f, i) => `  ${f.name}${f.optional ? '?' : ''}: ${types[i]}`), '}\n']
     const known = `[${fields.map(f => JSON.stringify(f.name)).join(', ')}]`
     const decoder = [
       `export function decode${name}(v: Cbor, path: string): ${name} throws InvalidPayload {`,

@@ -93,7 +93,7 @@ export function encodeConfirmResponse(v: ConfirmResponse): Cbor {
 }
 
 export struct ClockParams {
-  intervalMs: u32?
+  intervalMs?: u32
 }
 
 export function decodeClockParams(v: Cbor, path: string): ClockParams throws InvalidPayload {
