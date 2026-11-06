@@ -48,6 +48,10 @@ export interface RequestOptions {
   signal?: AbortSignal
 }
 
+interface CallOptions extends RequestOptions {
+  onAnswer?: (answer: Envelope) => void
+}
+
 export interface RequestContext {
   /** Aborted when the caller cancels or the connection goes away. */
   signal: AbortSignal
@@ -199,7 +203,7 @@ export class Communicator<S = AnyServices> {
       onEnd,
       cancel: s => this.cancelSubscription(s),
     })
-    this.attach(subscription, await this.accepted(subscription))
+    await this.accept(subscription)
     this.subscriptions.add(subscription)
 
     return subscription
@@ -249,7 +253,16 @@ export class Communicator<S = AnyServices> {
     return options.signal?.aborted ? new CommunicatorError('CANCELLED', `${name} was cancelled before it was sent`) : null
   }
 
-  private call(kind: 'request' | 'subscribe', name: string, payload: unknown, options: RequestOptions): Promise<Envelope> {
+  /**
+   * Sends a request or subscribe and waits for its answer.
+   *
+   * @param kind request or subscribe
+   * @param name the method or topic
+   * @param payload the request or params
+   * @param options a timeout, an AbortSignal, and `onAnswer` (called as the answer arrives, before anything awaiting it resumes)
+   * @returns the answer
+   */
+  private call(kind: 'request' | 'subscribe', name: string, payload: unknown, options: CallOptions): Promise<Envelope> {
     const refused = this.refuseEarly(name, options)
     if (refused) {
       return Promise.reject(refused)
@@ -257,7 +270,11 @@ export class Communicator<S = AnyServices> {
     const id = this.nextId++
 
     return new Promise((resolve, reject) => {
-      this.pending.add(id, { name, sent: false, resolve, reject, cleanup: this.watch(id, name, options) })
+      const settle = (answer: Envelope) => {
+        options.onAnswer?.(answer)
+        resolve(answer)
+      }
+      this.pending.add(id, { name, sent: false, resolve: settle, reject, cleanup: this.watch(id, name, options) })
       this.queue({ k: kind, id, n: name, ...withPayload(payload) })
 
       if (this.stateValue === 'ready') {
@@ -380,18 +397,21 @@ export class Communicator<S = AnyServices> {
   // ------------------------------------------------------------------------- subscriptions
 
   /**
-   * Asks the publisher for the subscription.
+   * Asks the publisher for the subscription. It's attached as the acceptance arrives, not when
+   * this resumes: the publisher's first value may be right behind its acceptance.
    *
    * @param subscription the subscription
-   * @returns the publisher's ID for it
    */
-  private async accepted(subscription: Subscription): Promise<number> {
-    const answer = await this.call('subscribe', subscription.topic, subscription.params, {})
+  private async accept(subscription: Subscription): Promise<void> {
+    const attach = (answer: Envelope) => {
+      if (answer.s !== undefined) {
+        this.attach(subscription, answer.s)
+      }
+    }
+    const answer = await this.call('subscribe', subscription.topic, subscription.params, { onAnswer: attach })
     if (answer.s === undefined) {
       throw new CommunicatorError('INVALID_MESSAGE', `the publisher of ${subscription.topic} accepted without a subscription id`)
     }
-
-    return answer.s
   }
 
   private attach(subscription: Subscription, s: number) {
@@ -445,7 +465,7 @@ export class Communicator<S = AnyServices> {
 
   private async reactivate(subscription: Subscription) {
     try {
-      this.attach(subscription, await this.accepted(subscription))
+      await this.accept(subscription)
     } catch (error) {
       this.forget(subscription)
       subscription.end(error instanceof CommunicatorError ? error : new CommunicatorError('INTERNAL', String(error)))

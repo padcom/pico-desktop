@@ -56,6 +56,26 @@ describe('subscriptions', () => {
   })
 })
 
+describe('subscription timing', () => {
+  it('get a value that follows the acceptance immediately', async () => {
+    const [ours, theirs] = memoryTransportPair()
+    const send = (e: Omit<Envelope, 'v'>) => theirs.send(encodeEnvelope(e))
+    theirs.connect(bytes => {
+      const e = decodeEnvelope(bytes)
+      if (e.k === 'subscribe') {
+        send({ k: 'response', id: e.id!, s: 7 })
+        send({ k: 'event', n: 'clock', s: 7, p: 1 })
+      }
+    })
+    const communicator = new Communicator({ transport: ours })
+    send({ k: 'lifecycle', n: 'ready', e: 1 })
+    const values: unknown[] = []
+    await communicator.subscribe('clock', undefined, v => values.push(v))
+    await settle()
+    expect(values).toEqual([1])
+  })
+})
+
 describe('subscription lifetimes', () => {
   it('end when the publisher ends them', async () => {
     const { communicator, send } = publisher()
