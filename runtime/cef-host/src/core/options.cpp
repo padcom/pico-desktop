@@ -27,6 +27,7 @@ std::string usage() {
          "  --dev                  development policy: DevTools (F12), --dev-url, remote debugging\n"
          "  --dev-url=<origin>     load the Vite dev server instead of --app-dir (needs --dev)\n"
          "  --control=stdin        read restart-backend, reload, quit from stdin (needs --dev)\n"
+         "  --trace-ipc            log each message's envelope, not its payload (needs --dev)\n"
          "  --self-test            let the page test itself, check the sandbox, exit with the result\n"
          "  --no-external-open     log external links instead of opening the system browser\n"
          "  -V, --version          print the version\n"
@@ -70,6 +71,8 @@ ParseResult parse_options(const std::vector<std::string>& args) {
         return "invalid --control '" + *c + "': only stdin";
       }
       options.control_stdin = true;
+    } else if (arg == "--trace-ipc") {
+      options.trace_ipc = true;
     } else if (arg == "--dev") {
       options.dev = true;
     } else if (arg == "--self-test") {
@@ -88,6 +91,9 @@ ParseResult parse_options(const std::vector<std::string>& args) {
   }
   if (options.control_stdin && !options.dev) {
     return "--control needs --dev";
+  }
+  if (options.trace_ipc && !options.dev) {
+    return "--trace-ipc needs --dev";
   }
   if (dev_url) {
     if (!options.dev) {

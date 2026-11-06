@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "ui": "vite",
     "test": "vitest run"
   },
   "dependencies": {
-    "@pico-desktop/communicator": "{{dep:communicator}}"
+    "@pico-desktop/communicator": "{{dep:communicator}}",
+    "@pico-desktop/protocol": "{{dep:protocol}}"
   },
   "devDependencies": {
-    "@pico-desktop/protocol": "{{dep:protocol}}",
     "typescript": "{{version:typescript}}",
     "vite": "{{version:vite}}",
     "vitest": "{{version:vitest}}"

@@ -37,6 +37,9 @@ struct Options {
   bool remote_debugging_requested = false;
   /// Development: read control commands from stdin, one per line (the dev CLI drives the host).
   bool control_stdin = false;
+  /// Development: log every message's envelope (kind, id, name, window, subscription, size), never
+  /// its payload.
+  bool trace_ipc = false;
 };
 
 /// What the dev CLI can ask of the host (`--control=stdin`).

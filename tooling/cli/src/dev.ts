@@ -60,15 +60,24 @@ export function worthShowing(line: string): boolean {
   return !NOISE.some(pattern => pattern.test(line))
 }
 
-function startHost(host: string, config: ResolvedConfig, url: string, io: Output): ChildProcessWithoutNullStreams {
+export interface DevOptions {
+  /** Log every message's envelope (not its payload) in the host. */
+  traceIpc?: boolean | undefined
+}
+
+function startHost(host: string, config: ResolvedConfig, url: string, options: DevOptions & { io: Output }) {
+  const { io } = options
   const args = ['--dev', `--dev-url=${url}`, `--app-id=${config.app.id}`, `--backend=${devBackend(config)}`, '--control=stdin']
+  if (options.traceIpc) {
+    args.push('--trace-ipc')
+  }
   // Its own process group: a terminal's Ctrl+C reaches only the CLI, which then quits the host
   // (and through it the backend) in order, with the backend's grace period.
   const child = spawn(host, args, { cwd: config.root, stdio: ['pipe', 'pipe', 'pipe'], detached: true })
   lines(child.stdout, line => io.out(`host │ ${line}`))
   lines(child.stderr, line => worthShowing(line) && io.err(`host │ ${line}`))
 
-  return child
+  return child as ChildProcessWithoutNullStreams
 }
 
 const NO_HOST = 'no pico-desktop-host: set PICO_DESKTOP_HOST or `host` in the config (or run `pnpm cef` in the framework)'
@@ -99,9 +108,10 @@ const exited = (child: ChildProcessWithoutNullStreams) => new Promise<number>(re
  *
  * @param config the app
  * @param io where output goes
+ * @param options development options
  * @returns the host's exit code
  */
-export async function dev(config: ResolvedConfig, io: Output): Promise<number> {
+export async function dev(config: ResolvedConfig, io: Output, options: DevOptions = {}): Promise<number> {
   const host = await preflight(config, io)
   if (host === null) {
     return 1
@@ -110,7 +120,7 @@ export async function dev(config: ResolvedConfig, io: Output): Promise<number> {
   const built = await buildBackend(config, devBackend(config), io)
   io.out(built ? 'dev │ built the backend' : 'dev │ the backend has errors: fix them and save (the window opens anyway)')
   const server = await startDevServer(config.frontend.root)
-  const child = startHost(host, config, server.url, io)
+  const child = startHost(host, config, server.url, { ...options, io })
   const rebuilder = new Rebuilder({
     build: () => buildBackend(config, devBackend(config), io),
     built: () => {

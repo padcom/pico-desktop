@@ -46,6 +46,30 @@ Bytes unsubscribe(std::uint64_t s, std::uint64_t window) {
 
 }  // namespace
 
+std::string describe_envelope(std::span<const std::byte> message) {
+  static constexpr const char* kKinds[] = {"request",     "response", "error",  "event",
+                                           "subscribe",   "unsubscribe", "cancel", "lifecycle"};
+  const auto read = ipc::read_envelope(message);
+  if (!read) {
+    return "invalid (" + read.refusal.message + "), " + std::to_string(message.size()) + " B";
+  }
+  const auto& h = *read.header;
+  std::string line = kKinds[static_cast<int>(h.kind)];
+  const auto field = [&line](const char* key, const std::optional<std::uint64_t>& value) {
+    if (value) {
+      line += std::string(" ") + key + "=" + std::to_string(*value);
+    }
+  };
+  field("id", h.id);
+  if (h.name) {
+    line += " " + *h.name;
+  }
+  field("w", h.window);
+  field("s", h.subscription);
+  field("e", h.epoch);
+  return line + ", " + std::to_string(message.size()) + " B";
+}
+
 // ---------------------------------------------------------------------------------- sessions
 
 void Router::from_session(std::uint64_t session, std::uint64_t window, std::span<const std::byte> message) {

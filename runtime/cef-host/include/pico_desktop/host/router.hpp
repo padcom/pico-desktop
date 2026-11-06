@@ -28,6 +28,10 @@ class RouterOutput {
   virtual void kill_backend() {}
 };
 
+/// One line describing a message for `--trace-ipc`: its envelope fields and size, never its
+/// payload or error details (they may hold user data).
+std::string describe_envelope(std::span<const std::byte> message);
+
 class Router {
  public:
   /// `self_test`: the host answers `host.echo` (with the request's payload) and `host.killBackend`

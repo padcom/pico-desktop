@@ -126,10 +126,12 @@ async function restarts({ c, states }: Context): Promise<Outcome> {
 }
 
 async function resumes({ ticks }: Context): Promise<Outcome> {
-  const fresh = () => ticks.filter(tick => tick.epoch === 2)
-  const resumed = await until(() => fresh().length >= 2)
+  const fresh = () => ticks.filter(tick => tick.epoch === 2).map(tick => tick.n)
+  const resumed = await until(() => fresh().length >= 4)
+  // One subscription, not two: 1, 2, 3, … with nothing repeated.
+  const counted = fresh().every((n, i) => n === i + 1)
 
-  return (resumed && fresh()[0]?.n === 1) || `epoch-2 ticks: ${JSON.stringify(fresh())}`
+  return (resumed && counted) || `epoch-2 ticks: ${fresh().join(', ')}`
 }
 
 async function greetsAnew({ c }: Context): Promise<Outcome> {
@@ -149,7 +151,7 @@ const CHECKS: [string, Check][] = [
   ['a managed subscription ticks', subscribes],
   ['a backend crash fails the pending call with DISCONNECTED; the window stays', crash],
   ['the backend restarts in the same window (epoch 2)', restarts],
-  ['the subscription resumes by itself, from a fresh publisher', resumes],
+  ['the subscription resumes by itself, once, from a fresh publisher', resumes],
   ['the new backend greets anew (nothing was replayed)', greetsAnew],
 ]
 

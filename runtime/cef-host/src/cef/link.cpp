@@ -70,6 +70,12 @@ std::string describe(int status) {
 
 }  // namespace
 
+void Link::trace(const char* direction, std::span<const std::byte> message) {
+  if (options_.trace_ipc) {
+    log(std::string("pd-ipc: ") + direction + " " + describe_envelope(message));
+  }
+}
+
 Link& link() { return *g_link; }
 
 void init_link(const Options& options) { g_link = new Link(options); }
@@ -101,6 +107,7 @@ void Link::from_page(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, i
     it = session_of_.emplace(key, session).first;
     pages_[session] = {browser->GetIdentifier(), frame->GetIdentifier().ToString(), context};
   }
+  trace("page → host   ", message);
   router_.from_session(it->second, static_cast<std::uint64_t>(browser->GetIdentifier()), message);
 }
 
@@ -138,6 +145,7 @@ void Link::to_session(std::uint64_t session, Bytes message) {
   if (!frame || !frame->IsValid()) {
     return;
   }
+  trace("host → page   ", message);
   CefRefPtr<CefProcessMessage> reply = CefProcessMessage::Create(kBridgeReply);
   CefRefPtr<CefListValue> args = reply->GetArgumentList();
   args->SetInt(0, it->second.context);
@@ -181,6 +189,7 @@ void Link::to_backend(Bytes message) {
   if (!process_) {
     return;
   }
+  trace("host → backend", message);
   {
     std::lock_guard<std::mutex> lock(process_->mutex);
     process_->queue.push_back(std::move(message));
@@ -192,6 +201,7 @@ void Link::on_backend_message(std::uint64_t generation, Bytes message) {
   if (!process_ || process_->generation != generation) {
     return;  // from a process that's already gone
   }
+  trace("backend → host", message);
   const bool was_ready = router_.backend_ready();
   router_.from_backend(message);
   if (!was_ready && router_.backend_ready()) {

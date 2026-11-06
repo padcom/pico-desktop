@@ -24,7 +24,7 @@ const usage = `Usage: pico-desktop <command> [options]
 
 Commands:
   create <dir> [--id <app-id>] [--framework <checkout>]   a new app
-  dev        the app with HMR; Pico edits rebuild and restart the backend in the same window
+  dev [--trace-ipc]   the app with HMR; Pico edits rebuild and restart the backend in the same window
   generate   the contracts → TypeScript and Pico
   test       Vitest and pico test
   build      (F6)
@@ -76,7 +76,11 @@ const handlers: Record<string, Handler> = {
   '-V': say(`pico-desktop ${pkg.version}`),
   '--version': say(`pico-desktop ${pkg.version}`),
   'create': createCommand,
-  'dev': inApp(dev),
+  'dev': async (args, io) => {
+    const { values } = parseArgs({ args, options: { 'trace-ipc': { type: 'boolean' } } })
+
+    return dev(await loadConfig(process.cwd()), io, { traceIpc: values['trace-ipc'] })
+  },
   'generate': inApp(generateCommand),
   'test': inApp(test),
   'build': later('build'),

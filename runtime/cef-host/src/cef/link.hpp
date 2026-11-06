@@ -72,6 +72,8 @@ class Link : public RouterOutput {
     bool draining = false;  // set when the writer should finish the queue and close stdin
   };
 
+  /// Logs a message's envelope with --trace-ipc.
+  void trace(const char* direction, std::span<const std::byte> message);
   void spawn();
   void on_backend_message(std::uint64_t generation, Bytes message);
   void on_backend_exit(std::uint64_t generation);

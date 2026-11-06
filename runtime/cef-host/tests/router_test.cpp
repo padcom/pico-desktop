@@ -380,6 +380,14 @@ void echo() {
   CHECK(has_code(plain.sessions[0].second, "DISCONNECTED") && plain.kills == 0);
 }
 
+void tracing() {
+  const auto request = call(Kind::request, 7, "greeting.hello", 3);
+  CHECK(describe_envelope(request) == "request id=7 greeting.hello w=3, " + std::to_string(request.size()) + " B");
+  const auto tick = event("clock", std::nullopt, 4);
+  CHECK(describe_envelope(tick) == "event clock s=4, " + std::to_string(tick.size()) + " B");
+  CHECK(describe_envelope(ipc::from_hex("ff")).starts_with("invalid ("));
+}
+
 void restart_budget() {
   using namespace std::chrono_literals;
   RestartBudget budget(RestartBudget::Limits{3, 100ms, 300ms, 10s});
@@ -398,6 +406,7 @@ void restart_budget() {
 }  // namespace
 
 int main() {
+  tracing();
   restart_budget();
   readiness();
   renumbering();
