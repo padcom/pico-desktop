@@ -9,6 +9,7 @@
     "*.pi",
     "!*.test.pi",
     "generated/experiment.pi",
+    "generated/host.pi",
     "project.json"
   ]
 }

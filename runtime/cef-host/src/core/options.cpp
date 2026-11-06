@@ -1,5 +1,6 @@
 #include "pico_desktop/host/options.hpp"
 
+#include <algorithm>
 #include <string_view>
 
 namespace pico_desktop::host {
@@ -10,6 +11,23 @@ namespace {
 std::optional<std::string> value_of(std::string_view arg, std::string_view name) {
   if (arg.starts_with(name) && arg.size() > name.size() && arg[name.size()] == '=') {
     return std::string(arg.substr(name.size() + 1));
+  }
+  return std::nullopt;
+}
+
+std::optional<std::string> parse_capabilities(const std::string& list, Options& options) {
+  std::size_t start = 0;
+  while (start <= list.size()) {
+    const auto end = std::min(list.find(',', start), list.size());
+    const std::string name = list.substr(start, end - start);
+    if (!name.empty()) {
+      const auto capability = parse_capability(name);
+      if (!capability) {
+        return "unknown capability '" + name + "': use window, dialogs, notifications";
+      }
+      options.capabilities.insert(*capability);
+    }
+    start = end + 1;
   }
   return std::nullopt;
 }
@@ -50,6 +68,7 @@ std::string usage() {
          "  --control=stdin        read restart-backend, reload, quit from stdin (needs --dev)\n"
          "  --trace-ipc            log each message's envelope, not its payload (needs --dev)\n"
          "  --multi-instance       allow several instances (default: a second launch focuses the first)\n"
+         "  --capabilities=<list>  the native services the backend may use: window,dialogs,notifications\n"
          "  --liveness=<ms>/<ms>   ping interval and hang timeout for the backend (default 5000/15000)\n"
          "  --self-test            let the page test itself, check the sandbox, exit with the result\n"
          "  --no-external-open     log external links instead of opening the system browser\n"
@@ -94,6 +113,10 @@ ParseResult parse_options(const std::vector<std::string>& args) {
         return "invalid --control '" + *c + "': only stdin";
       }
       options.control_stdin = true;
+    } else if (auto c = value_of(arg, "--capabilities")) {
+      if (auto problem = parse_capabilities(*c, options)) {
+        return *problem;
+      }
     } else if (auto l = value_of(arg, "--liveness")) {
       if (!parse_liveness(*l, options)) {
         return "invalid --liveness '" + *l + "': use <interval ms>/<timeout ms>, the timeout longer than the interval";

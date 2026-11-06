@@ -9,7 +9,7 @@ import { generate } from './generate'
 import type { Output } from './io'
 import { test } from './test-command'
 
-export { type ContractConfig, type UserConfig, defineConfig } from './config'
+export { CAPABILITIES, type Capability, type ContractConfig, type UserConfig, defineConfig } from './config'
 
 export type { Output } from './io'
 

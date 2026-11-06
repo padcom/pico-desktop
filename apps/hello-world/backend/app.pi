@@ -1,23 +1,29 @@
 // The hello-world backend: greets (counting greetings), asks the frontend before greeting when
 // told to, tells the window after each greeting, and publishes a clock. Pico 0.4 has no async
 // closures, so handlers are named async functions sharing the module's state.
-import { Cbor, Communicator, CommunicatorError, RequestContext, Sink, Transport } from "pico-desktop/communicator"
+import { Cbor, Communicator, CommunicatorError, Host, RequestContext, Sink, Transport } from "pico-desktop/communicator"
 import {
   ConfirmRequest,
   Greeted,
   Greeting,
+  Picked,
   Tick,
+  WindowTitle,
   decodeClockParams,
   decodeConfirmResponse,
   decodeHelloRequest,
+  decodeWindowTitle,
   encodeConfirmRequest,
   encodeGreeted,
   encodeGreeting,
+  encodePicked,
   encodeTick,
+  encodeWindowTitle,
 } from "./generated/hello"
 
 class State {
   public communicator: Communicator? = null
+  public host: Host? = null
   public greetings: u32 = 0
 }
 
@@ -27,9 +33,12 @@ const state = new State()
 export function createBackend(transport: Transport): Communicator {
   const c = new Communicator(transport)
   state.communicator = c
+  state.host = new Host(c)
   state.greetings = 0
   c.handle("greeting.hello", hello)
   c.handle("greeting.ask", ask)
+  c.handle("window.retitle", retitle)
+  c.handle("files.pick", pick)
   c.publish("clock.ticks", ticks)
   c
 }
@@ -68,6 +77,26 @@ async function ask(payload: Cbor?, ctx: RequestContext): Promise<Cbor?> throws E
     return encodeGreeting(Greeting { message: `Maybe later, ${request.name}.`, count: state.greetings })
   }
   encodeGreeting(await greet(request.name, ctx.window))
+}
+
+function host(): Host {
+  const h = state.host
+  if (h == null) {
+    panic("hello-world: createBackend wasn't called")
+  }
+  h
+}
+
+/// Sets the window's title through the host, and answers with what the window now says.
+async function retitle(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {
+  const request = decodeWindowTitle(payload ?? Cbor.Null, "$")
+  await host().setTitle(request.title)
+  encodeWindowTitle(WindowTitle { title: await host().getTitle() })
+}
+
+/// Opens the host's file dialog: the app doesn't declare `dialogs`, so the host refuses it.
+async function pick(_payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {
+  encodePicked(Picked { paths: await host().openFile() })
 }
 
 /// A tick every `intervalMs` (default 1 s) until the subscriber unsubscribes.

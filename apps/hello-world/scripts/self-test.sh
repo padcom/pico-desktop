@@ -28,7 +28,7 @@ fi
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
 timeout 120 "${runner[@]}" "$host" --app-dir="$frontend" --app-id=dev.pico-desktop.hello-world \
-  --backend="$backend" --self-test --no-external-open > "$log" 2>&1
+  --backend="$backend" --capabilities=window --self-test --no-external-open > "$log" 2>&1
 code=$?
 grep -E '^(pd-|console: )' "$log"
 

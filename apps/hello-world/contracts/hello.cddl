@@ -1,13 +1,16 @@
 ; The hello-world contract (ADR-0005): what the frontend and the Pico backend say to each other.
 ; The backend answers greeting.hello and greeting.ask and publishes clock.ticks; the frontend
 ; answers ui.confirm (the backend asks it from greeting.ask); the backend emits greeting.greeted
-; after each greeting.
+; after each greeting. window.retitle and files.pick use the host's native services from Pico (the
+; app declares only the `window` capability, so files.pick is refused with NOT_ALLOWED).
 services = {
   "greeting.hello": ["method", hello-request, greeting],
   "greeting.ask": ["method", hello-request, greeting],
   "ui.confirm": ["method", confirm-request, confirm-response],
   "greeting.greeted": ["event", greeted],
   "clock.ticks": ["subscription", clock-params, tick],
+  "window.retitle": ["method", window-title, window-title],
+  "files.pick": ["method", null, picked],
 }
 
 hello-request = { name: tstr }
@@ -23,3 +26,7 @@ confirm-response = { ok: bool }
 clock-params = { ? intervalMs: uint .size 4 }
 
 tick = { n: uint .size 4 }
+
+window-title = { title: tstr }
+
+picked = { paths: [* tstr] }

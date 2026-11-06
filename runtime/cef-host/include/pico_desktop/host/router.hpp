@@ -28,6 +28,9 @@ class RouterOutput {
   virtual void kill_backend() {}
   /// The backend answered a liveness ping.
   virtual void pong() {}
+  /// The backend called a host service (`host.…`); answer with Router::answer_backend/fail_backend.
+  virtual void host_request(std::uint64_t /*id*/, const std::string& /*name*/, std::optional<Bytes> /*payload*/,
+                            std::optional<std::uint64_t> /*window*/) {}
   /// Whether the queue to the backend is full (pages' new requests are refused with BUSY).
   virtual bool backend_busy() const { return false; }
 };
@@ -61,6 +64,10 @@ class Router {
   void announce(const char* name);
   /// A liveness ping to the backend (it answers `pong` with the same `seq`).
   void ping(std::uint64_t seq);
+  /// Answers the backend's host-service request `id` (with `payload`, raw CBOR, or none).
+  void answer_backend(std::uint64_t id, std::optional<Bytes> payload, std::optional<std::uint64_t> window);
+  /// Fails the backend's host-service request `id`.
+  void fail_backend(std::uint64_t id, const char* code, const std::string& message, std::optional<std::uint64_t> window);
 
   bool backend_ready() const { return ready_; }
   std::uint64_t epoch() const { return epoch_; }

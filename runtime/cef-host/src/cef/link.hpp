@@ -22,6 +22,7 @@
 #include "pico_desktop/host/restart.hpp"
 #include "pico_desktop/host/router.hpp"
 #include "pico_desktop/ipc/process.hpp"
+#include "services.hpp"
 
 namespace pico_desktop::host::cef {
 
@@ -59,6 +60,13 @@ class Link : public RouterOutput {
   void kill_backend() override;
   void pong() override;
   bool backend_busy() const override;
+  void host_request(std::uint64_t id, const std::string& name, std::optional<Bytes> payload,
+                    std::optional<std::uint64_t> window) override;
+
+  /// Answers a host-service call (dropped if that backend is gone).
+  void reply(const ServiceCall& call, std::optional<Bytes> payload);
+  /// Fails a host-service call (dropped if that backend is gone).
+  void refuse(const ServiceCall& call, const char* code, const std::string& message);
 
  private:
   struct Page {

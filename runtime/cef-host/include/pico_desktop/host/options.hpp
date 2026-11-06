@@ -4,12 +4,14 @@
 
 #include <filesystem>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <variant>
 #include <vector>
 
 #include "pico_desktop/host/policy.hpp"
+#include "pico_desktop/host/services.hpp"
 
 namespace pico_desktop::host {
 
@@ -37,6 +39,8 @@ struct Options {
   bool remote_debugging_requested = false;
   /// Development: read control commands from stdin, one per line (the dev CLI drives the host).
   bool control_stdin = false;
+  /// The native services the app declared (`--capabilities=window,dialogs`).
+  std::set<Capability> capabilities;
   /// Allow several instances (each with its own, temporary profile). By default a second launch
   /// brings the running instance's window to the front and exits.
   bool multi_instance = false;

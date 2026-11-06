@@ -17,6 +17,8 @@
 #include "include/cef_values.h"
 #include "include/wrapper/cef_closure_task.h"
 #include "include/wrapper/cef_helpers.h"
+#include "pico_desktop/host/services.hpp"
+#include "pico_desktop/ipc/value.hpp"
 
 namespace pico_desktop::host::cef {
 
@@ -307,6 +309,47 @@ bool Link::backend_busy() const {
   }
   std::lock_guard<std::mutex> lock(process_->mutex);
   return process_->queue.size() >= kMaxQueuedMessages || process_->queued_bytes >= kMaxQueuedBytes;
+}
+
+void Link::host_request(std::uint64_t id, const std::string& name, std::optional<Bytes> payload,
+                        std::optional<std::uint64_t> window) {
+  if (!process_) {
+    return;
+  }
+  const ServiceCall call{id, window, process_->generation};
+  const ServiceInfo info = service_info(name);
+  if (!info.known) {
+    refuse(call, "UNKNOWN_METHOD", "the host has no service " + name);
+    return;
+  }
+  if (info.needs && !options_.capabilities.contains(*info.needs)) {
+    refuse(call, "NOT_ALLOWED",
+           name + " needs the '" + capability_name(*info.needs) + "' capability (pico-desktop.config.ts: capabilities)");
+    return;
+  }
+  ipc::Value params;
+  params.type = ipc::Value::Type::map;
+  if (payload) {
+    auto decoded = ipc::decode_value(*payload);
+    if (!decoded) {
+      refuse(call, "INVALID_PAYLOAD", "the parameters aren't valid CBOR");
+      return;
+    }
+    params = std::move(*decoded);
+  }
+  run_service(call, name, params);
+}
+
+void Link::reply(const ServiceCall& call, std::optional<Bytes> payload) {
+  if (process_ && process_->generation == call.generation) {
+    router_.answer_backend(call.id, std::move(payload), call.window);
+  }
+}
+
+void Link::refuse(const ServiceCall& call, const char* code, const std::string& message) {
+  if (process_ && process_->generation == call.generation) {
+    router_.fail_backend(call.id, code, message, call.window);
+  }
 }
 
 void Link::begin_close(base::OnceClosure done) {

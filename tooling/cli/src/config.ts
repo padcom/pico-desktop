@@ -15,8 +15,15 @@ export interface ContractConfig {
   pico: string
 }
 
+/** The host's native services the backend may use (docs: packages/communicator-pico/host.pi). */
+export const CAPABILITIES = ['window', 'dialogs', 'notifications'] as const
+
+export type Capability = typeof CAPABILITIES[number]
+
 export interface UserConfig {
   app: { id: string, name?: string, version?: string }
+  /** The native services the backend may call (anything else fails with NOT_ALLOWED). */
+  capabilities?: Capability[]
   frontend?: { root?: string }
   backend?: { root?: string, entry?: string }
   contracts?: ContractConfig[]
@@ -27,6 +34,7 @@ export interface UserConfig {
 export interface ResolvedConfig {
   root: string
   app: { id: string, name: string, version: string }
+  capabilities: Capability[]
   frontend: { root: string }
   backend: { root: string, entry: string }
   contracts: ContractConfig[]
@@ -50,6 +58,16 @@ const DEFAULT_CONTRACTS: ContractConfig[] = [{
   typescript: 'apps/frontend/src/generated/app.ts',
   pico: 'apps/backend/generated/app.pi',
 }]
+
+function checkedCapabilities(user: UserConfig): Capability[] {
+  const given: unknown[] = user.capabilities ?? []
+  const unknown = given.find(c => !(CAPABILITIES as readonly unknown[]).includes(c))
+  if (unknown !== undefined) {
+    throw new ConfigError(`capability '${String(unknown)}' is unknown: use ${CAPABILITIES.join(', ')}`)
+  }
+
+  return [...new Set(given as Capability[])]
+}
 
 function checkedId(user: UserConfig): string {
   const id: unknown = (user as Partial<UserConfig>).app?.id
@@ -79,6 +97,7 @@ export function resolveConfig(root: string, user: UserConfig): ResolvedConfig {
   return {
     root,
     app: { name: id, version: '0.0.0', ...user.app },
+    capabilities: checkedCapabilities(user),
     frontend: { root: at(frontend.root) },
     backend: { root: at(backend.root), entry: backend.entry },
     contracts,

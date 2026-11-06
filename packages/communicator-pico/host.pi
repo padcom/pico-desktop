@@ -1,0 +1,96 @@
+// The host's native services, for the backend: window controls, file dialogs, notifications and
+// quitting (contracts/host.cddl). Each group needs a capability the app declares in
+// pico-desktop.config.ts (`capabilities: ["window", "dialogs", "notifications"]`); calling an
+// undeclared one fails with NOT_ALLOWED. Quitting needs none.
+import { Cbor } from "./cbor"
+import { Communicator } from "./communicator"
+import {
+  Notification,
+  OpenFile,
+  OpenFolder,
+  SaveFile,
+  WindowBounds,
+  WindowSize,
+  WindowTitle,
+  decodeFilePath,
+  decodeFilePaths,
+  decodeWindowBounds,
+  decodeWindowTitle,
+  encodeNotification,
+  encodeOpenFile,
+  encodeOpenFolder,
+  encodeSaveFile,
+  encodeWindowSize,
+  encodeWindowTitle,
+} from "./generated/host"
+
+export class Host {
+  communicator: Communicator
+  /// The window the calls are for (null: the app's window; v1 has one).
+  public window: u64? = null
+
+  constructor(communicator: Communicator) {
+    this.communicator = communicator
+  }
+
+  public async setTitle(title: string): Promise<void> throws Error {
+    await call("host.window.setTitle", encodeWindowTitle(WindowTitle { title: title }))
+  }
+
+  public async getTitle(): Promise<string> throws Error {
+    decodeWindowTitle((await call("host.window.getTitle", null)) ?? Cbor.Null, "$").title
+  }
+
+  public async minimize(): Promise<void> throws Error {
+    await call("host.window.minimize", null)
+  }
+
+  public async maximize(): Promise<void> throws Error {
+    await call("host.window.maximize", null)
+  }
+
+  public async restore(): Promise<void> throws Error {
+    await call("host.window.restore", null)
+  }
+
+  /// Brings the window to the front.
+  public async focus(): Promise<void> throws Error {
+    await call("host.window.focus", null)
+  }
+
+  public async setSize(width: u16, height: u16): Promise<void> throws Error {
+    await call("host.window.setSize", encodeWindowSize(WindowSize { width: width, height: height }))
+  }
+
+  public async getBounds(): Promise<WindowBounds> throws Error {
+    decodeWindowBounds((await call("host.window.getBounds", null)) ?? Cbor.Null, "$")
+  }
+
+  /// The files the user chose (none if they cancelled).
+  public async openFile(options: OpenFile = OpenFile {}): Promise<string[]> throws Error {
+    decodeFilePaths((await call("host.dialog.openFile", encodeOpenFile(options))) ?? Cbor.Null, "$").paths
+  }
+
+  /// Where the user chose to save (null if they cancelled).
+  public async saveFile(options: SaveFile = SaveFile {}): Promise<string?> throws Error {
+    decodeFilePath((await call("host.dialog.saveFile", encodeSaveFile(options))) ?? Cbor.Null, "$").path
+  }
+
+  public async openFolder(options: OpenFolder = OpenFolder {}): Promise<string?> throws Error {
+    decodeFilePath((await call("host.dialog.openFolder", encodeOpenFolder(options))) ?? Cbor.Null, "$").path
+  }
+
+  /// A desktop notification (UNAVAILABLE where the desktop has no notification service).
+  public async notify(title: string, body: string? = null): Promise<void> throws Error {
+    await call("host.notification.show", encodeNotification(Notification { title: title, body: body }))
+  }
+
+  /// Closes the app the orderly way (this backend gets `closing` next).
+  public async quit(): Promise<void> throws Error {
+    await call("host.app.quit", null)
+  }
+
+  async call(name: string, payload: Cbor?): Promise<Cbor?> throws Error {
+    await communicator.request(name, payload, window)
+  }
+}

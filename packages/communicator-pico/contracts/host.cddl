@@ -1,0 +1,36 @@
+; The host's native services for the backend: window controls, file dialogs, notifications and
+; quitting. The backend calls them as ordinary requests (host.ts: `Host`); each group needs a
+; capability the app declares (window, dialogs, notifications), host.app.* none.
+services = {
+  "host.window.setTitle": ["method", window-title, null],
+  "host.window.getTitle": ["method", null, window-title],
+  "host.window.minimize": ["method", null, null],
+  "host.window.maximize": ["method", null, null],
+  "host.window.restore": ["method", null, null],
+  "host.window.focus": ["method", null, null],
+  "host.window.setSize": ["method", window-size, null],
+  "host.window.getBounds": ["method", null, window-bounds],
+  "host.dialog.openFile": ["method", open-file, file-paths],
+  "host.dialog.saveFile": ["method", save-file, file-path],
+  "host.dialog.openFolder": ["method", open-folder, file-path],
+  "host.notification.show": ["method", notification, null],
+  "host.app.quit": ["method", null, null],
+}
+
+window-title = { title: tstr }
+
+window-size = { width: uint .size 2, height: uint .size 2 }
+
+window-bounds = { x: uint .size 4, y: uint .size 4, width: uint .size 4, height: uint .size 4 }
+
+open-file = { ? title: tstr, ? multiple: bool, ? filters: [* tstr] }
+
+save-file = { ? title: tstr, ? defaultPath: tstr }
+
+open-folder = { ? title: tstr }
+
+file-paths = { paths: [* tstr] }
+
+file-path = { ? path: tstr }
+
+notification = { title: tstr, ? body: tstr }

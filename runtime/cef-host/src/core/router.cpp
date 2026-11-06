@@ -292,6 +292,10 @@ void Router::backend_answer(std::span<const std::byte> message, std::uint64_t id
 }
 
 void Router::backend_request(std::span<const std::byte> message, std::uint64_t id, std::optional<std::uint64_t> window) {
+  if (const auto name = ipc::read_envelope(message).header->name; name && name->starts_with("host.")) {
+    out_.host_request(id, *name, ipc::raw_field(message, 4), window);  // the host's own services
+    return;
+  }
   const auto sessions = targets(window);
   if (sessions.empty()) {
     out_.to_backend(error(id, "DISCONNECTED", "no page is open", window));
@@ -361,6 +365,24 @@ void Router::ping(std::uint64_t seq) {
   w.map(4).uint(0).uint(1).uint(1).uint(static_cast<std::uint64_t>(Kind::lifecycle)).uint(3).text("ping");
   w.uint(4).uint(seq);
   out_.to_backend(w.take());
+}
+
+void Router::answer_backend(std::uint64_t id, std::optional<Bytes> payload, std::optional<std::uint64_t> window) {
+  ipc::Writer w;
+  w.map(3 + (payload ? 1 : 0) + (window ? 1 : 0)).uint(0).uint(1).uint(1).uint(static_cast<std::uint64_t>(Kind::response));
+  w.uint(2).uint(id);
+  if (payload) {
+    w.uint(4).raw(*payload);
+  }
+  if (window) {
+    w.uint(ipc::kKeyWindow).uint(*window);
+  }
+  out_.to_backend(w.take());
+}
+
+void Router::fail_backend(std::uint64_t id, const char* code, const std::string& message,
+                          std::optional<std::uint64_t> window) {
+  out_.to_backend(error(id, code, message, window));
 }
 
 void Router::backend_closing() { out_.to_backend(lifecycle("closing", std::nullopt)); }

@@ -13,6 +13,9 @@
 #include "pico_desktop/host/options.hpp"
 #include "pico_desktop/host/policy.hpp"
 #include "pico_desktop/host/sandbox.hpp"
+#include "pico_desktop/host/services.hpp"
+
+#include <set>
 
 namespace fs = std::filesystem;
 using namespace pico_desktop::host;
@@ -183,6 +186,18 @@ static void options() {
   for (const char* bad : {"--liveness=500", "--liveness=500/400", "--liveness=50/1000", "--liveness=a/b", "--liveness=-1/5"}) {
     CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", bad})));
   }
+  {
+    const auto r = parse({"--app-dir=/x", "--capabilities=window,notifications"});
+    const auto* o = std::get_if<Options>(&r);
+    const std::set<Capability> expected{Capability::window, Capability::notifications};
+    CHECK(o && o->capabilities == expected);
+    CHECK(std::get<Options>(parse({"--app-dir=/x"})).capabilities.empty());
+    CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--capabilities=window,camera"})));
+  }
+  CHECK(service_info("host.window.setTitle").known && service_info("host.window.setTitle").needs == Capability::window);
+  CHECK(service_info("host.dialog.openFile").needs == Capability::dialogs);
+  CHECK(service_info("host.app.quit").known && !service_info("host.app.quit").needs);
+  CHECK(!service_info("host.fs.delete").known);
   CHECK(parse_control("restart-backend") == ControlCommand::restart_backend);
   CHECK(parse_control("  reload\r\n") == ControlCommand::reload);
   CHECK(parse_control("quit") == ControlCommand::quit);

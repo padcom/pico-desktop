@@ -19,6 +19,7 @@ The F3 vertical slice: a Vite + TypeScript frontend and a compiled Pico backend.
 - **A call from Pico to a TypeScript handler.** `greeting.ask` calls `ui.confirm` in the window that asked, before it answers.
 - **A one-way event.** After each greeting the backend emits `greeting.greeted`, and the count on the page comes from it.
 - **A managed subscription.** `clock.ticks` ticks every `intervalMs`. After a backend restart it re-subscribes by itself, with nothing replayed.
+- **Native services from Pico.** `window.retitle` sets the window title through the host and reads it back. The app declares only the `window` capability, so `files.pick`, which needs `dialogs`, is refused with `NOT_ALLOWED`.
 - **Typed errors.**
   - `EMPTY_NAME` comes from the handler.
   - `INVALID_PAYLOAD` comes from the generated Pico decoder, and from the TS validators for answers that break the contract.

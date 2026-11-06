@@ -71,6 +71,9 @@ function startHost(host: string, config: ResolvedConfig, url: string, options: D
   if (options.traceIpc) {
     args.push('--trace-ipc')
   }
+  if (config.capabilities.length > 0) {
+    args.push(`--capabilities=${config.capabilities.join(',')}`)
+  }
   // Its own process group: a terminal's Ctrl+C reaches only the CLI, which then quits the host
   // (and through it the backend) in order, with the backend's grace period.
   const child = spawn(host, args, { cwd: config.root, stdio: ['pipe', 'pipe', 'pipe'], detached: true })

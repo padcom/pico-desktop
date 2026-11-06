@@ -5,7 +5,8 @@ add_library(pd_host_core STATIC
   src/core/options.cpp
   src/core/policy.cpp
   src/core/router.cpp
-  src/core/sandbox.cpp)
+  src/core/sandbox.cpp
+  src/core/services.cpp)
 target_include_directories(pd_host_core PUBLIC include)
 target_link_libraries(pd_host_core PUBLIC pd_ipc)
 pd_warnings(pd_host_core)
@@ -44,6 +45,7 @@ add_executable(pico-desktop-host
   src/cef/link.cpp
   src/cef/main.cpp
   src/cef/scheme.cpp
+  src/cef/services.cpp
   src/cef/window.cpp)
 SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
 add_dependencies(pico-desktop-host libcef_dll_wrapper)

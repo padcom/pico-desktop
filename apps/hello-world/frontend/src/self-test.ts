@@ -102,6 +102,12 @@ async function picoAsks({ view }: Context): Promise<Outcome> {
   return (greeted && question === 'Say hello to Pico?') || `question '${question}', count ${text('count')}`
 }
 
+async function retitles({ c }: Context): Promise<Outcome> {
+  const { title } = await c.request('window.retitle', { title: 'Hello from Pico' })
+
+  return title === 'Hello from Pico' || `the window says '${title}'`
+}
+
 async function subscribes({ clock, ticks }: Context): Promise<Outcome> {
   await clock
   const ticked = await until(() => ticks.length >= 3)
@@ -148,6 +154,9 @@ const CHECKS: [string, Check][] = [
     ({ untyped }) => expectCode(untyped.request('greeting.hello', { name: 5 }), 'INVALID_PAYLOAD')],
   ['an unregistered method is refused', ({ untyped }) => expectCode(untyped.request('fs.delete', null), 'UNKNOWN_METHOD')],
   ['Pico asks the page (ui.confirm) and greets after a yes', picoAsks],
+  ['Pico sets the window title through the host (the window capability)', retitles],
+  ['the host refuses a service the app didn\'t declare (dialogs)',
+    ({ c }) => expectCode(c.request('files.pick', null), 'NOT_ALLOWED')],
   ['a managed subscription ticks', subscribes],
   ['a backend crash fails the pending call with DISCONNECTED; the window stays', crash],
   ['the backend restarts in the same window (epoch 2)', restarts],

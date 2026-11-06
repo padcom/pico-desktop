@@ -1,0 +1,90 @@
+// The Host wrapper against a scripted host on an in-memory link: what it sends, and how it reads
+// the answers and failures.
+import { describe, it, expect } from "std/test"
+import { Cbor } from "./cbor"
+import { Communicator, CommunicatorError } from "./communicator"
+import { Envelope, ErrorInfo, decodeEnvelope, encodeEnvelope, envelope } from "./envelope"
+import { Host } from "./host"
+import { OpenFile, decodeWindowTitle, encodeFilePaths, encodeWindowTitle, FilePaths, WindowTitle } from "./generated/host"
+import { MemoryEnd, memoryPair } from "./transport"
+
+class Rig {
+  public host: Host
+  public peer: MemoryEnd
+
+  constructor() {
+    const ends = memoryPair()
+    const c = new Communicator(ends[0])
+    this.host = new Host(c)
+    this.peer = ends[1]
+    c.run()
+  }
+
+  public async next(): Promise<Envelope> throws Error {
+    decodeEnvelope((await peer.receive()) ?? new Uint8Array(0))
+  }
+
+  public async answer(to: Envelope, payload: Cbor?): Promise<void> throws Error {
+    const r = envelope("response")
+    r.id = to.id
+    r.p = payload
+    await peer.send(encodeEnvelope(r))
+  }
+}
+
+async function getTitle(rig: Rig): Promise<string> throws Error {
+  await rig.host.getTitle()
+}
+
+async function setsAndGetsTheTitle(): Promise<void> throws Error {
+  const rig = new Rig()
+  await rig.next()  // hello
+  const setting = rig.host.setTitle("Hello")
+  const set = await rig.next()
+  expect(set.n ?? "").toBe("host.window.setTitle")
+  expect(decodeWindowTitle(set.p ?? Cbor.Null, "$").title).toBe("Hello")
+  await rig.answer(set, null)
+  await setting
+  const getting = getTitle(rig)
+  const query = await rig.next()
+  expect(query.n ?? "").toBe("host.window.getTitle")
+  await rig.answer(query, encodeWindowTitle(WindowTitle { title: "Hello" }))
+  expect(await getting).toBe("Hello")
+}
+
+async function pick(rig: Rig): Promise<string[]> throws Error {
+  await rig.host.openFile(OpenFile { title: "Pick", multiple: true })
+}
+
+async function opensFiles(): Promise<void> throws Error {
+  const rig = new Rig()
+  await rig.next()
+  const picking = pick(rig)
+  const open = await rig.next()
+  expect(open.n ?? "").toBe("host.dialog.openFile")
+  await rig.answer(open, encodeFilePaths(FilePaths { paths: ["/a", "/b"] }))
+  expect((await picking).join(",")).toBe("/a,/b")
+}
+
+async function refused(): Promise<void> throws Error {
+  const rig = new Rig()
+  await rig.next()
+  const quitting = rig.host.minimize()
+  const call = await rig.next()
+  const no = envelope("error")
+  no.id = call.id
+  no.err = ErrorInfo { code: "NOT_ALLOWED", message: "needs the 'window' capability", data: null }
+  await rig.peer.send(encodeEnvelope(no))
+  try {
+    await quitting
+    expect("resolved").toBe("NOT_ALLOWED")
+  } catch (e: CommunicatorError) {
+    expect(e.code).toBe("NOT_ALLOWED")
+  }
+}
+
+describe("Host", () => {
+  it("sets and gets the window title", setsAndGetsTheTitle)
+  it("opens files", opensFiles)
+  it("fails with the host's code (NOT_ALLOWED)", refused)
+})

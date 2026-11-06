@@ -117,6 +117,24 @@ function validateTickInto(value: any, path: string): boolean {
 /** The first problem with `value` as a tick, or null. */
 export const validateTick = (value: unknown) => run(validateTickInto, value)
 
+export type WindowTitle = { "title": string }
+
+function validateWindowTitleInto(value: any, path: string): boolean {
+  return map(value, path, ["title"]) && (value["title"] === undefined ? fail(`${path}.title`, 'present') : nested(value["title"], `${path}.title`, (value, path) => typeof value === 'string' || fail(path, 'text')))
+}
+
+/** The first problem with `value` as a window-title, or null. */
+export const validateWindowTitle = (value: unknown) => run(validateWindowTitleInto, value)
+
+export type Picked = { "paths": (string)[] }
+
+function validatePickedInto(value: any, path: string): boolean {
+  return map(value, path, ["paths"]) && (value["paths"] === undefined ? fail(`${path}.paths`, 'present') : nested(value["paths"], `${path}.paths`, (value, path) => list(value, path, (value, path) => typeof value === 'string' || fail(path, 'text'))))
+}
+
+/** The first problem with `value` as a picked, or null. */
+export const validatePicked = (value: unknown) => run(validatePickedInto, value)
+
 /** The services, for a typed Communicator. */
 export interface Services {
   "greeting.hello": { kind: 'method', request: HelloRequest, response: Greeting }
@@ -124,6 +142,8 @@ export interface Services {
   "ui.confirm": { kind: 'method', request: ConfirmRequest, response: ConfirmResponse }
   "greeting.greeted": { kind: 'event', payload: Greeted }
   "clock.ticks": { kind: 'subscription', params: ClockParams, value: Tick }
+  "window.retitle": { kind: 'method', request: WindowTitle, response: WindowTitle }
+  "files.pick": { kind: 'method', request: null, response: Picked }
 }
 
 const services: Record<string, Partial<Record<string, Check>>> = {
@@ -145,6 +165,14 @@ const services: Record<string, Partial<Record<string, Check>>> = {
   "clock.ticks": {
     params: (value: any, path: string) => validateClockParamsInto(value, path),
     value: (value: any, path: string) => validateTickInto(value, path),
+  },
+  "window.retitle": {
+    request: (value: any, path: string) => validateWindowTitleInto(value, path),
+    response: (value: any, path: string) => validateWindowTitleInto(value, path),
+  },
+  "files.pick": {
+    request: (value: any, path: string) => value === null || fail(path, 'null'),
+    response: (value: any, path: string) => validatePickedInto(value, path),
   },
 }
 

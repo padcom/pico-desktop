@@ -7,6 +7,7 @@ describe('resolveConfig', () => {
     expect(config).toEqual({
       root: '/app',
       app: { id: 'com.example.demo', name: 'com.example.demo', version: '0.0.0' },
+      capabilities: [],
       frontend: { root: '/app/apps/frontend' },
       backend: { root: '/app/apps/backend', entry: 'main.pi' },
       contracts: [{
@@ -24,7 +25,16 @@ describe('resolveConfig', () => {
     expect(config.host).toBe('/app/bin/host')
   })
 
-  it('checks the app ID like the host does', () => {
+})
+
+describe('resolveConfig checks', () => {
+  it('the capabilities', () => {
+    expect(resolveConfig('/app', { app: { id: 'demo' }, capabilities: ['window', 'window'] }).capabilities).toEqual(['window'])
+    // @ts-expect-error -- an unknown capability on purpose
+    expect(() => resolveConfig('/app', { app: { id: 'demo' }, capabilities: ['camera'] })).toThrow(ConfigError)
+  })
+
+  it('the app ID, like the host does', () => {
     expect(() => resolveConfig('/app', { app: { id: 'Not Valid' } })).toThrow(ConfigError)
     expect(() => resolveConfig('/app', { app: { id: 'a..b' } })).toThrow(ConfigError)
   })

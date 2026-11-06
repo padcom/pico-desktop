@@ -40,6 +40,11 @@ struct Fake : RouterOutput {
   void kill_backend() override { ++kills; }
   void pong() override { ++pongs; }
   bool backend_busy() const override { return busy; }
+  std::vector<std::string> host_calls;
+  void host_request(std::uint64_t id, const std::string& name, std::optional<Bytes> payload,
+                    std::optional<std::uint64_t> window) override {
+    host_calls.push_back(std::to_string(id) + " " + name + (payload ? " +p" : "") + (window ? " w" : ""));
+  }
   void clear() {
     backend.clear();
     sessions.clear();
@@ -407,6 +412,19 @@ void liveness() {
   CHECK(out.backend.size() == 1 && header(out.backend[0]).kind == Kind::response);
 }
 
+void host_services() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.from_backend(call(Kind::request, 8, "host.window.setTitle", 10));
+  CHECK(out.host_calls == std::vector<std::string>{"8 host.window.setTitle +p w"} && out.sessions.empty());
+  router.answer_backend(8, ipc::Writer().null().take(), 10);
+  const auto ok = header(out.backend.back());
+  CHECK(ok.kind == Kind::response && ok.id == 8u && ok.window == 10u);
+  router.fail_backend(9, "NOT_ALLOWED", "no", std::nullopt);
+  CHECK(has_code(out.backend.back(), "NOT_ALLOWED") && header(out.backend.back()).id == 9u);
+}
+
 void tracing() {
   const auto request = call(Kind::request, 7, "greeting.hello", 3);
   CHECK(describe_envelope(request) == "request id=7 greeting.hello w=3, " + std::to_string(request.size()) + " B");
@@ -433,6 +451,7 @@ void restart_budget() {
 }  // namespace
 
 int main() {
+  host_services();
   liveness();
   tracing();
   restart_budget();
