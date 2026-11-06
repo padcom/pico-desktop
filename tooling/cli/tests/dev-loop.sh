@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The F4 developer loop end to end, on a freshly created app:
 #   create → pnpm install → pnpm test → pnpm dev, then in the same window:
-#   3 backend edits (each rebuilt and restarted: epochs 2, 3, 4), a syntax error (reported, the
+#   3 backend edits (each rebuilt and restarted: epochs 2, 3, 4, and the page shows each new
+#   answer), a syntax error (reported, the
 #   running backend kept), its fix (epoch 5), frontend edits (CSS hot-updated, a module reloads
 #   the page), a contract edit (regenerated; the backend rebuilds: epoch 6), and Ctrl+C:
 #   everything exits, nothing is left running.
@@ -63,13 +64,27 @@ pnpm test > "$scratch/test.log" 2>&1 || { cat "$scratch/test.log"; fail "pnpm te
 
 mkfifo "$scratch/keys"
 exec 3<> "$scratch/keys"
+# The page reports what the backend answers after each (re)start: the host forwards the page's
+# console in --dev, so the new code's result in the same window shows in the dev output.
+cat >> apps/frontend/src/main.ts <<'TS'
+app.communicator.onConnectionChange(state => {
+  if (state === 'ready') {
+    void app.communicator.request('greeting.hello', { name: 'loop' })
+      .then(({ message }) => console.log(`pd-dev-loop: epoch ${app.communicator.epoch}: ${message}`))
+  }
+})
+TS
+
 PICO_DESKTOP_HOST=$host script -qfec "pnpm dev" /dev/null < "$scratch/keys" > "$log" 2>&1 &
 dev_pid=$!
 wait_for 'the backend is ready \(epoch 1\)'
 
+wait_for 'pd-dev-loop: epoch 1: Hello, loop!'
 for epoch in 2 3 4; do
   sed -i "s|message: \`[^\`]*|message: \`Hello #$epoch, \${request.name}!|" apps/backend/app.pi
   wait_for "the backend is ready \\(epoch $epoch\\)"
+  # The same window, the new backend's answer.
+  wait_for "pd-dev-loop: epoch $epoch: Hello #$epoch, loop!"
 done
 
 # A syntax error: reported, no restart; the epoch-4 backend keeps running.

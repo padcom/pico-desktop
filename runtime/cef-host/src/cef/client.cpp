@@ -66,6 +66,10 @@ bool HostClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severit
   BrowserState& state = browser_state();
   const std::string text = message.ToString();
   if (state.options.mode != Mode::self_test) {
+    if (state.options.dev) {
+      log_line("console: " + text);  // development: the page's console in the terminal too
+      return true;
+    }
     return false;  // the default handling logs it
   }
   if (!text.starts_with(kTestPrefix)) {
