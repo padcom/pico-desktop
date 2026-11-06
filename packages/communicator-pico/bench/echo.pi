@@ -1,0 +1,83 @@
+// An echo backend for the IPC benchmark (runtime/ipc/bench, ADR-0004): it answers every request
+// with a response carrying the same payload, through the real envelope code (decode, typed
+// struct, encode), over stdin/stdout or, with --tcp=<port>, a loopback TCP connection.
+// Replies to one input chunk go out in one write.
+import { args, stdin, stdout, stderr, exit } from "std/process"
+import { connect } from "std/net"
+import { FrameReader, encodeFrame } from "../framing"
+import { decodeEnvelope, encodeEnvelope, envelope } from "../envelope"
+import { ProtocolError } from "../envelope"
+
+const frames = new FrameReader(16 * 1024 * 1024)
+
+/// The replies to everything `chunk` completes, as one buffer (or null when nothing completed).
+function answer(chunk: Uint8Array): Uint8Array? throws ProtocolError {
+  frames.push(chunk)
+  const replies: Uint8Array[] = []
+  let total = 0
+  let message = frames.next()
+  while (message != null) {
+    const request = decodeEnvelope(message)
+    const response = envelope("response")
+    response.id = request.id
+    response.p = request.p
+    const frame = encodeFrame(encodeEnvelope(response))
+    replies.push(frame)
+    total += frame.length
+    message = frames.next()
+  }
+  if (replies.length == 0) {
+    return null
+  }
+  if (replies.length == 1) {
+    return replies[0]
+  }
+  const out = new Uint8Array(total)
+  let at = 0
+  for (const r of replies) {
+    out.setAll(r, at)
+    at += r.length
+  }
+  out
+}
+
+async function serveStdio(): Promise<void> throws Error {
+  for await (const chunk of stdin) {
+    const reply = answer(chunk)
+    if (reply != null) {
+      await stdout.write(reply)
+    }
+  }
+}
+
+async function serveTcp(port: int): Promise<void> throws Error {
+  const conn = await connect(port)
+  for await (const chunk of conn) {
+    const reply = answer(chunk)
+    if (reply != null) {
+      await conn.write(reply)
+    }
+  }
+  conn.close()
+}
+
+async function main(): Promise<void> throws Error {
+  let port = 0
+  for (const a of args) {
+    if (a.startsWith("--tcp=")) {
+      port = parseInt(a.replace("--tcp=", ""))
+    }
+  }
+  try {
+    if (port > 0) {
+      await serveTcp(port)
+    } else {
+      await serveStdio()
+    }
+  } catch (e: ProtocolError) {
+    await stderr.writeText(`echo: ${e.code}: ${e.message}\n`)
+    exit(2)
+  }
+}
+
+await main()
