@@ -40,6 +40,10 @@ struct Options {
   /// Allow several instances (each with its own, temporary profile). By default a second launch
   /// brings the running instance's window to the front and exits.
   bool multi_instance = false;
+  /// Liveness (docs/protocol.md §7): ping the ready backend every `liveness_interval_ms`; once it
+  /// has answered one, `liveness_timeout_ms` without an answer is a hang.
+  int liveness_interval_ms = 5000;
+  int liveness_timeout_ms = 15000;
   /// Development: log every message's envelope (kind, id, name, window, subscription, size), never
   /// its payload.
   bool trace_ipc = false;

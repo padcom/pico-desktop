@@ -333,6 +333,14 @@ export class Communicator {
   }
 
   lifecycle(e: Envelope): void {
+    if (e.n == "ping") {
+      // Liveness (docs/protocol.md §7): answering shows the event loop runs.
+      const pong = envelope("lifecycle")
+      pong.n = "pong"
+      pong.p = e.p
+      post(pong)
+      return
+    }
     if (e.n == "closing") {
       stopping = true
       const f = onClosing

@@ -29,6 +29,8 @@ namespace {
 
 struct Fake : RouterOutput {
   int kills = 0;
+  int pongs = 0;
+  bool busy = false;
   std::vector<Bytes> backend;
   std::vector<std::pair<std::uint64_t, Bytes>> sessions;
   std::vector<std::string> lines;
@@ -36,6 +38,8 @@ struct Fake : RouterOutput {
   void to_session(std::uint64_t session, Bytes message) override { sessions.emplace_back(session, std::move(message)); }
   void log(const std::string& line) override { lines.push_back(line); }
   void kill_backend() override { ++kills; }
+  void pong() override { ++pongs; }
+  bool backend_busy() const override { return busy; }
   void clear() {
     backend.clear();
     sessions.clear();
@@ -380,6 +384,29 @@ void echo() {
   CHECK(has_code(plain.sessions[0].second, "DISCONNECTED") && plain.kills == 0);
 }
 
+void liveness() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.ping(7);
+  CHECK(out.backend.size() == 1 && header(out.backend[0]).name == "ping");
+  CHECK(ipc::raw_field(out.backend[0], 4) == ipc::Writer().uint(7).take());
+  auto pong = ipc::Writer().map(4).uint(0).uint(1).uint(1).uint(7).uint(3).text("pong").uint(4).uint(7).take();
+  router.from_backend(pong);
+  CHECK(out.pongs == 1 && out.sessions.empty());
+
+  // A full queue: new requests are refused with BUSY, events dropped, answers still go through.
+  out.clear();
+  router.from_backend(call(Kind::request, 5, "ui.confirm", 10));
+  out.busy = true;
+  router.from_session(1, 10, call(Kind::request, 1, "greeting.hello"));
+  CHECK(out.backend.empty() && has_code(out.sessions.back().second, "BUSY"));
+  router.from_session(1, 10, event("clicked", std::nullopt, std::nullopt));
+  CHECK(out.backend.empty());
+  router.from_session(1, 10, answer(Kind::response, 5));
+  CHECK(out.backend.size() == 1 && header(out.backend[0]).kind == Kind::response);
+}
+
 void tracing() {
   const auto request = call(Kind::request, 7, "greeting.hello", 3);
   CHECK(describe_envelope(request) == "request id=7 greeting.hello w=3, " + std::to_string(request.size()) + " B");
@@ -406,6 +433,7 @@ void restart_budget() {
 }  // namespace
 
 int main() {
+  liveness();
   tracing();
   restart_budget();
   readiness();

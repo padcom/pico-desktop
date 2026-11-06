@@ -224,7 +224,23 @@ async function disconnects(): Promise<void> throws Error {
   expect(rig.done).toBe(true)
 }
 
+async function answersPings(): Promise<void> throws Error {
+  const rig = new Rig()
+  await started(rig)
+  const ping = envelope("lifecycle")
+  ping.n = "ping"
+  ping.p = Cbor.Uint(42)
+  await rig.send(ping)
+  const pong = await rig.next()
+  expect(pong.k == "lifecycle" && pong.n == "pong").toBe(true)
+  match (pong.p) {
+    Cbor.Uint(n) => expect(n as int).toBe(42),
+    _ => expect("no sequence number").toBe("42"),
+  }
+}
+
 describe("the Pico Communicator", () => {
+  it("answers the host's liveness pings", answersPings)
   it("answers requests through handlers, with the request's window", answersRequests)
   it("passes cancellation to the handler", cancels)
   it("sends requests to the frontend and gets the answers", requestsTheFrontend)

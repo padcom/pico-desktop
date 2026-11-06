@@ -105,7 +105,7 @@ void Router::from_session(std::uint64_t session, std::uint64_t window, std::span
       session_answer(session, window, message, *h.id);
       break;
     case Kind::event:
-      if (ready_) {
+      if (ready_ && !out_.backend_busy()) {
         out_.to_backend(ipc::with_window(message, window));
       }
       break;
@@ -144,6 +144,10 @@ void Router::session_request(std::uint64_t session, std::uint64_t window, std::s
   }
   if (!ready_) {
     refuse_session(session, ui_id, "DISCONNECTED", "the backend isn't ready");
+    return;
+  }
+  if (out_.backend_busy()) {
+    refuse_session(session, ui_id, "BUSY", "the backend is behind; try again");
     return;
   }
   const std::uint64_t id = next_id_++;
@@ -242,7 +246,9 @@ void Router::from_backend(std::span<const std::byte> message) {
   const auto& h = *read.header;
   switch (h.kind) {
     case Kind::lifecycle:
-      if (h.name == std::string("hello") && !ready_) {
+      if (h.name == std::string("pong")) {
+        out_.pong();
+      } else if (h.name == std::string("hello") && !ready_) {
         ready_ = true;
         for (const auto& [window, session] : current_) {
           out_.to_session(session, lifecycle("ready", epoch_));
@@ -348,6 +354,13 @@ void Router::closing() {
   for (const auto& [window, session] : current_) {
     out_.to_session(session, lifecycle("closing", std::nullopt));
   }
+}
+
+void Router::ping(std::uint64_t seq) {
+  ipc::Writer w;
+  w.map(4).uint(0).uint(1).uint(1).uint(static_cast<std::uint64_t>(Kind::lifecycle)).uint(3).text("ping");
+  w.uint(4).uint(seq);
+  out_.to_backend(w.take());
 }
 
 void Router::backend_closing() { out_.to_backend(lifecycle("closing", std::nullopt)); }

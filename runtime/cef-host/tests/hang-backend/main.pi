@@ -1,0 +1,17 @@
+// A test backend that answers the host's liveness pings for 1.5 s and then hangs in a busy loop
+// (its event loop never runs again): the host must notice and restart it (tests/hang.sh).
+import { Communicator, StdioTransport } from "../../../../packages/communicator-pico/index"
+
+class Spinner {
+  public spins: int = 0
+
+  public spin(): void {
+    while (spins >= 0) {
+      spins = (spins + 1) % 1000000
+    }
+  }
+}
+
+const spinner = new Spinner()
+setTimeout(() => spinner.spin(), 1500)
+await new Communicator(new StdioTransport()).run()

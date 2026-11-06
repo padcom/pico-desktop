@@ -152,6 +152,17 @@ window is still open. The backend should finish and exit within the grace period
 kills it; then the window closes. A planned restart (development: `restart-backend`) sends `closing`
 to the backend alone, with a 2 s grace period.
 
+**Liveness.** While the backend is ready, the host sends it `lifecycle` `ping` with `p` = a sequence
+number every 5 s, and the backend answers `lifecycle` `pong` with the same `p`. A backend whose event
+loop is stuck (a synchronous loop, a deadlock) can't answer. Once a backend has answered one ping,
+the host treats 15 s without a `pong` as a hang: it kills the backend, and the restart policy takes
+over as after a crash. A backend that never answers a ping (an implementation without liveness) is
+never judged by it. The frontend is never pinged.
+
+The host also bounds what waits to be written to the backend: 1024 messages or 16 MiB. While that's
+full, the host refuses new requests and subscriptions from pages with `BUSY` and drops their events.
+Answers to the backend's own requests always go through.
+
 When an epoch ends, every request still pending across it is rejected with `DISCONNECTED`, and
 answers from the old epoch are discarded. The host enforces both, so a frontend never sees a late reply.
 

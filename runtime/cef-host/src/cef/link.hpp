@@ -57,6 +57,8 @@ class Link : public RouterOutput {
   void to_session(std::uint64_t session, Bytes message) override;
   void log(const std::string& line) override;
   void kill_backend() override;
+  void pong() override;
+  bool backend_busy() const override;
 
  private:
   struct Page {
@@ -74,7 +76,12 @@ class Link : public RouterOutput {
     std::mutex mutex;
     std::condition_variable wake;
     std::deque<Bytes> queue;
+    std::size_t queued_bytes = 0;
     bool draining = false;  // set when the writer should finish the queue and close stdin
+    // Liveness: pings sent, and when the last pong came (judged only once one came).
+    std::uint64_t pings = 0;
+    bool answered = false;
+    std::chrono::steady_clock::time_point last_pong;
   };
 
   /// Logs a message's envelope with --trace-ipc.
@@ -87,6 +94,8 @@ class Link : public RouterOutput {
   /// Kills process `generation` if it's still running (a planned restart's grace period is over).
   void force_end(std::uint64_t generation);
   void finish_close();
+  /// Pings the backend of `generation` and judges its answers, every liveness interval.
+  void liveness_tick(std::uint64_t generation);
   /// Ends the current process: closes its stdin, reaps it (killing it after `grace`), joins its
   /// threads. Returns the wait status (-1 if unknown).
   int end_process(std::chrono::milliseconds grace);

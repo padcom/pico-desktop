@@ -25,6 +25,9 @@ namespace {
 constexpr std::size_t kMaxMessage = 4 * 1024 * 1024;  // docs/protocol.md §2
 constexpr int64_t kRestartGraceMs = 2000;
 constexpr int64_t kCloseGraceMs = 3000;
+// The queue to the backend: beyond this, pages' new requests get BUSY (docs/protocol.md §7).
+constexpr std::size_t kMaxQueuedMessages = 1024;
+constexpr std::size_t kMaxQueuedBytes = 16 * 1024 * 1024;
 
 Link* g_link = nullptr;
 
@@ -193,6 +196,7 @@ void Link::to_backend(Bytes message) {
   trace("host → backend", message);
   {
     std::lock_guard<std::mutex> lock(process_->mutex);
+    process_->queued_bytes += message.size();
     process_->queue.push_back(std::move(message));
   }
   process_->wake.notify_one();
@@ -208,6 +212,7 @@ void Link::on_backend_message(std::uint64_t generation, Bytes message) {
   if (!was_ready && router_.backend_ready()) {
     budget_.ready(RestartBudget::Clock::now());
     log("pd-host: the backend is ready (epoch " + std::to_string(router_.epoch()) + ")");
+    liveness_tick(generation);
   }
 }
 
@@ -271,6 +276,37 @@ void Link::schedule_restart() {
   log("pd-host: starting the backend again in " + std::to_string(delay->count()) + " ms");
   router_.announce("restarting");
   CefPostDelayedTask(TID_UI, base::BindOnce(&Link::spawn, base::Unretained(this)), delay->count());
+}
+
+void Link::liveness_tick(std::uint64_t generation) {
+  if (!process_ || process_->generation != generation || closing_ || planned_restart_) {
+    return;  // that backend is gone or on its way out
+  }
+  const auto silent = std::chrono::steady_clock::now() - process_->last_pong;
+  if (process_->answered && silent > std::chrono::milliseconds(options_.liveness_timeout_ms)) {
+    log("pd-host: the backend stopped answering (no pong for " +
+        std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(silent).count()) + " ms); killing it");
+    kill(process_->child.pid, SIGKILL);  // then it's a crash: the restart policy takes over
+    return;
+  }
+  router_.ping(++process_->pings);
+  CefPostDelayedTask(TID_UI, base::BindOnce(&Link::liveness_tick, base::Unretained(this), generation),
+                     options_.liveness_interval_ms);
+}
+
+void Link::pong() {
+  if (process_) {
+    process_->answered = true;
+    process_->last_pong = std::chrono::steady_clock::now();
+  }
+}
+
+bool Link::backend_busy() const {
+  if (!process_) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(process_->mutex);
+  return process_->queue.size() >= kMaxQueuedMessages || process_->queued_bytes >= kMaxQueuedBytes;
 }
 
 void Link::begin_close(base::OnceClosure done) {
@@ -368,6 +404,7 @@ void Link::write_loop(Process* process) {
       }
       message = std::move(process->queue.front());
       process->queue.pop_front();
+      process->queued_bytes -= message.size();
     }
     // After a failed write the backend is gone: the rest is dropped (the reader reports the exit).
     broken = broken || !ipc::write_all(process->child.to_child, ipc::frame(message));

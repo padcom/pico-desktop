@@ -173,6 +173,16 @@ static void options() {
     const auto* o = std::get_if<Options>(&r);
     CHECK(o && o->multi_instance);
   }
+  {
+    const auto r = parse({"--app-dir=/x", "--liveness=500/1500"});
+    const auto* o = std::get_if<Options>(&r);
+    CHECK(o && o->liveness_interval_ms == 500 && o->liveness_timeout_ms == 1500);
+    const auto d = parse({"--app-dir=/x"});
+    CHECK(std::get<Options>(d).liveness_interval_ms == 5000 && std::get<Options>(d).liveness_timeout_ms == 15000);
+  }
+  for (const char* bad : {"--liveness=500", "--liveness=500/400", "--liveness=50/1000", "--liveness=a/b", "--liveness=-1/5"}) {
+    CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", bad})));
+  }
   CHECK(parse_control("restart-backend") == ControlCommand::restart_backend);
   CHECK(parse_control("  reload\r\n") == ControlCommand::reload);
   CHECK(parse_control("quit") == ControlCommand::quit);

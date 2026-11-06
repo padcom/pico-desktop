@@ -26,6 +26,10 @@ class RouterOutput {
   virtual void log(const std::string& line) = 0;
   /// Self-tests only (`host.killBackend`): end the backend abruptly, like a crash.
   virtual void kill_backend() {}
+  /// The backend answered a liveness ping.
+  virtual void pong() {}
+  /// Whether the queue to the backend is full (pages' new requests are refused with BUSY).
+  virtual bool backend_busy() const { return false; }
 };
 
 /// One line describing a message for `--trace-ipc`: its envelope fields and size, never its
@@ -55,6 +59,8 @@ class Router {
   void backend_closing();
   /// Tells every page a lifecycle state without an epoch (`restarting`, `failed`).
   void announce(const char* name);
+  /// A liveness ping to the backend (it answers `pong` with the same `seq`).
+  void ping(std::uint64_t seq);
 
   bool backend_ready() const { return ready_; }
   std::uint64_t epoch() const { return epoch_; }

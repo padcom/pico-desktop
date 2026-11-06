@@ -14,6 +14,27 @@ std::optional<std::string> value_of(std::string_view arg, std::string_view name)
   return std::nullopt;
 }
 
+bool parse_liveness(const std::string& text, Options& options) {
+  const auto slash = text.find('/');
+  if (slash == std::string::npos) {
+    return false;
+  }
+  const auto number = [](const std::string& s) -> int {
+    if (s.empty() || s.size() > 7 || s.find_first_not_of("0123456789") != std::string::npos) {
+      return -1;
+    }
+    return std::stoi(s);
+  };
+  const int interval = number(text.substr(0, slash));
+  const int timeout = number(text.substr(slash + 1));
+  if (interval < 100 || timeout <= interval) {
+    return false;
+  }
+  options.liveness_interval_ms = interval;
+  options.liveness_timeout_ms = timeout;
+  return true;
+}
+
 }  // namespace
 
 std::string usage() {
@@ -29,6 +50,7 @@ std::string usage() {
          "  --control=stdin        read restart-backend, reload, quit from stdin (needs --dev)\n"
          "  --trace-ipc            log each message's envelope, not its payload (needs --dev)\n"
          "  --multi-instance       allow several instances (default: a second launch focuses the first)\n"
+         "  --liveness=<ms>/<ms>   ping interval and hang timeout for the backend (default 5000/15000)\n"
          "  --self-test            let the page test itself, check the sandbox, exit with the result\n"
          "  --no-external-open     log external links instead of opening the system browser\n"
          "  -V, --version          print the version\n"
@@ -72,6 +94,10 @@ ParseResult parse_options(const std::vector<std::string>& args) {
         return "invalid --control '" + *c + "': only stdin";
       }
       options.control_stdin = true;
+    } else if (auto l = value_of(arg, "--liveness")) {
+      if (!parse_liveness(*l, options)) {
+        return "invalid --liveness '" + *l + "': use <interval ms>/<timeout ms>, the timeout longer than the interval";
+      }
     } else if (arg == "--multi-instance") {
       options.multi_instance = true;
     } else if (arg == "--trace-ipc") {
