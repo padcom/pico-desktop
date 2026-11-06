@@ -1,0 +1,49 @@
+; The ADR-0005 experiment contract, in CDDL (RFC 8610). The same contract is in
+; experiment.schema.json + experiment.services.json.
+
+; --- services: methods, events and subscriptions ------------------------------------------
+; (Generic rules, `method<request, response>`, would read better; the webdriverio `cddl`
+; parser doesn't support them, so each entry is a tagged array.)
+services = {
+  "serial.list": ["method", null, [* serial-port]],
+  "serial.open": ["method", open-params, { handle: uint .size 4 }],
+  "serial.write": ["method", write-params, { written: uint }],
+  "tree.get": ["method", null, tree],
+  "ui.ready": ["event", {}],
+  "drone.telemetry": ["subscription", { ? rateHz: uint .size 1 }, telemetry],
+}
+
+; --- types -----------------------------------------------------------------------------------
+serial-port = {
+  path: tstr,
+  ? vendorId: uint .size 2,
+  ? productId: uint .size 2,
+  ? serial: tstr,
+}
+
+open-params = {
+  path: tstr,
+  baud: uint .size 4,
+  ? parity: "none" / "even" / "odd",
+}
+
+write-params = {
+  handle: uint .size 4,
+  data: bstr,
+  ? packet: packet,
+}
+
+packet = raw-packet / text-packet
+raw-packet = { kind: "raw", data: bstr }
+text-packet = { kind: "text", line: tstr }
+
+telemetry = {
+  timeUs: uint .size 8,
+  attitude: { roll: float, pitch: float, yaw: float },
+  ? battery: { voltage: float, ? remaining: uint .le 100 },
+  mode: "manual" / "stabilize" / "auto",
+}
+
+tree = { name: tstr, children: [* tree] }
+
+port-busy = { port: tstr }

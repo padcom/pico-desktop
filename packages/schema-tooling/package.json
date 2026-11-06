@@ -20,5 +20,11 @@
     "build": "vite build",
     "typecheck": "tsc -p .",
     "test": "vitest run --root ."
+  },
+  "dependencies": {
+    "cddl": "0.23.0"
+  },
+  "devDependencies": {
+    "@pico-desktop/protocol": "workspace:*"
   }
 }

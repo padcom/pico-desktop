@@ -1,0 +1,121 @@
+// Reading typed payloads out of `Cbor` values: the helpers generated contract decoders call
+// (packages/schema-tooling). Every failure names the path of the offending value.
+import { Cbor } from "./cbor"
+
+/// A payload that doesn't match the contract (`INVALID_PAYLOAD`), with where and what.
+export class InvalidPayload extends Error {
+  public path: string
+
+  constructor(path: string, expected: string) {
+    super(`${path}: expected ${expected}`)
+    this.path = path
+  }
+}
+
+/// The members of a text-keyed map, which may only have `known` keys (contract maps are closed).
+export function members(v: Cbor, path: string, known: string[]): Map<string, Cbor> throws InvalidPayload {
+  match (v) {
+    Dict { entries } => {
+      for (const key of entries.keys()) {
+        if (!known.includes(key)) {
+          throw new InvalidPayload(`${path}.${key}`, "no such member")
+        }
+      }
+      entries
+    },
+    _ => throw new InvalidPayload(path, "a map"),
+  }
+}
+
+/// A required member.
+export function required(m: Map<string, Cbor>, key: string, path: string): Cbor throws InvalidPayload {
+  const v = m.get(key)
+  if (v == null) {
+    throw new InvalidPayload(`${path}.${key}`, "present")
+  }
+  v
+}
+
+export function text(v: Cbor, path: string): string throws InvalidPayload {
+  match (v) {
+    Text { value } => value,
+    _ => throw new InvalidPayload(path, "text"),
+  }
+}
+
+export function bytes(v: Cbor, path: string): Uint8Array throws InvalidPayload {
+  match (v) {
+    Bytes { value } => value,
+    _ => throw new InvalidPayload(path, "bytes"),
+  }
+}
+
+export function boolean(v: Cbor, path: string): bool throws InvalidPayload {
+  match (v) {
+    Bool { value } => value,
+    _ => throw new InvalidPayload(path, "true or false"),
+  }
+}
+
+export function isNull(v: Cbor, path: string): void throws InvalidPayload {
+  match (v) {
+    Null => {},
+    _ => throw new InvalidPayload(path, "null"),
+  }
+}
+
+/// An unsigned integer up to `max`.
+export function uint(v: Cbor, path: string, max: u64): u64 throws InvalidPayload {
+  match (v) {
+    Uint { value } if value <= max => value,
+    _ => throw new InvalidPayload(path, `an unsigned integer up to ${max}`),
+  }
+}
+
+/// A signed integer that fits in 64 bits.
+export function int(v: Cbor, path: string): i64 throws InvalidPayload {
+  match (v) {
+    Uint { value } if value <= 9223372036854775807 => value as i64,
+    Negative { value } if value <= 9223372036854775807 => -1 - (value as i64),
+    _ => throw new InvalidPayload(path, "a 64-bit integer"),
+  }
+}
+
+/// A number: encoders write integral numbers as CBOR integers, so those count too.
+export function float(v: Cbor, path: string): f64 throws InvalidPayload {
+  match (v) {
+    Float { value } => value,
+    Uint { value } => value as f64,
+    Negative { value } => -1.0 - (value as f64),
+    _ => throw new InvalidPayload(path, "a number"),
+  }
+}
+
+/// One of `values`.
+export function choice(v: Cbor, path: string, values: string[]): string throws InvalidPayload {
+  match (v) {
+    Text { value } if values.includes(value) => value,
+    _ => throw new InvalidPayload(path, values.join(" or ")),
+  }
+}
+
+export function items(v: Cbor, path: string): Cbor[] throws InvalidPayload {
+  match (v) {
+    List { items } => items,
+    _ => throw new InvalidPayload(path, "an array"),
+  }
+}
+
+/// The value of a union's tag member.
+export function tagOf(v: Cbor, path: string, tag: string): string throws InvalidPayload {
+  match (v) {
+    Dict { entries } => {
+      const t = entries.get(tag)
+      if (t == null) {
+        throw new InvalidPayload(`${path}.${tag}`, "present")
+      }
+      text(t, `${path}.${tag}`)
+    },
+    _ => throw new InvalidPayload(path, "a map"),
+  }
+}

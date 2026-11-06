@@ -1,9 +1,11 @@
 /**
- * Contract tooling: from a language-neutral contract to TypeScript types, Pico types and runtime
- * validators. The format is chosen by the F2 experiment (docs/adr/0005-schema-format.md).
+ * Contract tooling (ADR-0005): CDDL contracts → TypeScript types, validators and the service
+ * registry, and Pico types with decoders.
  */
+export { type Contract, type Field, type Service, type Type, bitsFor } from './ir'
 
-/** The contract formats under evaluation. */
-export const SCHEMA_CANDIDATES = ['cddl', 'json-schema'] as const
+export { CddlReader, readCddl } from './from-cddl'
 
-export type SchemaCandidate = typeof SCHEMA_CANDIDATES[number]
+export { TypeScriptWriter, generateTypeScript, typeName } from './generate-ts'
+
+export { generatePico } from './generate-pico'

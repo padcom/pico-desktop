@@ -1,0 +1,44 @@
+// ADR-0005: the decoders generated from the experiment contract (generated/experiment.pi) against
+// the shared payload corpus: they must accept exactly the cases the TypeScript validators accept.
+import { describe, it, expect } from "std/test"
+import { readText, exists } from "std/fs"
+import { hex } from "std/encoding"
+import { decode } from "./cbor"
+import { InvalidPayload } from "./payload"
+import { decodeNamed } from "./generated/experiment"
+
+struct Case {
+  name: string
+  type: string
+  valid: bool
+  hex: string
+}
+
+struct Corpus {
+  cases: Case[]
+}
+
+async function corpusPath(): Promise<string> throws Error {
+  const fromRoot = "packages/communicator-pico/generated/experiment-corpus.json"
+  if (await exists(fromRoot)) fromRoot else "generated/experiment-corpus.json"
+}
+
+const corpus = JSON.parse<Corpus>(await readText(await corpusPath()))
+
+function accepts(c: Case): string {
+  try {
+    decodeNamed(c.type, decode(hex.decode(c.hex)))
+    "accepted"
+  } catch (e: InvalidPayload) {
+    e.message
+  }
+}
+
+describe("the generated Pico decoders", () => {
+  for (const c of corpus.cases) {
+    it(`${if (c.valid) "accept" else "reject"} ${c.name}`, () => {
+      const outcome = accepts(c)
+      expect(if (c.valid) outcome else (if (outcome == "accepted") "accepted" else "rejected")).toBe(if (c.valid) "accepted" else "rejected")
+    })
+  }
+})

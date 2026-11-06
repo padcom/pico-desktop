@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pico-desktop.dev/contracts/experiment.schema.json",
+  "$comment": "The ADR-0005 experiment contract in JSON Schema (+ experiment.services.json). JSON Schema has no byte strings or 64-bit integers: `x-cbor` marks them (`bytes`, `uint64`); integer sizes use minimum/maximum.",
+  "$defs": {
+    "serial-port": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "vendorId": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "productId": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "serial": { "type": "string" }
+      },
+      "required": ["path"],
+      "additionalProperties": false
+    },
+    "open-params": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "baud": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "parity": { "enum": ["none", "even", "odd"] }
+      },
+      "required": ["path", "baud"],
+      "additionalProperties": false
+    },
+    "write-params": {
+      "type": "object",
+      "properties": {
+        "handle": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "data": { "x-cbor": "bytes" },
+        "packet": { "$ref": "#/$defs/packet" }
+      },
+      "required": ["handle", "data"],
+      "additionalProperties": false
+    },
+    "packet": {
+      "oneOf": [{ "$ref": "#/$defs/raw-packet" }, { "$ref": "#/$defs/text-packet" }]
+    },
+    "raw-packet": {
+      "type": "object",
+      "properties": { "kind": { "const": "raw" }, "data": { "x-cbor": "bytes" } },
+      "required": ["kind", "data"],
+      "additionalProperties": false
+    },
+    "text-packet": {
+      "type": "object",
+      "properties": { "kind": { "const": "text" }, "line": { "type": "string" } },
+      "required": ["kind", "line"],
+      "additionalProperties": false
+    },
+    "telemetry": {
+      "type": "object",
+      "properties": {
+        "timeUs": { "type": "integer", "minimum": 0, "x-cbor": "uint64" },
+        "attitude": {
+          "type": "object",
+          "properties": {
+            "roll": { "type": "number" },
+            "pitch": { "type": "number" },
+            "yaw": { "type": "number" }
+          },
+          "required": ["roll", "pitch", "yaw"],
+          "additionalProperties": false
+        },
+        "battery": {
+          "type": "object",
+          "properties": {
+            "voltage": { "type": "number" },
+            "remaining": { "type": "integer", "minimum": 0, "maximum": 100 }
+          },
+          "required": ["voltage"],
+          "additionalProperties": false
+        },
+        "mode": { "enum": ["manual", "stabilize", "auto"] }
+      },
+      "required": ["timeUs", "attitude", "mode"],
+      "additionalProperties": false
+    },
+    "tree": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/tree" } }
+      },
+      "required": ["name", "children"],
+      "additionalProperties": false
+    },
+    "port-busy": {
+      "type": "object",
+      "properties": { "port": { "type": "string" } },
+      "required": ["port"],
+      "additionalProperties": false
+    }
+  }
+}

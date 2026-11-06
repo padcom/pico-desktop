@@ -21,9 +21,11 @@ commit, saying why.
 The framework needs the stdout-flush fix (pico-lang #82); the probes and the codec also use the
 bulk byte copies (#84). Both are fixed in `padcom/pico-lang` but not released: **0.4.2** will
 carry them (both are on pico-lang `main` since `75fc4aa`; the released 0.4.1 predates them). Until
-then, develop with a local build of the compiler from `main` (`~/projects/padcom/ppl`;
-`~/bin/pico` links to its `target/release/pico`, which reports `0.4.1`). CI's Pico job turns on
-by itself once the 0.4.2 release exists (see `.github/workflows/ci.yml`). Release archives are
+then, develop with the compiler built from the `pico-lang` clone next to this repository
+(`~/projects/padcom/pico/pico-lang`, `cargo build --release -p pico-cli`), first on `PATH`:
+`export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`. That clone also carries
+fixes still in review (pico-lang PR #91, finalizers and buffer memory, #90). CI's Pico job turns
+on by itself once the 0.4.2 release exists (see `.github/workflows/ci.yml`). Release archives are
 named `pico-<version>-<host>.tar.gz|zip` (linux-arm64, linux-x64, macos-arm64, windows-arm64,
 windows-x64; no macos-x64, #86).
 

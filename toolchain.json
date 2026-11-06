@@ -14,7 +14,7 @@
   "pico": {
     "minimum": "0.4.2",
     "releasedPin": "0.4.1",
-    "localBuild": "padcom/pico-lang main @ 75fc4aa (0.4.1 + #82 44a1f22 + #84 75fc4aa)",
+    "localBuild": "~/projects/padcom/pico/pico-lang (clone of padcom/pico-lang): main 89f7626 + fix/90 (PR #91)",
     "$comment": "0.4.2 (stdout flush #82, bulk copies #84; on pico-lang main) isn't released yet: develop with the local ppl build; CI's Pico job waits for 0.4.2."
   },
   "cef": {

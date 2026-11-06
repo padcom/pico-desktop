@@ -1,0 +1,46 @@
+{
+  "$comment": "The service manifest JSON Schema needs (it has no notion of methods, events or subscriptions): each entry names schemas from experiment.schema.json, or inline ones.",
+  "serial.list": {
+    "kind": "method",
+    "request": { "type": "null" },
+    "response": { "type": "array", "items": { "$ref": "#/$defs/serial-port" } }
+  },
+  "serial.open": {
+    "kind": "method",
+    "request": { "$ref": "#/$defs/open-params" },
+    "response": {
+      "type": "object",
+      "properties": { "handle": { "type": "integer", "minimum": 0, "maximum": 4294967295 } },
+      "required": ["handle"],
+      "additionalProperties": false
+    }
+  },
+  "serial.write": {
+    "kind": "method",
+    "request": { "$ref": "#/$defs/write-params" },
+    "response": {
+      "type": "object",
+      "properties": { "written": { "type": "integer", "minimum": 0, "x-cbor": "uint64" } },
+      "required": ["written"],
+      "additionalProperties": false
+    }
+  },
+  "tree.get": {
+    "kind": "method",
+    "request": { "type": "null" },
+    "response": { "$ref": "#/$defs/tree" }
+  },
+  "ui.ready": {
+    "kind": "event",
+    "payload": { "type": "object", "properties": {}, "additionalProperties": false }
+  },
+  "drone.telemetry": {
+    "kind": "subscription",
+    "params": {
+      "type": "object",
+      "properties": { "rateHz": { "type": "integer", "minimum": 0, "maximum": 255 } },
+      "additionalProperties": false
+    },
+    "value": { "$ref": "#/$defs/telemetry" }
+  }
+}
