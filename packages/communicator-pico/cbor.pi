@@ -1,0 +1,396 @@
+// CBOR (RFC 8949) restricted to the Pico Desktop profile (docs/protocol.md §3): definite lengths,
+// no tags, simple values false/true/null, text-keyed maps in payloads (uint-keyed in envelopes),
+// no duplicate keys, bounded nesting. Encoding uses the preferred serialization; the bytes match
+// the TypeScript codec's for the same value (packages/protocol/vectors).
+import { hex } from "std/encoding"
+
+/// A value that can cross the protocol.
+export enum Cbor {
+  /// An unsigned integer, 0 … 2^64 − 1.
+  Uint(value: u64),
+  /// The negative integer −1 − `value` (down to −2^64).
+  Negative(value: u64),
+  Bytes(value: Uint8Array),
+  Text(value: string),
+  List(items: Cbor[]),
+  /// A text-keyed map (payloads), in insertion order.
+  Dict(entries: Map<string, Cbor>),
+  /// A uint-keyed map (envelopes), in insertion order.
+  Keyed(entries: Map<u64, Cbor>),
+  Bool(value: bool),
+  Null,
+  Float(value: f64),
+}
+
+/// The deepest nesting of arrays and maps a message may have.
+export const MAX_DEPTH: int = 32
+
+/// A message that breaks the CBOR profile (`INVALID_MESSAGE`).
+export class CborError extends Error {
+  constructor(message: string) {
+    super(message)
+  }
+}
+
+/// `n` as a CBOR integer.
+export function integer(n: int): Cbor {
+  if (n >= 0) Cbor.Uint(n as u64) else Cbor.Negative((-1 - n) as u64)
+}
+
+// ------------------------------------------------------------------------------------ encoding
+
+class Writer {
+  buf: Uint8Array = new Uint8Array(256)
+  len: int = 0
+
+  reserve(n: int): void {
+    if (len + n <= buf.length) {
+      return
+    }
+    let size = buf.length * 2
+    while (size < len + n) {
+      size = size * 2
+    }
+    const grown = new Uint8Array(size)
+    grown.setAll(buf.subarray(0, len))
+    buf = grown
+  }
+
+  byte(b: int): void {
+    reserve(1)
+    buf.set(len, b)
+    len += 1
+  }
+
+  raw(b: Uint8Array): void {
+    reserve(b.length)
+    buf.setAll(b, len)
+    len += b.length
+  }
+
+  /// `n` as `size` big-endian bytes.
+  be(n: u64, size: int): void {
+    for (let i = size - 1; i >= 0; i--) {
+      byte(((n >> ((i * 8) as u64)) & 255) as int)
+    }
+  }
+
+  head(major: int, n: u64): void {
+    const m = major << 5
+    if (n < 24) {
+      byte(m | (n as int))
+    } else if (n < 256) {
+      byte(m | 24)
+      be(n, 1)
+    } else if (n < 65536) {
+      byte(m | 25)
+      be(n, 2)
+    } else if (n < 4294967296) {
+      byte(m | 26)
+      be(n, 4)
+    } else {
+      byte(m | 27)
+      be(n, 8)
+    }
+  }
+
+  float(f: f64): void {
+    byte(0xfb)
+    raw(f64ToBytes(f))
+  }
+
+  text(s: string): void {
+    const utf8 = new TextEncoder().encode(s)
+    head(3, utf8.length as u64)
+    raw(utf8)
+  }
+
+  public item(v: Cbor, depth: int): void throws CborError {
+    match (v) {
+      Uint { value } => head(0, value),
+      Negative { value } => head(1, value),
+      Bytes { value } => {
+        head(2, value.length as u64)
+        raw(value)
+      },
+      Text { value } => text(value),
+      List { items } => {
+        nested(depth)
+        head(4, items.length as u64)
+        for (const element of items) {
+          item(element, depth + 1)
+        }
+      },
+      Dict { entries } => {
+        nested(depth)
+        head(5, entries.size as u64)
+        for (const [key, value] of entries) {
+          text(key)
+          item(value, depth + 1)
+        }
+      },
+      Keyed { entries } => {
+        nested(depth)
+        head(5, entries.size as u64)
+        for (const [key, value] of entries) {
+          head(0, key)
+          item(value, depth + 1)
+        }
+      },
+      Bool { value } => byte(if (value) 0xf5 else 0xf4),
+      Null => byte(0xf6),
+      Float { value } => float(value),
+    }
+  }
+
+  public result(): Uint8Array {
+    buf.slice(0, len)
+  }
+}
+
+function nested(depth: int): void throws CborError {
+  if (depth > MAX_DEPTH) {
+    throw new CborError(`nesting deeper than ${MAX_DEPTH}`)
+  }
+}
+
+/// `f` as 8 big-endian bytes (IEEE 754 double).
+function f64ToBytes(f: f64): Uint8Array {
+  const view = new Float64Array(1)
+  view.set(0, f)
+  // Every pico target is little-endian: reverse into network order.
+  const le = new Uint8Array(view.buffer, 0)
+  const out = new Uint8Array(8)
+  for (let i = 0; i < 8; i++) {
+    out.set(i, le.get(7 - i))
+  }
+  out
+}
+
+/// Encodes `v` with the preferred serialization.
+export function encode(v: Cbor): Uint8Array throws CborError {
+  const w = new Writer()
+  w.item(v, 1)
+  w.result()
+}
+
+// ------------------------------------------------------------------------------------ decoding
+
+function bytesToF64(b: Uint8Array, at: int): f64 {
+  const buf = new ArrayBuffer(8)
+  const le = new Uint8Array(buf, 0)
+  for (let i = 0; i < 8; i++) {
+    le.set(i, b.get(at + 7 - i))
+  }
+  new Float64Array(buf, 0).get(0)
+}
+
+function bytesToF32(b: Uint8Array, at: int): f64 {
+  const buf = new ArrayBuffer(4)
+  const le = new Uint8Array(buf, 0)
+  for (let i = 0; i < 4; i++) {
+    le.set(i, b.get(at + 3 - i))
+  }
+  new Float32Array(buf, 0).get(0) as f64
+}
+
+function halfToF64(half: int): f64 {
+  const sign: f64 = if ((half & 0x8000) != 0) -1.0 else 1.0
+  const exponent = (half >> 10) & 0x1f
+  const fraction = (half & 0x3ff) as f64
+  if (exponent == 0x1f) {
+    return if (fraction != 0.0) 0.0 / 0.0 else sign / 0.0
+  }
+  if (exponent == 0) {
+    return sign * Math.pow(2.0, -14.0) * (fraction / 1024.0)
+  }
+  sign * Math.pow(2.0, (exponent - 15) as f64) * (1.0 + fraction / 1024.0)
+}
+
+class Reader {
+  bytes: Uint8Array
+  pos: int = 0
+
+  constructor(bytes: Uint8Array) {
+    this.bytes = bytes
+  }
+
+  public done(): bool {
+    pos == bytes.length
+  }
+
+  /// Moves past `n` bytes, which must be there; the position before them.
+  need(n: int): int throws CborError {
+    if (pos + n > bytes.length) {
+      throw new CborError("truncated")
+    }
+    const at = pos
+    pos += n
+    at
+  }
+
+  argument(info: int): u64 throws CborError {
+    if (info < 24) {
+      return info as u64
+    }
+    const size = match (info) {
+      24 => 1,
+      25 => 2,
+      26 => 4,
+      27 => 8,
+      31 => throw new CborError("indefinite lengths are not allowed"),
+      _ => throw new CborError(`reserved additional information ${info}`),
+    }
+    const at = need(size)
+    let n: u64 = 0
+    for (let i = 0; i < size; i++) {
+      n = (n << 8) | (bytes.get(at + i) as u64)
+    }
+    n
+  }
+
+  /// A length that has to fit in what's left of the message.
+  length(info: int, minItemBytes: int): int throws CborError {
+    const n = argument(info)
+    const left = ((bytes.length - pos) / minItemBytes) as u64
+    if (n > left) {
+      throw new CborError("a length beyond the end of the message")
+    }
+    n as int
+  }
+
+  public item(depth: int): Cbor throws CborError {
+    const initial = bytes.get(need(1))
+    const info = initial & 0x1f
+    match (initial >> 5) {
+      0 => Cbor.Uint(argument(info)),
+      1 => Cbor.Negative(argument(info)),
+      2 => {
+        const n = length(info, 1)
+        const start = need(n)
+        Cbor.Bytes(bytes.slice(start, start + n))
+      },
+      3 => Cbor.Text(text(info)),
+      4 => list(info, depth),
+      5 => map(info, depth),
+      6 => throw new CborError("tags are not allowed"),
+      _ => simple(info),
+    }
+  }
+
+  text(info: int): string throws CborError {
+    const n = length(info, 1)
+    const start = need(n)
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(start, start + n))
+    } catch (e: TypeError) {
+      throw new CborError("text is not valid UTF-8")
+    }
+  }
+
+  list(info: int, depth: int): Cbor throws CborError {
+    nested(depth)
+    const n = length(info, 1)
+    const items: Cbor[] = []
+    for (let i = 0; i < n; i++) {
+      items.push(item(depth + 1))
+    }
+    Cbor.List(items)
+  }
+
+  map(info: int, depth: int): Cbor throws CborError {
+    nested(depth)
+    const n = length(info, 2)
+    const texts = new Map<string, Cbor>()
+    const uints = new Map<u64, Cbor>()
+    for (let i = 0; i < n; i++) {
+      const key = item(depth + 1)
+      const value = item(depth + 1)
+      switch (key) {
+        case Text { value: k }:
+          if (texts.has(k)) {
+            throw new CborError("duplicate map key")
+          }
+          texts.set(k, value)
+        case Uint { value: k }:
+          if (uints.has(k)) {
+            throw new CborError("duplicate map key")
+          }
+          uints.set(k, value)
+        default:
+          throw new CborError("map keys must be text or unsigned integers")
+      }
+    }
+    if (texts.size > 0 && uints.size > 0) {
+      throw new CborError("a map mixes text and integer keys")
+    }
+    if (uints.size > 0) Cbor.Keyed(uints) else Cbor.Dict(texts)
+  }
+
+  simple(info: int): Cbor throws CborError {
+    match (info) {
+      20 => Cbor.Bool(false),
+      21 => Cbor.Bool(true),
+      22 => Cbor.Null,
+      23 => throw new CborError("undefined is not allowed"),
+      25 => {
+        const at = need(2)
+        Cbor.Float(halfToF64((bytes.get(at) << 8) | bytes.get(at + 1)))
+      },
+      26 => Cbor.Float(bytesToF32(bytes, need(4))),
+      27 => Cbor.Float(bytesToF64(bytes, need(8))),
+      31 => throw new CborError("unexpected break"),
+      _ => throw new CborError("simple values other than false, true and null are not allowed"),
+    }
+  }
+}
+
+/// Decodes one complete CBOR item that follows the profile.
+export function decode(bytes: Uint8Array): Cbor throws CborError {
+  const r = new Reader(bytes)
+  const v = r.item(1)
+  if (!r.done()) {
+    throw new CborError("trailing bytes after the item")
+  }
+  v
+}
+
+// ---------------------------------------------------------------------------------- diagnostics
+
+function quote(s: string): string {
+  `"${s.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`
+}
+
+/// `v` in the language-neutral form the test vectors use (`diag`): integers in decimal, floats as
+/// their IEEE double bits (NaN canonical), `h'..'` bytes, quoted text, maps in order.
+export function diagnostic(v: Cbor): string {
+  match (v) {
+    Uint { value } => `${value}`,
+    Negative { value } => if (value == 18446744073709551615) "-18446744073709551616" else `-${value + 1}`,
+    Bytes { value } => `h'${hex.encode(value)}'`,
+    Text { value } => quote(value),
+    List { items } => `[${items.map((i: Cbor): string => diagnostic(i)).join(", ")}]`,
+    Dict { entries } => {
+      const parts: string[] = []
+      for (const [k, e] of entries) {
+        parts.push(`${quote(k)}: ${diagnostic(e)}`)
+      }
+      `{${parts.join(", ")}}`
+    },
+    Keyed { entries } => {
+      const parts: string[] = []
+      for (const [k, e] of entries) {
+        parts.push(`${k}: ${diagnostic(e)}`)
+      }
+      `{${parts.join(", ")}}`
+    },
+    Bool { value } => `${value}`,
+    Null => "null",
+    Float { value } => {
+      if (value != value) {
+        return "float(0x7ff8000000000000)"
+      }
+      `float(0x${hex.encode(f64ToBytes(value))})`
+    },
+  }
+}

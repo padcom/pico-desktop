@@ -1,0 +1,206 @@
+// The protocol envelope (docs/protocol.md §4): a uint-keyed CBOR map, validated on decode. Mirrors
+// `@pico-desktop/protocol`'s envelope.ts; both pass packages/protocol/vectors/envelope.json.
+import { Cbor, CborError, decode, encode } from "./cbor"
+
+export const PROTOCOL_VERSION: int = 1
+
+/// The largest ID, epoch or count a message may carry (TypeScript's safe integers).
+export const MAX_ID: u64 = 9007199254740991
+
+export const MAX_NAME_BYTES: int = 256
+
+export type MessageKind = "request" | "response" | "error" | "event" | "subscribe" | "unsubscribe" | "cancel" | "lifecycle"
+
+/// The kinds in wire order (the index is `k`).
+export const MESSAGE_KINDS: MessageKind[] = ["request", "response", "error", "event", "subscribe", "unsubscribe", "cancel", "lifecycle"]
+
+export struct ErrorInfo {
+  code: string
+  message: string
+  data: Cbor?
+}
+
+export struct Envelope {
+  k: MessageKind
+  id: u64?
+  n: string?
+  p: Cbor?
+  err: ErrorInfo?
+  w: u64?
+  e: u64?
+  s: u64?
+  d: u64?
+}
+
+/// A message that can't be accepted; `code` says why (`INVALID_MESSAGE`, `UNSUPPORTED_VERSION`).
+export class ProtocolError extends Error {
+  public code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.code = code
+  }
+}
+
+function invalid(message: string): ProtocolError {
+  new ProtocolError("INVALID_MESSAGE", message)
+}
+
+/// An envelope with only the kind set.
+export function envelope(k: MessageKind): Envelope {
+  Envelope { k: k, id: null, n: null, p: null, err: null, w: null, e: null, s: null, d: null }
+}
+
+function uintField(entries: Map<u64, Cbor>, key: u64, field: string): u64? throws ProtocolError {
+  const value = entries.get(key)
+  if (value == null) {
+    return null
+  }
+  match (value) {
+    Uint { value: n } if n <= MAX_ID => n,
+    _ => throw invalid(`${field} must be an unsigned integer below 2^53`),
+  }
+}
+
+function textField(entries: Map<u64, Cbor>, key: u64, field: string): string? throws ProtocolError {
+  const value = entries.get(key)
+  if (value == null) {
+    return null
+  }
+  match (value) {
+    Text { value: t } => t,
+    _ => throw invalid(`${field} must be text`),
+  }
+}
+
+function errorField(entries: Map<u64, Cbor>): ErrorInfo? throws ProtocolError {
+  const value = entries.get(5)
+  if (value == null) {
+    return null
+  }
+  match (value) {
+    Keyed { entries: e } => {
+      const code = textField(e, 0, "err.code")
+      const message = textField(e, 1, "err.message")
+      if (code == null || message == null) {
+        throw invalid("err needs a code and a message")
+      }
+      ErrorInfo { code: code, message: message, data: e.get(2) }
+    },
+    _ => throw invalid("err must be a map with integer keys"),
+  }
+}
+
+function kindOf(entries: Map<u64, Cbor>): MessageKind throws ProtocolError {
+  const k = uintField(entries, 1, "k")
+  if (k == null || k >= (MESSAGE_KINDS.length as u64)) {
+    throw invalid("unknown kind")
+  }
+  MESSAGE_KINDS[k as int]
+}
+
+function checkVersion(entries: Map<u64, Cbor>): void throws ProtocolError {
+  const v = uintField(entries, 0, "v")
+  if (v == null) {
+    throw invalid("missing v")
+  }
+  if (v != (PROTOCOL_VERSION as u64)) {
+    throw new ProtocolError("UNSUPPORTED_VERSION", `protocol version ${v} (this side speaks ${PROTOCOL_VERSION})`)
+  }
+}
+
+function missing(env: Envelope): string? {
+  match (env.k) {
+    "request" | "subscribe" => if (env.id == null) "id" else if (env.n == null) "n" else null,
+    "response" | "cancel" => if (env.id == null) "id" else null,
+    "error" => if (env.id == null) "id" else if (env.err == null) "err" else null,
+    "event" | "lifecycle" => if (env.n == null) "n" else null,
+    "unsubscribe" => if (env.s == null) "s" else null,
+  }
+}
+
+function checkRequired(env: Envelope): void throws ProtocolError {
+  const field = missing(env)
+  if (field != null) {
+    throw invalid(`a ${env.k} needs ${field}`)
+  }
+  const n = env.n
+  if (n != null && new TextEncoder().encode(n).length > MAX_NAME_BYTES) {
+    throw invalid(`names are at most ${MAX_NAME_BYTES} bytes`)
+  }
+}
+
+function entriesOf(bytes: Uint8Array): Map<u64, Cbor> throws ProtocolError {
+  let value = Cbor.Null
+  try {
+    value = decode(bytes)
+  } catch (e: CborError) {
+    throw invalid(e.message)
+  }
+  match (value) {
+    Keyed { entries } => entries,
+    _ => throw invalid("an envelope is a map with integer keys"),
+  }
+}
+
+/// Decodes and validates one envelope.
+export function decodeEnvelope(bytes: Uint8Array): Envelope throws ProtocolError {
+  const entries = entriesOf(bytes)
+  checkVersion(entries)
+  const env = Envelope {
+    k: kindOf(entries),
+    id: uintField(entries, 2, "id"),
+    n: textField(entries, 3, "n"),
+    p: entries.get(4),
+    err: errorField(entries),
+    w: uintField(entries, 6, "w"),
+    e: uintField(entries, 7, "e"),
+    s: uintField(entries, 8, "s"),
+    d: uintField(entries, 9, "d"),
+  }
+  checkRequired(env)
+  env
+}
+
+function putUint(entries: Map<u64, Cbor>, key: u64, value: u64?): void {
+  if (value != null) {
+    entries.set(key, Cbor.Uint(value))
+  }
+}
+
+/// Encodes an envelope (fields in key order, `v` = PROTOCOL_VERSION).
+export function encodeEnvelope(env: Envelope): Uint8Array throws ProtocolError {
+  checkRequired(env)
+  const entries = new Map<u64, Cbor>()
+  entries.set(0, Cbor.Uint(PROTOCOL_VERSION as u64))
+  entries.set(1, Cbor.Uint(MESSAGE_KINDS.indexOf(env.k) as u64))
+  putUint(entries, 2, env.id)
+  const n = env.n
+  if (n != null) {
+    entries.set(3, Cbor.Text(n))
+  }
+  const p = env.p
+  if (p != null) {
+    entries.set(4, p)
+  }
+  const err = env.err
+  if (err != null) {
+    const e = new Map<u64, Cbor>()
+    e.set(0, Cbor.Text(err.code))
+    e.set(1, Cbor.Text(err.message))
+    const data = err.data
+    if (data != null) {
+      e.set(2, data)
+    }
+    entries.set(5, Cbor.Keyed(e))
+  }
+  putUint(entries, 6, env.w)
+  putUint(entries, 7, env.e)
+  putUint(entries, 8, env.s)
+  putUint(entries, 9, env.d)
+  try {
+    encode(Cbor.Keyed(entries))
+  } catch (e: CborError) {
+    throw invalid(e.message)
+  }
+}

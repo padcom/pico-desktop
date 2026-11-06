@@ -1,0 +1,97 @@
+// The Pico codec against the shared vectors (packages/protocol/vectors), the same ones the
+// TypeScript codec passes: byte-exact encoding, decoded values compared through `diag`.
+import { describe, it, expect } from "std/test"
+import { readText, exists } from "std/fs"
+import { hex } from "std/encoding"
+import { Cbor, CborError, decode, encode, diagnostic, integer } from "./cbor"
+
+struct Decodable {
+  name: string
+  hex: string
+  diag: string
+}
+
+struct Rejected {
+  name: string
+  hex: string
+}
+
+struct CborVectors {
+  roundtrip: Decodable[]
+  decode: Decodable[]
+  invalid: Rejected[]
+}
+
+/// The vectors file, from the repository root or from this package.
+async function vectorsPath(name: string): Promise<string> throws Error {
+  const fromRoot = `packages/protocol/vectors/${name}`
+  if (await exists(fromRoot)) fromRoot else `../protocol/vectors/${name}`
+}
+
+const vectors = JSON.parse<CborVectors>(await readText(await vectorsPath("cbor.json")))
+
+function rejects(bytes: Uint8Array): bool {
+  try {
+    decode(bytes)
+    false
+  } catch (e: CborError) {
+    true
+  }
+}
+
+describe("CBOR vectors", () => {
+  for (const v of vectors.roundtrip) {
+    it(`encodes ${v.name}`, () => {
+      expect(hex.encode(encode(decode(hex.decode(v.hex))))).toBe(v.hex)
+    })
+    it(`decodes ${v.name}`, () => {
+      expect(diagnostic(decode(hex.decode(v.hex)))).toBe(v.diag)
+    })
+  }
+  for (const v of vectors.decode) {
+    it(`accepts ${v.name}`, () => {
+      expect(diagnostic(decode(hex.decode(v.hex)))).toBe(v.diag)
+    })
+  }
+  for (const v of vectors.invalid) {
+    it(`rejects ${v.name}`, () => {
+      expect(rejects(hex.decode(v.hex))).toBe(true)
+    })
+  }
+})
+
+function encodesValues(): void throws Error {
+  const m = new Map<string, Cbor>()
+  m.set("a", integer(1))
+  m.set("b", Cbor.List([integer(2), integer(3)]))
+  expect(hex.encode(encode(Cbor.Dict(m)))).toBe("a26161016162820203")
+  expect(hex.encode(encode(integer(-1000)))).toBe("3903e7")
+  expect(hex.encode(encode(Cbor.Float(1.5)))).toBe("fb3ff8000000000000")
+}
+
+function limitsNesting(): void throws Error {
+  let deep = integer(0)
+  for (let i = 0; i < 33; i++) {
+    deep = Cbor.List([deep])
+  }
+  let refused = false
+  try {
+    encode(deep)
+  } catch (e: CborError) {
+    refused = true
+  }
+  expect(refused).toBe(true)
+}
+
+function copiesBytes(): void throws Error {
+  const input = hex.decode("43010203")
+  const out = decode(input)
+  input.set(1, 9)
+  expect(diagnostic(out)).toBe("h'010203'")
+}
+
+describe("CBOR codec", () => {
+  it("encodes values built in pico", encodesValues)
+  it("limits nesting to 32 levels when encoding", limitsNesting)
+  it("decodes byte strings as copies", copiesBytes)
+})

@@ -1,16 +1,25 @@
 // The Pico side of the Communicator: typed string-keyed RPC, events and managed subscriptions to
-// the TypeScript frontend through the native host (implemented in F3; see docs/architecture.md).
+// the TypeScript frontend through the native host (docs/protocol.md; the Communicator itself is F3).
 //
 // Pico 0.4 has no async closures (pico-lang #52), so handlers will be named async functions or
 // methods returning a Promise, never `async (payload) => …` lambdas.
+export { Cbor, CborError, MAX_DEPTH, decode, encode, integer, diagnostic } from "./cbor"
+export {
+  Envelope,
+  ErrorInfo,
+  MessageKind,
+  MESSAGE_KINDS,
+  MAX_ID,
+  MAX_NAME_BYTES,
+  PROTOCOL_VERSION,
+  ProtocolError,
+  decodeEnvelope,
+  encodeEnvelope,
+  envelope,
+} from "./envelope"
+export { FRAME_HEADER_BYTES, FrameReader, encodeFrame } from "./framing"
 
-/// The protocol version (docs/protocol.md); the same as `@pico-desktop/protocol`'s.
-export const PROTOCOL_VERSION: int = 1
-
-/// Byte-stream transports frame each message as a u32 big-endian payload length, then the payload.
-export const FRAME_HEADER_BYTES: int = 4
-
-/// Observable connection states (names are frozen with the protocol in F2).
+/// Observable connection states (docs/protocol.md §7).
 export type ConnectionState = "connecting" | "ready" | "disconnected" | "restarting" | "failed" | "closing"
 
 /// The state a new Communicator starts in.

@@ -1,0 +1,82 @@
+// Framing for byte streams (docs/protocol.md §2): a u32 big-endian length, then the message.
+// The reader accepts any chunking, checks the limit before buffering, and copies with the bulk
+// operations (setAll / slice, pico-lang #84).
+import { ProtocolError } from "./envelope"
+
+export const FRAME_HEADER_BYTES: int = 4
+
+export const DEFAULT_MAX_MESSAGE_BYTES: int = 4 * 1024 * 1024
+
+export const ABSOLUTE_MAX_MESSAGE_BYTES: int = 16 * 1024 * 1024
+
+/// One frame for `message` (1 … 16 MiB).
+export function encodeFrame(message: Uint8Array): Uint8Array throws ProtocolError {
+  const n = message.length
+  if (n == 0 || n > ABSOLUTE_MAX_MESSAGE_BYTES) {
+    throw new ProtocolError("MESSAGE_TOO_LARGE", `a frame holds 1 to ${ABSOLUTE_MAX_MESSAGE_BYTES} bytes`)
+  }
+  const out = new Uint8Array(FRAME_HEADER_BYTES + n)
+  out.set(0, (n >> 24) & 0xff)
+  out.set(1, (n >> 16) & 0xff)
+  out.set(2, (n >> 8) & 0xff)
+  out.set(3, n & 0xff)
+  out.setAll(message, FRAME_HEADER_BYTES)
+  out
+}
+
+/// Splits a byte stream back into messages; after an error the stream is unusable.
+export class FrameReader {
+  buf: Uint8Array = new Uint8Array(65536)
+  start: int = 0
+  end: int = 0
+  failed: bool = false
+  max: int
+
+  constructor(max: int = DEFAULT_MAX_MESSAGE_BYTES) {
+    this.max = max
+  }
+
+  /// Adds received bytes.
+  public push(chunk: Uint8Array): void {
+    const live = end - start
+    if (end + chunk.length > buf.length) {
+      let cap = buf.length
+      while (cap < live + chunk.length) {
+        cap = cap * 2
+      }
+      const grown = if (cap == buf.length) buf else new Uint8Array(cap)
+      grown.setAll(buf.subarray(start, end))
+      buf = grown
+      start = 0
+      end = live
+    }
+    buf.setAll(chunk, end)
+    end += chunk.length
+  }
+
+  /// The next complete message, or null until more bytes arrive.
+  public next(): Uint8Array? throws ProtocolError {
+    if (failed) {
+      throw new ProtocolError("INVALID_MESSAGE", "the stream already failed")
+    }
+    if (end - start < FRAME_HEADER_BYTES) {
+      return null
+    }
+    const n = (buf.get(start) << 24) | (buf.get(start + 1) << 16) | (buf.get(start + 2) << 8) | buf.get(start + 3)
+    if (n == 0 || n > max) {
+      failed = true
+      throw new ProtocolError(if (n == 0) "INVALID_MESSAGE" else "MESSAGE_TOO_LARGE", `a frame of ${n} bytes`)
+    }
+    if (end - start - FRAME_HEADER_BYTES < n) {
+      return null
+    }
+    const at = start + FRAME_HEADER_BYTES
+    start = at + n
+    buf.slice(at, at + n)
+  }
+
+  /// Bytes of an unfinished frame (non-zero at end of stream: it was cut off).
+  public get pending(): int {
+    end - start
+  }
+}

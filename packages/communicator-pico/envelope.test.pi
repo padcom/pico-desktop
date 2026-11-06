@@ -1,0 +1,73 @@
+// The Pico envelope code against packages/protocol/vectors/envelope.json (the TypeScript side
+// passes the same file): decode → re-encode is byte-exact, invalid ones fail with the same code.
+import { describe, it, expect } from "std/test"
+import { readText, exists } from "std/fs"
+import { hex } from "std/encoding"
+import { ProtocolError, decodeEnvelope, encodeEnvelope, envelope } from "./envelope"
+
+struct Valid {
+  name: string
+  hex: string
+}
+
+struct Invalid {
+  name: string
+  hex: string
+  code: string
+}
+
+struct EnvelopeVectors {
+  valid: Valid[]
+  invalid: Invalid[]
+}
+
+async function vectorsPath(name: string): Promise<string> throws Error {
+  const fromRoot = `packages/protocol/vectors/${name}`
+  if (await exists(fromRoot)) fromRoot else `../protocol/vectors/${name}`
+}
+
+const vectors = JSON.parse<EnvelopeVectors>(await readText(await vectorsPath("envelope.json")))
+
+function failureCode(bytes: Uint8Array): string {
+  try {
+    decodeEnvelope(bytes)
+    "accepted"
+  } catch (e: ProtocolError) {
+    e.code
+  }
+}
+
+describe("envelope vectors", () => {
+  for (const v of vectors.valid) {
+    it(`round-trips ${v.name}`, () => {
+      expect(hex.encode(encodeEnvelope(decodeEnvelope(hex.decode(v.hex))))).toBe(v.hex)
+    })
+  }
+  for (const v of vectors.invalid) {
+    it(`rejects ${v.name} with ${v.code}`, () => {
+      expect(failureCode(hex.decode(v.hex))).toBe(v.code)
+    })
+  }
+})
+
+function refusesIncomplete(): void throws Error {
+  let refused = false
+  try {
+    encodeEnvelope(envelope("request"))
+  } catch (e: ProtocolError) {
+    refused = true
+  }
+  expect(refused).toBe(true)
+}
+
+function buildsAnEvent(): void throws Error {
+  const e = envelope("event")
+  e.n = "ui.ready"
+  // {0: 1, 1: 3 (event), 3: "ui.ready"}
+  expect(hex.encode(encodeEnvelope(e))).toBe("a300010103036875692e7265616479")
+}
+
+describe("envelope", () => {
+  it("refuses to encode a request without id and name", refusesIncomplete)
+  it("builds an event", buildsAnEvent)
+})

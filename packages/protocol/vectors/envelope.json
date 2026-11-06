@@ -1,5 +1,5 @@
 {
- "$comment": "Envelope vectors (docs/protocol.md §4). `envelope` uses the field names of the spec (v, k, id, n, p, err, w, e, s, d); payload values use the notation of cbor.json. Hex computed by an encoder independent of the TypeScript and Pico ones.",
+ "$comment": "Envelope vectors (docs/protocol.md §4). `envelope` uses the field names of the spec (v, k, id, n, p, err, w, e, s, d); payload values use the notation of cbor.json. Hex computed by an encoder independent of the TypeScript and Pico ones. `diag` is the decoded map in the form cbor.json describes.",
  "valid": [
   {
    "name": "a request",
@@ -10,7 +10,8 @@
     "n": "serial.list",
     "p": {}
    },
-   "hex": "a5000101000201036b73657269616c2e6c69737404a0"
+   "hex": "a5000101000201036b73657269616c2e6c69737404a0",
+   "diag": "{0: 1, 1: 0, 2: 1, 3: \"serial.list\", 4: {}}"
   },
   {
    "name": "a request without a payload",
@@ -20,7 +21,8 @@
     "id": 2,
     "n": "app.version"
    },
-   "hex": "a4000101000202036b6170702e76657273696f6e"
+   "hex": "a4000101000202036b6170702e76657273696f6e",
+   "diag": "{0: 1, 1: 0, 2: 2, 3: \"app.version\"}"
   },
   {
    "name": "a response",
@@ -33,7 +35,8 @@
      "COM2"
     ]
    },
-   "hex": "a4000101010201048264434f4d3164434f4d32"
+   "hex": "a4000101010201048264434f4d3164434f4d32",
+   "diag": "{0: 1, 1: 1, 2: 1, 4: [\"COM1\", \"COM2\"]}"
   },
   {
    "name": "an error",
@@ -46,7 +49,8 @@
      "message": "no handler for serial.lst"
     }
    },
-   "hex": "a400010102020105a2006e554e4b4e4f574e5f4d4554484f440178196e6f2068616e646c657220666f722073657269616c2e6c7374"
+   "hex": "a400010102020105a2006e554e4b4e4f574e5f4d4554484f440178196e6f2068616e646c657220666f722073657269616c2e6c7374",
+   "diag": "{0: 1, 1: 2, 2: 1, 5: {0: \"UNKNOWN_METHOD\", 1: \"no handler for serial.lst\"}}"
   },
   {
    "name": "an error with data",
@@ -62,7 +66,8 @@
      }
     }
    },
-   "hex": "a400010102020905a3006d48414e444c45525f4552524f520169706f7274206275737902a164706f727464434f4d31"
+   "hex": "a400010102020905a3006d48414e444c45525f4552524f520169706f7274206275737902a164706f727464434f4d31",
+   "diag": "{0: 1, 1: 2, 2: 9, 5: {0: \"HANDLER_ERROR\", 1: \"port busy\", 2: {\"port\": \"COM1\"}}}"
   },
   {
    "name": "an event",
@@ -72,7 +77,8 @@
     "n": "ui.ready",
     "p": {}
    },
-   "hex": "a400010103036875692e726561647904a0"
+   "hex": "a400010103036875692e726561647904a0",
+   "diag": "{0: 1, 1: 3, 3: \"ui.ready\", 4: {}}"
   },
   {
    "name": "a subscription event after drops",
@@ -88,7 +94,8 @@
     "s": 3,
     "d": 2
    },
-   "hex": "a600010103036f64726f6e652e74656c656d6574727904a163616c74fb402900000000000008030902"
+   "hex": "a600010103036f64726f6e652e74656c656d6574727904a163616c74fb402900000000000008030902",
+   "diag": "{0: 1, 1: 3, 3: \"drone.telemetry\", 4: {\"alt\": float(0x4029000000000000)}, 8: 3, 9: 2}"
   },
   {
    "name": "a subscribe",
@@ -101,7 +108,8 @@
      "rateHz": 10
     }
    },
-   "hex": "a5000101040204036f64726f6e652e74656c656d6574727904a16672617465487a0a"
+   "hex": "a5000101040204036f64726f6e652e74656c656d6574727904a16672617465487a0a",
+   "diag": "{0: 1, 1: 4, 2: 4, 3: \"drone.telemetry\", 4: {\"rateHz\": 10}}"
   },
   {
    "name": "an unsubscribe",
@@ -110,7 +118,8 @@
     "k": "unsubscribe",
     "s": 3
    },
-   "hex": "a3000101050803"
+   "hex": "a3000101050803",
+   "diag": "{0: 1, 1: 5, 8: 3}"
   },
   {
    "name": "an unsubscribe by the publisher, with an error",
@@ -123,7 +132,8 @@
      "message": "vehicle lost"
     }
    },
-   "hex": "a40001010505a2006c444953434f4e4e4543544544016c76656869636c65206c6f73740803"
+   "hex": "a40001010505a2006c444953434f4e4e4543544544016c76656869636c65206c6f73740803",
+   "diag": "{0: 1, 1: 5, 5: {0: \"DISCONNECTED\", 1: \"vehicle lost\"}, 8: 3}"
   },
   {
    "name": "a cancel",
@@ -132,7 +142,8 @@
     "k": "cancel",
     "id": 1
    },
-   "hex": "a3000101060201"
+   "hex": "a3000101060201",
+   "diag": "{0: 1, 1: 6, 2: 1}"
   },
   {
    "name": "hello",
@@ -148,7 +159,8 @@
      "role": "frontend"
     }
    },
-   "hex": "a400010107036568656c6c6f04a26870726f746f636f6c82010164726f6c656866726f6e74656e64"
+   "hex": "a400010107036568656c6c6f04a26870726f746f636f6c82010164726f6c656866726f6e74656e64",
+   "diag": "{0: 1, 1: 7, 3: \"hello\", 4: {\"protocol\": [1, 1], \"role\": \"frontend\"}}"
   },
   {
    "name": "ready with an epoch",
@@ -158,7 +170,8 @@
     "n": "ready",
     "e": 3
    },
-   "hex": "a400010107036572656164790703"
+   "hex": "a400010107036572656164790703",
+   "diag": "{0: 1, 1: 7, 3: \"ready\", 7: 3}"
   },
   {
    "name": "a request routed for window 1 (backend link)",
@@ -178,7 +191,8 @@
     },
     "w": 1
    },
-   "hex": "a600010100020c036966696c652e7265616404a36470617468662f746d702f7864646174614300ff106473697a651bffffffffffffffff0601"
+   "hex": "a600010100020c036966696c652e7265616404a36470617468662f746d702f7864646174614300ff106473697a651bffffffffffffffff0601",
+   "diag": "{0: 1, 1: 0, 2: 12, 3: \"file.read\", 4: {\"path\": \"/tmp/x\", \"data\": h'00ff10', \"size\": 18446744073709551615}, 6: 1}"
   },
   {
    "name": "the largest request id",
@@ -187,7 +201,8 @@
     "k": "cancel",
     "id": 9007199254740991
    },
-   "hex": "a300010106021b001fffffffffffff"
+   "hex": "a300010106021b001fffffffffffff",
+   "diag": "{0: 1, 1: 6, 2: 9007199254740991}"
   }
  ],
  "invalid": [
