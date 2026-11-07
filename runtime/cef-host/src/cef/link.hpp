@@ -86,6 +86,11 @@ class Link : public RouterOutput {
     std::deque<Bytes> queue;
     std::size_t queued_bytes = 0;
     bool draining = false;  // set when the writer should finish the queue and close stdin
+    // Readable once the process has exited, even while something it started still holds its
+    // pipes (Linux pidfd; -1 where there's none: then only EOF tells).
+    int pidfd = -1;
+    // Written by end_process: the reader and writer stop waiting on the pipes.
+    int stop[2] = {-1, -1};
     // Liveness: pings sent, and when the last pong came (judged only once one came).
     std::uint64_t pings = 0;
     bool answered = false;

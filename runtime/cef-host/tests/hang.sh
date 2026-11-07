@@ -3,7 +3,8 @@
 #   1. a backend whose event loop stops (tests/hang-backend: a busy loop after 1.5 s) is noticed by
 #      the liveness pings (here every 300 ms, 1 s timeout), killed and restarted;
 #   2. a backend that exits at once is restarted with backoff until the budget is spent, then the
-#      page hears `failed` and nothing is started any more.
+#      page hears `failed` and nothing is started any more;
+#   3. a backend that exits leaving a child that holds its pipes is still seen to exit.
 # Usage: hang.sh <pico-desktop-host> <fixture dist>. Exit 77 without pico, a display or the fixture.
 set -uo pipefail
 host=$1 fixture=$2
@@ -62,11 +63,20 @@ sleep 1
 [[ $(grep -c 'started the backend' "$scratch/crash.log") -eq $starts ]] || fail "it was started again after failing"
 stop crash
 
+# 3. A backend that exits but leaves a child holding its pipes: the exit is still noticed (the
+#    host watches the process, not only its stdout), and closing doesn't wait on the pipes.
+printf '#!/bin/sh\nsleep 30 &\nexit 3\n' > "$scratch/stray" && chmod +x "$scratch/stray"
+start stray "$scratch/stray"
+wait_for "$scratch/stray.log" 'the backend exited (exit code 3)' 10
+wait_for "$scratch/stray.log" 'starting the backend again in 250 ms' 5
+stop stray
+pkill -f -- "^sleep 30$" 2> /dev/null
+
 sleep 1
 pgrep -f -- "^$host " > /dev/null && { fail "processes outlived the host"; pgrep -af -- "^$host "; }
 pgrep -f -- "$scratch/hang" > /dev/null && fail "the hung backend outlived the host"
 grep -h 'pd-host: \(the backend\|starting the backend again in\)' "$scratch/hang.log" "$scratch/crash.log" | sort | uniq -c
 if [[ $failed -ne 0 ]]; then
-  for f in hang crash; do echo "---- $f ----"; grep -v GetVSync "$scratch/$f.log"; done
+  for f in hang crash stray; do echo "---- $f ----"; grep -v GetVSync "$scratch/$f.log"; done
 fi
 exit $failed

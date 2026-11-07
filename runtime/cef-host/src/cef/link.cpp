@@ -1,6 +1,8 @@
 #include "link.hpp"
 
+#include <fcntl.h>
 #include <poll.h>
+#include <sys/syscall.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -184,6 +186,11 @@ void Link::spawn() {
   process_ = std::make_unique<Process>();
   process_->child = *child;
   process_->generation = ++generation_;
+  process_->pidfd = static_cast<int>(::syscall(SYS_pidfd_open, child->pid, 0));
+  if (::pipe2(process_->stop, O_CLOEXEC) != 0) {
+    process_->stop[0] = process_->stop[1] = -1;
+  }
+  ::fcntl(child->to_child, F_SETFL, ::fcntl(child->to_child, F_GETFL) | O_NONBLOCK);
   process_->reader = std::thread(read_loop, process_.get());
   process_->writer = std::thread(write_loop, process_.get());
   log("pd-host: started the backend (pid " + std::to_string(child->pid) + ")");
@@ -399,20 +406,58 @@ int Link::end_process(std::chrono::milliseconds grace) {
     process->draining = true;
   }
   process->wake.notify_one();
-  // The writer closes stdin once the queue is out; a backend that doesn't exit then is killed,
-  // which also unblocks a writer stuck on a full pipe.
+  // The writer closes stdin once the queue is out; a backend that doesn't exit then is killed.
+  // Then both threads stop waiting, even if something the backend started still holds its pipes.
   const int status = reap(process->child.pid, grace);
+  if (process->stop[1] >= 0) {
+    [[maybe_unused]] const auto written = ::write(process->stop[1], "x", 1);
+  }
   process->writer.join();
   process->reader.join();
   close(process->child.from_child);
+  for (const int fd : {process->pidfd, process->stop[0], process->stop[1]}) {
+    if (fd >= 0) {
+      close(fd);
+    }
+  }
   return status;
 }
+
+namespace {
+
+/// Waits until `fd` can be read (or written, `out`), the process has exited (`pidfd`), or `stop`
+/// is signalled. Returns which: 0 fd, 1 exited, 2 stopped, -1 an error.
+int wait_for(int fd, bool out, int pidfd, int stop) {
+  struct pollfd fds[3] = {{fd, static_cast<short>(out ? POLLOUT : POLLIN), 0}, {stop, POLLIN, 0}, {pidfd, POLLIN, 0}};
+  for (;;) {
+    const int n = ::poll(fds, pidfd >= 0 ? 3 : 2, -1);
+    if (n < 0 && errno == EINTR) {
+      continue;
+    }
+    if (n < 0) {
+      return -1;
+    }
+    if (fds[0].revents != 0) {
+      return 0;  // data (or EOF / an error, which the read or write reports)
+    }
+    if (fds[1].revents != 0) {
+      return 2;
+    }
+    return 1;  // the process exited, and nothing is left to read or room to write
+  }
+}
+
+}  // namespace
 
 void Link::read_loop(Process* process) {
   ipc::FrameBuffer frames(kMaxMessage);
   std::vector<std::byte> chunk(64 * 1024);
   const std::uint64_t generation = process->generation;
   for (;;) {
+    // What the backend wrote before exiting is still read: the pipe comes first.
+    if (wait_for(process->child.from_child, false, process->pidfd, process->stop[0]) != 0) {
+      break;
+    }
     const ssize_t n = ::read(process->child.from_child, chunk.data(), chunk.size());
     if (n < 0 && errno == EINTR) {
       continue;
@@ -434,6 +479,28 @@ void Link::read_loop(Process* process) {
   CefPostTask(TID_UI, base::BindOnce(&Link::on_backend_exit, base::Unretained(g_link), generation));
 }
 
+namespace {
+
+/// Writes all of `bytes` to the non-blocking `fd`; false once the backend is gone or `stop` came.
+bool write_out(int fd, std::span<const std::byte> bytes, int pidfd, int stop) {
+  std::size_t done = 0;
+  while (done < bytes.size()) {
+    const ssize_t n = ::write(fd, bytes.data() + done, bytes.size() - done);
+    if (n > 0) {
+      done += static_cast<std::size_t>(n);
+    } else if (n < 0 && errno == EAGAIN) {
+      if (wait_for(fd, true, pidfd, stop) != 0) {
+        return false;
+      }
+    } else if (!(n < 0 && errno == EINTR)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}  // namespace
+
 void Link::write_loop(Process* process) {
   bool broken = false;
   for (;;) {
@@ -449,7 +516,7 @@ void Link::write_loop(Process* process) {
       process->queued_bytes -= message.size();
     }
     // After a failed write the backend is gone: the rest is dropped (the reader reports the exit).
-    broken = broken || !ipc::write_all(process->child.to_child, ipc::frame(message));
+    broken = broken || !write_out(process->child.to_child, ipc::frame(message), process->pidfd, process->stop[0]);
   }
   close(process->child.to_child);
 }
