@@ -13,3 +13,6 @@ editing the old one's decision.
 | [0004](0004-host-pico-ipc-transport.md) | Length-prefixed stdin/stdout pipes between host and Pico | Accepted | F2 benchmark |
 | [0005](0005-schema-format.md) | Contracts are written in CDDL | Accepted | F2 experiment |
 | [0006](0006-six-target-artifacts.md) | Six native targets; portable bundles; Linux AppImage | Accepted | design rounds 1–8 |
+| [0007](0007-pico-communicator-via-npm.md) | Apps get the Pico Communicator through npm (a Pico workspace member under `node_modules`) | Accepted | F4 |
+| [0008](0008-host-services-and-capabilities.md) | Native services are `host.*` requests from the backend, gated by declared capabilities | Accepted | F5 |
+| [0009](0009-liveness.md) | Liveness by `ping`/`pong`, enforced once a backend has answered | Accepted | F5 |
