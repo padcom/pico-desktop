@@ -1,8 +1,12 @@
 // pico-desktop-host: the CEF Views host (docs/architecture.md). The same executable runs as the
 // browser process and as every Chromium subprocess.
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <process.h>
 #include <windows.h>
 #else

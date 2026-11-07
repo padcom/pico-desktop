@@ -1,8 +1,12 @@
 // Windows: the host is a DLL that CEF's console bootstrap (bootstrapc.exe, renamed
 // pico-desktop-host.exe and run from the same directory) loads inside the sandbox it sets up,
 // for the browser process and for every Chromium subprocess alike (cef_sandbox_win.h).
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 
 #include "app.hpp"
