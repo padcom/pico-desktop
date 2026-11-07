@@ -3,6 +3,7 @@
 // without_window, raw_field and decode_value. Nothing may crash, hang or read out of bounds (run
 // it under the `sanitize` preset); anything read_envelope accepts must also pass the rewriting
 // functions. Deterministic (a fixed seed); `pd_ipc_fuzz_test <iterations> <seed>` explores more.
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <random>
@@ -123,7 +124,13 @@ int main(int argc, char** argv) {
     CHECK(read_envelope(s));  // the seeds themselves are valid
   }
   long accepted = 0;
+  const auto started = std::chrono::steady_clock::now();
   for (long i = 0; i < iterations; ++i) {
+    if (i > 0 && i % 50'000 == 0) {
+      const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - started;
+      std::printf("ipc.fuzz: %ld inputs in %.1f s\n", i, elapsed.count());
+      std::fflush(stdout);
+    }
     const Bytes b = (i % 4 == 0) ? random_bytes(rng) : mutate(corpus[rng() % corpus.size()], rng);
     exercise(b);
     accepted += read_envelope(b) ? 1 : 0;
