@@ -6,14 +6,10 @@
 set -uo pipefail
 host=$1 fixture=$2
 here=$(cd "$(dirname "$0")" && pwd)
-pico --version 2> /dev/null | grep -q '^pico [0-9]' || { echo "skipped: no Pico compiler on the PATH"; exit 77; }
-[[ -f "$fixture/index.html" ]] || { echo "skipped: the fixture isn't built"; exit 77; }
-# macOS has no `timeout` unless coreutils is installed; only Linux needs an X display.
-command -v timeout > /dev/null || timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
-if [[ "$(uname)" == Linux && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-  command -v xvfb-run > /dev/null || { echo "skipped: no display"; exit 77; }
-  exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" "$0" "$@"
-fi
+source "$here/lib.sh"
+pd_require_pico
+pd_require_fixture "$fixture"
+pd_ensure_display "$0" "$@"
 scratch=$(mktemp -d)
 export XDG_CACHE_HOME=$scratch/cache
 trap 'rm -rf "$scratch"' EXIT

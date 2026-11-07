@@ -7,16 +7,16 @@
 set -uo pipefail
 host=$1 fixture=$2
 here=$(cd "$(dirname "$0")" && pwd)
+source "$here/lib.sh"
 cli=$here/../../../tooling/cli/dist/index.js
-pico --version 2> /dev/null | grep -q '^pico [0-9]' || { echo "skipped: no Pico compiler on the PATH"; exit 77; }
-[[ -f "$fixture/index.html" ]] || { echo "skipped: the fixture isn't built (pnpm --filter @pico-desktop/host-fixture build)"; exit 77; }
-[[ -f "$cli" ]] || { echo "skipped: the CLI isn't built (pnpm build)"; exit 77; }
+pd_require_pico
+pd_require_fixture "$fixture"
+[[ -f "$cli" ]] || pd_skip "the CLI isn't built (pnpm build)"
 if [[ -z "${PD_CLIPBOARD_X:-}" ]]; then
   if command -v xvfb-run > /dev/null; then
-    PD_CLIPBOARD_X=1 exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" "$0" "$@"
-  elif [[ "${PD_TEST_REAL_CLIPBOARD:-}" != 1 || ( -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ) ]]; then
-    echo "skipped: no xvfb-run, and this test replaces the clipboard (PD_TEST_REAL_CLIPBOARD=1 runs it on this display)"
-    exit 77
+    PD_CLIPBOARD_X=1 exec "${pd_xvfb[@]}" "$0" "$@"
+  elif [[ "${PD_TEST_REAL_CLIPBOARD:-}" != 1 ]] || pd_needs_display; then
+    pd_skip "no xvfb-run, and this test replaces the clipboard (PD_TEST_REAL_CLIPBOARD=1 runs it on this display)"
   fi
 fi
 scratch=$(mktemp -d)
