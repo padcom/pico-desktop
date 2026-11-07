@@ -5,7 +5,8 @@
 
 #include <chrono>
 #else
-#include <stdlib.h>
+#include <stdlib.h>  // mkdtemp (glibc)
+#include <unistd.h>  // mkdtemp (macOS)
 #endif
 
 #include <system_error>
