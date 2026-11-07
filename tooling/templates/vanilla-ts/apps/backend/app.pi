@@ -5,6 +5,8 @@ import { Greeting, Tick, decodeClockParams, decodeHelloRequest, encodeGreeting, 
 /// The backend on `transport` (the app runs it on stdio; tests on a memory link).
 export function createBackend(transport: Transport): Communicator {
   const c = new Communicator(transport)
+  // When the app closes, stop whatever keeps this process alive (timers, connections) so it exits
+  // within the host's grace period: c.onClosing = () => { … }
   c.handle("greeting.hello", hello)
   c.publish("clock.ticks", ticks)
   c
