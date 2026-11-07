@@ -1,6 +1,8 @@
 #include "client.hpp"
 
+#if !defined(_WIN32)
 #include <unistd.h>
+#endif
 
 #include <string>
 #include <vector>
@@ -120,6 +122,9 @@ void HostClient::finish_self_test(CefRefPtr<CefBrowser> browser) {
     log_line("pd-test: fail renderer is sandboxed");
     ++state.self_test_failed;
   }
+#elif !defined(__linux__)
+  // (Windows: the renderers run with restricted tokens in job objects, not inspected from here yet.)
+  log_line("pd-info: the renderer's sandbox isn't inspected on this system (only on Linux and macOS)");
 #else
   const auto processes = inspect_descendants(static_cast<int>(::getpid()));
   for (const auto& p : processes) {

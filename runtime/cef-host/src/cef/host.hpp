@@ -57,6 +57,9 @@ void close_app_window();
 /// The browser process: parses the options, initializes CEF and runs until the app closes.
 int run_browser(int argc, char** argv);
 
+/// Windows: the sandbox information the bootstrap passes in, for CefInitialize.
+void set_sandbox_info(void* info);
+
 /// Brings the app window to the front (restoring it if minimized): a second launch.
 void focus_app_window();
 

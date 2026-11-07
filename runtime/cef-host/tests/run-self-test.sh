@@ -13,7 +13,7 @@ fi
 runner=()
 # macOS has no `timeout` unless coreutils is installed.
 command -v timeout > /dev/null || timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
-if [[ "$(uname)" != Darwin && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+if [[ "$(uname)" == Linux && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   if command -v xvfb-run > /dev/null; then
     runner=(xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24")
   else
@@ -39,7 +39,10 @@ expect() {
 [[ $code -eq 0 ]] || { echo "FAIL: the host exited with $code"; failed=1; }
 expect "pd-test: done"
 expect " 0 failed"
-expect "pd-test: ok renderer is sandboxed"
+case "$(uname)" in
+  MINGW* | MSYS* | CYGWIN*) expect "pd-info: the renderer's sandbox isn't inspected on this system (only on Linux and macOS)" ;;
+  *) expect "pd-test: ok renderer is sandboxed" ;;
+esac
 expect "pd-host: blocked navigation to https://example.com/ (no user gesture)"
 
 # Nothing may outlive the host (renderers, GPU, zygotes, utilities).

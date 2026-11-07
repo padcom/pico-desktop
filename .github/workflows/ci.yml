@@ -190,6 +190,58 @@ jobs:
       - name: The host's tests in a real window
         run: ctest --preset cef --output-on-failure
 
+  cef-host-windows:
+    # F6: the CEF host on Windows x64: pico-desktop-host.dll run by CEF's console bootstrap
+    # (the sandbox's way since CEF 138), built with MSVC and self-tested in a real window.
+    name: CEF host, ${{ matrix.target }} (build, self-tests)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            runner: windows-2025
+          - target: windows-arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Cache the pinned CEF
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pico-desktop/cef
+          key: cef-${{ matrix.target }}-${{ hashFiles('toolchain.json') }}
+      - name: Fetch, verify and configure CEF
+        run: PD_CEF_ROOT=$(node scripts/fetch-cef.mjs) cmake --preset cef
+      - name: Build the host
+        run: cmake --build --preset cef
+      - name: Install Pico (its release for this target)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(jq -r .pico.minimum toolchain.json)
+          gh release download "v$v" -R padcom/pico-lang -p "pico-$v-${{ matrix.target }}.zip" -D "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/pico" && unzip -q "$RUNNER_TEMP/pico-$v-${{ matrix.target }}.zip" -d "$RUNNER_TEMP/pico"
+          bin=$(dirname "$(find "$RUNNER_TEMP/pico" -type f -name pico.exe | head -1)")
+          cygpath -w "$bin" >> "$GITHUB_PATH"
+      - name: The fixture, hello-world and the CLI
+        run: |
+          pnpm --filter @pico-desktop/host-fixture... build
+          pnpm --filter pico-desktop... build
+          pnpm --filter @pico-desktop/hello-world... build
+          pnpm --filter @pico-desktop/hello-world build:self-test
+          pnpm --filter @pico-desktop/hello-world backend
+      - name: The host's tests in a real window
+        run: ctest --preset cef --output-on-failure
+
   bundle-smoke:
     # F6's clean-machine smoke: the packaged app on a fresh runner of its target, with only the
     # runtime libraries a desktop has (docs/platform-linux.md) and a display. No build tree, no

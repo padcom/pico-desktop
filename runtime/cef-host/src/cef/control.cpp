@@ -1,12 +1,12 @@
 #include "control.hpp"
 
-#include <unistd.h>
 
 #include <cerrno>
 #include <string>
 #include <thread>
 
 #include "host.hpp"
+#include "process_os.hpp"
 #include "include/base/cef_bind.h"
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
@@ -44,16 +44,13 @@ void unknown(std::string line) { log_line("pd-host: unknown control command '" +
 
 void read_commands() {
   std::string pending;
-  char chunk[256];
+  std::byte chunk[256];
   for (;;) {
-    const ssize_t n = ::read(STDIN_FILENO, chunk, sizeof chunk);
-    if (n < 0 && errno == EINTR) {
-      continue;
-    }
+    const long n = os::read_some(0, chunk, sizeof chunk);  // stdin
     if (n <= 0) {
       break;
     }
-    pending.append(chunk, static_cast<std::size_t>(n));
+    pending.append(reinterpret_cast<const char*>(chunk), static_cast<std::size_t>(n));
     for (std::size_t end = pending.find('\n'); end != std::string::npos; end = pending.find('\n')) {
       std::string line = pending.substr(0, end);
       pending.erase(0, end + 1);
