@@ -210,7 +210,7 @@ endforeach()
 # skipped without pico, xvfb-run (or PD_TEST_REAL_CLIPBOARD=1), the fixture or the built CLI.
 if(OS_LINUX)
   add_test(NAME host.clipboard
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/clipboard.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/clipboard.sh ${PD_HOST} ${PD_FIXTURE_DIR})
   set_tests_properties(host.clipboard PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180 RUN_SERIAL TRUE)
 endif()
 
