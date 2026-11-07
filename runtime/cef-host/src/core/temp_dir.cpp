@@ -101,17 +101,21 @@ bool process_alive(long pid) {
   if (pid <= 0) {
     return false;
   }
+  // Only a definite "no such process" counts as ended; any other answer counts as running, so a
+  // live instance's profile is never taken for an ended one's. (A reused pid errs the same way:
+  // the stale profile is kept until that process ends too.)
 #if defined(_WIN32)
   const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(pid));
   if (process == nullptr) {
-    return GetLastError() == ERROR_ACCESS_DENIED;  // someone else's, but running
+    return GetLastError() != ERROR_INVALID_PARAMETER;  // (what OpenProcess says for no such pid)
   }
   DWORD code = 0;
-  const bool running = GetExitCodeProcess(process, &code) && code == STILL_ACTIVE;
+  // An exit code that happens to be STILL_ACTIVE reads as running too: kept, never removed.
+  const bool ended = GetExitCodeProcess(process, &code) && code != STILL_ACTIVE;
   CloseHandle(process);
-  return running;
+  return !ended;
 #else
-  return ::kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
+  return ::kill(static_cast<pid_t>(pid), 0) == 0 || errno != ESRCH;
 #endif
 }
 

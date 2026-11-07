@@ -22,7 +22,8 @@ std::filesystem::path make_private_temp_dir(const std::string& prefix);
 /// `error` is the first failure of the last pass.
 bool remove_temp_dir(const std::filesystem::path& dir, std::chrono::milliseconds budget, std::error_code& error);
 
-/// Whether a process with this id is running.
+/// Whether a process with this id may be running: false only when the system says there's no
+/// such process (so a live instance's profile can never be taken for an ended one's).
 bool process_alive(long pid);
 
 /// Removes the subdirectories of `instances` named after a process id that `alive` says has
