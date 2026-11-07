@@ -27,7 +27,7 @@ pnpm install
 | Option | What it sets | Default |
 |---|---|---|
 | `app` | `id` (reverse-DNS), `name`, `version` | name = id, `0.0.0` |
-| `capabilities` | the host services the backend may call: `window`, `dialogs`, `notifications`; and `clipboard`, which lets the page read the clipboard (`navigator.clipboard.readText`; writing needs nothing) | none |
+| `capabilities` | the host services the backend may call: `window`, `dialogs`, `notifications`; and `clipboard`, which lets the page (`navigator.clipboard.readText`) and the backend (`host.readClipboard()`) read the clipboard; writing needs nothing | none |
 | `window` | `title` (fixed), `width`, `height` | the page's `<title>`, 1024×768 |
 | `closeGraceMs` | how long the backend has to exit when the app closes | 3000 |
 | `liveness` | `{ intervalMs, timeoutMs }`: how often the host pings the backend, and after how long without an answer it counts as hung and is restarted; `false` turns pings off | 5000/15000 |
@@ -91,7 +91,7 @@ await host.setTitle("My App: 3 files")
 const paths = await host.openFile(OpenFile { title: "Open", multiple: true })
 ```
 
-Each group needs a capability declared in `pico-desktop.config.ts` (`capabilities: ['window', 'dialogs', 'notifications']`); anything else fails with `NOT_ALLOWED`. The full list is in [`contracts/host.cddl`](../packages/communicator-pico/contracts/host.cddl).
+Each group needs a capability declared in `pico-desktop.config.ts` (`capabilities: ['window', 'dialogs', 'notifications', 'clipboard']`); anything else fails with `NOT_ALLOWED`. The clipboard: `await host.writeClipboard("text")` needs no capability, `await host.readClipboard()` (`null` when there's no text) needs `clipboard`. The full list is in [`contracts/host.cddl`](../packages/communicator-pico/contracts/host.cddl).
 
 ## 5. Test
 

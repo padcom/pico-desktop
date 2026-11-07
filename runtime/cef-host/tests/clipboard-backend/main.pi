@@ -1,0 +1,52 @@
+// A test backend for tests/clipboard.mjs: it puts text on the clipboard, reads it back, then
+// watches the clipboard and says on stderr whenever its text changes (what the page writes).
+import { stderr } from "std/process"
+import { Communicator, CommunicatorError, Host, StdioTransport } from "../../../../packages/communicator-pico/index"
+
+const communicator = new Communicator(new StdioTransport())
+const host = new Host(communicator)
+
+class Watch {
+  public last: string = ""
+  public timer: int = 0
+}
+const watch = new Watch()
+
+async function say(text: string): Promise<void> throws Error {
+  await stderr.write(new TextEncoder().encode(`clipboard-backend: ${text}\n`))
+}
+
+/// Short enough for a log line: the length and the start.
+function shown(text: string?): string {
+  if (text == null) {
+    return "no text"
+  }
+  const t = text ?? ""
+  t.length > 40 ? `${t.length} chars: ${t.slice(0, 20)}…` : t
+}
+
+async function check(): Promise<void> throws Error {
+  try {
+    const text = shown(await host.readClipboard())
+    if (text != watch.last) {
+      watch.last = text
+      await say(`read: ${text}`)
+    }
+  } catch (e: CommunicatorError) {
+    clearInterval(watch.timer)
+    await say(`read ${e.code}`)
+  }
+}
+
+async function start(): Promise<void> throws Error {
+  try {
+    await host.writeClipboard("from the backend: ünïcödé ✓")
+    await say("write ok")
+  } catch (e: CommunicatorError) {
+    await say(`write ${e.code}`)
+  }
+  watch.timer = setInterval(() => check(), 200)
+}
+
+setTimeout(() => start(), 300)
+await communicator.run()

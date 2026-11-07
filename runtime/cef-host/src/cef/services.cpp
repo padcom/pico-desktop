@@ -7,7 +7,9 @@
 #include <thread>
 #include <vector>
 
+#include "clipboard.hpp"
 #include "host.hpp"
+#include "include/cef_task.h"
 #include "include/cef_browser.h"
 #include "include/views/cef_browser_view.h"
 #include "include/views/cef_window.h"
@@ -171,6 +173,46 @@ void notify(const ServiceCall& call, const ipc::Value& params) {
   ok(call);
 }
 
+// ---------------------------------------------------------------------------------- clipboard
+
+/// Runs `f` on the UI thread (the clipboard answers on its own).
+class OnUi : public CefTask {
+ public:
+  explicit OnUi(std::function<void()> f) : f_(std::move(f)) {}
+  void Execute() override { f_(); }
+
+ private:
+  std::function<void()> f_;
+  IMPLEMENT_REFCOUNTING(OnUi);
+};
+
+void answer(const ServiceCall& call, clipboard::Result result, bool with_text) {
+  CefPostTask(TID_UI, new OnUi([call, result = std::move(result), with_text] {
+    if (!result.code.empty()) {
+      link().refuse(call, result.code.c_str(), result.message);
+    } else if (!with_text) {
+      link().reply(call, std::nullopt);
+    } else if (result.text) {
+      link().reply(call, ipc::Writer().map(1).text("text").text(*result.text).take());
+    } else {
+      link().reply(call, ipc::Writer().map(0).take());  // no text on the clipboard
+    }
+  }));
+}
+
+void clipboard_service(const ServiceCall& call, const std::string& name, const ipc::Value& params) {
+  if (name == "host.clipboard.writeText") {
+    const ipc::Value* text = params.get("text");
+    if (!text || !text->as_text()) {
+      link().refuse(call, "INVALID_PAYLOAD", "$.text: expected text");
+      return;
+    }
+    clipboard::write_text(*text->as_text(), [call](clipboard::Result r) { answer(call, std::move(r), false); });
+  } else {
+    clipboard::read_text([call](clipboard::Result r) { answer(call, std::move(r), true); });
+  }
+}
+
 }  // namespace
 
 void run_service(const ServiceCall& call, const std::string& name, const ipc::Value& params) {
@@ -178,6 +220,8 @@ void run_service(const ServiceCall& call, const std::string& name, const ipc::Va
     window_service(call, name, params);
   } else if (name.starts_with("host.dialog.")) {
     dialog_service(call, name, params);
+  } else if (name.starts_with("host.clipboard.")) {
+    clipboard_service(call, name, params);
   } else if (name == "host.notification.show") {
     notify(call, params);
   } else if (name == "host.app.quit") {

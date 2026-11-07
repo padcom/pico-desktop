@@ -20,6 +20,8 @@ constexpr std::array kServices = {
     Entry{"host.dialog.openFile", Capability::dialogs}, Entry{"host.dialog.saveFile", Capability::dialogs},
     Entry{"host.dialog.openFolder", Capability::dialogs},
     Entry{"host.notification.show", Capability::notifications},
+    // Like the page's: writing needs nothing, reading the `clipboard` capability.
+    Entry{"host.clipboard.writeText", std::nullopt},     Entry{"host.clipboard.readText", Capability::clipboard},
     Entry{"host.app.quit", std::nullopt},
 };
 
