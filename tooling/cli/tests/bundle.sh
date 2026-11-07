@@ -5,7 +5,8 @@
 #   elsewhere it runs again; so does the AppDir's AppRun; a runtime with a file its manifest
 #   doesn't list is refused.
 # Usage: bundle.sh. Exit 77 without pico, a display, the built CLI or a staged runtime
-# (`pnpm cef && pnpm runtime:stage` in the framework).
+# (`pnpm cef && pnpm runtime:stage` in the framework). With PD_BUNDLE_OUT set, the package (the
+# .tar.gz and its .sha256) is copied there: CI runs it on a clean machine (smoke-bundle.sh).
 set -uo pipefail
 framework=$(cd "$(dirname "$0")/../../.." && pwd)
 cli=$framework/tooling/cli/bin/pico-desktop.mjs
@@ -89,6 +90,9 @@ for f in AppRun demo.desktop demo.svg .DirIcon; do
   [[ -e "$bundle.AppDir/$f" ]] || fail "the AppDir has no $f"
 done
 run_bundle "$PWD/$bundle.AppDir/AppRun" "$scratch/appdir.log"
+if [[ -n "${PD_BUNDLE_OUT:-}" ]]; then
+  mkdir -p "$PD_BUNDLE_OUT" && cp "$bundle.tar.gz" "$bundle.tar.gz.sha256" "$PD_BUNDLE_OUT/"
+fi
 mkdir -p "$scratch/elsewhere" && tar -xzf "$bundle.tar.gz" -C "$scratch/elsewhere"
 run_bundle "$scratch/elsewhere/$(basename "$bundle")/demo" "$scratch/unpacked.log"
 
