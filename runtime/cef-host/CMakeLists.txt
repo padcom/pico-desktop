@@ -2,6 +2,7 @@
 # message routing.
 add_library(pd_host_core STATIC
   src/core/assets.cpp
+  src/core/interruptible_io.cpp
   src/core/options.cpp
   src/core/policy.cpp
   src/core/router.cpp
@@ -15,6 +16,13 @@ add_executable(pd_host_core_test tests/core_test.cpp)
 target_link_libraries(pd_host_core_test PRIVATE pd_host_core)
 pd_warnings(pd_host_core_test)
 add_test(NAME host.core COMMAND pd_host_core_test)
+
+# Stopping a thread blocked in pipe I/O, even when the stop comes between its calls (#16).
+add_executable(pd_host_interruptible_io_test tests/interruptible_io_test.cpp)
+target_link_libraries(pd_host_interruptible_io_test PRIVATE pd_host_core)
+pd_warnings(pd_host_interruptible_io_test)
+add_test(NAME host.interruptible-io COMMAND pd_host_interruptible_io_test)
+set_tests_properties(host.interruptible-io PROPERTIES TIMEOUT 30)
 
 add_executable(pd_host_router_test tests/router_test.cpp)
 target_link_libraries(pd_host_router_test PRIVATE pd_host_core)
@@ -243,6 +251,14 @@ if(OS_LINUX)  # Linux only for now
     COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/no-userns.sh ${PD_HOST} ${PD_FIXTURE_DIR})
   set_tests_properties(host.no-userns PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
 endif()
+
+# A backend that exits leaving a child that holds its pipes: the exit is still noticed and the
+# host doesn't wait on the pipes (#16, #17). Its backend is a program, so this runs everywhere.
+add_executable(pd_stray_backend tests/stray-backend.cpp)
+pd_warnings(pd_stray_backend)
+add_test(NAME host.stray
+  COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/stray.sh ${PD_HOST} ${PD_FIXTURE_DIR} $<TARGET_FILE:pd_stray_backend>)
+set_tests_properties(host.stray PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 
 # Hangs (liveness pings) and crash loops (the restart budget). Needs pico for the hang backend.
 if(NOT WIN32)  # Windows: its crashing and stray backends are shell scripts
