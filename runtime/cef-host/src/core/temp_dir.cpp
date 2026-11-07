@@ -10,6 +10,7 @@
 #endif
 
 #include <system_error>
+#include <thread>
 
 namespace pico_desktop::host {
 
@@ -38,6 +39,25 @@ std::filesystem::path make_private_temp_dir(const std::string& prefix) {
   }
   return {};
 #endif
+}
+
+bool remove_temp_dir(const std::filesystem::path& dir, std::chrono::milliseconds budget, std::error_code& error) {
+  const auto until = std::chrono::steady_clock::now() + budget;
+  for (;;) {
+    error.clear();
+    fs::remove_all(dir, error);
+    if (!error && !fs::exists(dir, error)) {
+      error.clear();
+      return true;
+    }
+    if (std::chrono::steady_clock::now() >= until) {
+      if (!error) {
+        error = std::make_error_code(std::errc::directory_not_empty);
+      }
+      return false;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
 }
 
 }  // namespace pico_desktop::host

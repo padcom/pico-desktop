@@ -173,8 +173,11 @@ int run_browser(int argc, char** argv) {
   CefShutdown();
 
   const BrowserState& state = browser_state();
-  if (temporary_cache) {
-    fs::remove_all(cache, error);
+  // A temporary profile (self-test, --multi-instance) goes with the instance; on Windows the
+  // subprocesses may still hold its files for a moment after CefShutdown (#23).
+  if (temporary_cache && !remove_temp_dir(cache, std::chrono::seconds(10), error)) {
+    std::fprintf(stderr, "pico-desktop-host: couldn't remove the temporary profile %s: %s\n", cache.string().c_str(),
+                 error.message().c_str());
   }
   int code = 0;
   if (state.options.mode == Mode::self_test) {
