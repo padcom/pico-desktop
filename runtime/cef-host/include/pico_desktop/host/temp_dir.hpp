@@ -30,6 +30,9 @@ bool process_alive(long pid);
 /// ended, other than `own_pid`'s: the profiles of earlier --multi-instance runs. On Windows a
 /// process can't remove its own profile (Chromium holds files in it until the process exits,
 /// #23), so the next run does. Anything else there is left alone. Returns how many it removed.
+/// Known limit: hosts in different PID namespaces sharing one cache directory (Linux containers,
+/// toolbox or flatpak setups sharing $XDG_CACHE_HOME) can't see each other's processes, so one
+/// can take the other's live profile for an ended one's and remove it.
 int remove_ended_instances(const std::filesystem::path& instances, long own_pid,
                            const std::function<bool(long)>& alive);
 
