@@ -48,6 +48,28 @@ jobs:
           ctest --preset sanitize --timeout 120 -E ipc.fuzz
           time build/sanitize/runtime/ipc/pd_ipc_fuzz_test 300000 "$GITHUB_RUN_NUMBER"
 
+  native-other:
+    # The CEF-free runtime (IPC, framing, CBOR, the host's core and its stub) on the other
+    # desktop systems, natively: the first step of F6's six targets (the CEF host isn't ported).
+    name: Native runtime, ${{ matrix.target }} (CMake, ctest)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-arm64
+            runner: macos-15
+          - target: windows-x64
+            runner: windows-2025
+          - target: windows-arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake --version
+      - run: cmake --preset default
+      - run: cmake --build --preset default
+      - run: ctest --preset default
+
   cef-host:
     name: CEF host, ${{ matrix.target }} (build, self-tests under Xvfb)
     strategy:

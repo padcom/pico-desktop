@@ -1,10 +1,10 @@
 // Starting the Pico backend with its stdin/stdout as the protocol link (ADR-0004) and moving
-// framed messages over file descriptors. POSIX for now (Linux is the priority target).
+// framed messages over file descriptors: POSIX ones, or on Windows the C runtime's descriptors
+// for the pipe handles (_open_osfhandle), so both sides read and write the same way.
 #pragma once
 
-#include <sys/types.h>
-
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
@@ -14,10 +14,19 @@
 
 namespace pico_desktop::ipc {
 
+#if defined(_WIN32)
+using ProcessId = std::uint32_t;
+#else
+using ProcessId = int;  // pid_t
+#endif
+
 struct ChildProcess {
-  pid_t pid = -1;
+  ProcessId pid = static_cast<ProcessId>(-1);
   int to_child = -1;    // the child's stdin
   int from_child = -1;  // the child's stdout
+#if defined(_WIN32)
+  void* handle = nullptr;  // the process's HANDLE (the caller closes it)
+#endif
 };
 
 /// Starts `program` with `args`, its stdin and stdout piped to us (stderr is inherited, for logs).
