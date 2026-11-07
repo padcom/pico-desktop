@@ -168,12 +168,13 @@ int run_browser(int argc, char** argv) {
   settings.persist_session_cookies = false;
   CefString(&settings.root_cache_path) = cache.string();
   CefString(&settings.cache_path) = cache.string();
-  if (temporary_cache) {
-    // No log file for a temporary profile (FATAL messages still go to stderr). Don't turn it back
-    // on: Chromium keeps the log open until the process exits, without FILE_SHARE_DELETE, so on
-    // Windows the profile directory holding it can't be removed (#23). A sibling file wouldn't
-    // help: it couldn't be removed either, and --multi-instance would leave one per launch. The
-    // log went with the profile at exit anyway, so nothing is lost.
+  const bool self_test = browser_state().options.mode == Mode::self_test;
+  if (temporary_cache && !self_test) {
+    // No log file for a --multi-instance profile (FATAL messages still go to stderr): Chromium
+    // keeps the log open until the process exits, without FILE_SHARE_DELETE, so on Windows a
+    // sibling file couldn't be removed and each launch would leave one; inside the profile it
+    // goes with it, unread. A self-test does log there: its profile is kept when it fails, for
+    // the log (on Windows the next self-test sweeps it, #41).
     settings.log_severity = LOGSEVERITY_DISABLE;
   } else {
     settings.log_severity = LOGSEVERITY_WARNING;
@@ -202,17 +203,28 @@ int run_browser(int argc, char** argv) {
   CefShutdown();
 
   const BrowserState& state = browser_state();
+  int code = 0;
+  if (self_test) {
+    code = state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
+  }
+  // A failed self-test keeps its profile, and with it CEF's log: often the only clue on CI. (The
+  // profile path is never empty here: run_browser stops early when it couldn't make one.)
+  const bool keep = self_test && code != 0 && !cache.empty();
+  if (keep) {
+    std::fprintf(stderr, "pico-desktop-host: the self-test failed; its CEF log is kept: %s\n",
+                 (cache / "cef.log").string().c_str());
+  }
   // A temporary profile (self-test, --multi-instance) goes with the instance. On Windows that
   // can't fully work: this process holds Chromium's files in it until it ends (#23). So there it's
   // one pass, and what's left goes with the next --multi-instance run's sweep
   // (remove_ended_instances), not a failure. Elsewhere a held file is only a subprocess finishing:
   // retried, then reported.
 #if defined(_WIN32)
-  if (temporary_cache) {
+  if (temporary_cache && !keep) {
     remove_temp_dir(cache, std::chrono::milliseconds(0), error);
   }
 #else
-  if (temporary_cache && !remove_temp_dir(cache, std::chrono::seconds(10), error)) {
+  if (temporary_cache && !keep && !remove_temp_dir(cache, std::chrono::seconds(10), error)) {
     std::fprintf(stderr, "pico-desktop-host: couldn't remove the temporary profile %s: %s\n", cache.string().c_str(),
                  error.message().c_str());
     // What's left, so the log says which files were held.
@@ -224,10 +236,6 @@ int run_browser(int argc, char** argv) {
     }
   }
 #endif
-  int code = 0;
-  if (state.options.mode == Mode::self_test) {
-    code = state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
-  }
   signal_watch_shutdown_done();  // a console close/logoff/shutdown handler may be waiting for this
   return code;
 }

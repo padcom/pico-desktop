@@ -238,6 +238,11 @@ foreach(origin IN ITEMS app https)
     COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/run-self-test.sh ${PD_HOST} ${PD_FIXTURE_DIR} ${origin})
   set_tests_properties(host.self-test.${origin} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endforeach()
+# A failed self-test keeps its profile and CEF log (tests/keep-log.sh with tests/failing-fixture,
+# a page that fails one check). Needs a display; nothing to build.
+add_test(NAME host.self-test.keep-log
+  COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/keep-log.sh ${PD_HOST})
+set_tests_properties(host.self-test.keep-log PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 
 # The backend's clipboard (tests/clipboard.sh): written by the backend and read by the page
 # (Chromium's own X11 clipboard), written by the page and read by the backend, a large text, and

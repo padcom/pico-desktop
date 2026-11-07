@@ -27,6 +27,13 @@ timeout 120 ${pd_runner[@]+"${pd_runner[@]}"} "$host" --app-dir="$fixture" --app
   --no-external-open > "$log" 2>&1
 code=$?
 grep -E '^(pd-|console: pd-info)' "$log"
+# A failed self-test keeps its profile: show the end of CEF's log, often the only clue on CI.
+kept=$(sed -n 's/^pico-desktop-host: the self-test failed; its CEF log is kept: //p' "$log" | tail -n 1 | tr -d '\r')
+if [[ -n "$kept" ]]; then
+  case "$(uname)" in MINGW* | MSYS* | CYGWIN*) kept=$(cygpath -u "$kept") ;; esac
+  echo "---- $kept (last 60 lines) ----"
+  tail -n 60 "$kept" 2> /dev/null || echo "(not readable)"
+fi
 
 failed=0
 if [[ -n "$stale" && -e "$stale" ]]; then
