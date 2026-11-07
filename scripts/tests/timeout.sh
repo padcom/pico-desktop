@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# The test scripts' `timeout` fallback (runtime/cef-host/tests/lib.sh), run on every platform (#13): it
-# exits 124 like coreutils' and stops commands that ignore SIGALRM or SIGTERM.
+# The test scripts' `timeout` fallback (runtime/cef-host/tests/lib.sh), run on every POSIX platform
+# (#13), coreutils or not: it exits 124 like coreutils' and stops commands that ignore SIGALRM or SIGTERM.
 set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=../../runtime/cef-host/tests/lib.sh
