@@ -184,8 +184,16 @@ int run_browser(int argc, char** argv) {
   CefShutdown();
 
   const BrowserState& state = browser_state();
-  // A temporary profile (self-test, --multi-instance) goes with the instance; on Windows the
-  // subprocesses may still hold its files for a moment after CefShutdown (#23).
+  // A temporary profile (self-test, --multi-instance) goes with the instance. On Windows that
+  // can't fully work: this process holds Chromium's files in it until it ends (#23). So there it's
+  // one pass, and what's left goes with the next --multi-instance run's sweep
+  // (remove_ended_instances), not a failure. Elsewhere a held file is only a subprocess finishing:
+  // retried, then reported.
+#if defined(_WIN32)
+  if (temporary_cache) {
+    remove_temp_dir(cache, std::chrono::milliseconds(0), error);
+  }
+#else
   if (temporary_cache && !remove_temp_dir(cache, std::chrono::seconds(10), error)) {
     std::fprintf(stderr, "pico-desktop-host: couldn't remove the temporary profile %s: %s\n", cache.string().c_str(),
                  error.message().c_str());
@@ -197,6 +205,7 @@ int run_browser(int argc, char** argv) {
       std::fprintf(stderr, "pico-desktop-host:   left: %s\n", it->path().string().c_str());
     }
   }
+#endif
   int code = 0;
   if (state.options.mode == Mode::self_test) {
     code = state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
