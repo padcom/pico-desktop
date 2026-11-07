@@ -85,7 +85,12 @@ async function main() {
       throw new Error(`SHA-1 mismatch for ${archive.file}: got ${sha1}, pinned ${archive.sha1} (the download was deleted)`)
     }
     const sha256 = await hashFile(file, 'sha256')
-    process.stderr.write(`verified SHA-1 ${sha1}\nSHA-256 ${sha256}\nunpacking…\n`)
+    // The upstream index publishes SHA-1; a SHA-256 is pinned once a download was verified.
+    if (archive.sha256 && sha256 !== archive.sha256) {
+      rmSync(file)
+      throw new Error(`SHA-256 mismatch for ${archive.file}: got ${sha256}, pinned ${archive.sha256} (the download was deleted)`)
+    }
+    process.stderr.write(`verified SHA-1 ${sha1}${archive.sha256 ? ' and SHA-256' : ''}\nSHA-256 ${sha256}\nunpacking…\n`)
     rmSync(unpacked, { recursive: true, force: true })
     execFileSync('tar', ['-xjf', file, '-C', dir], { stdio: 'inherit' })
     rmSync(file)
