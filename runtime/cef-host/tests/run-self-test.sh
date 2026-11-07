@@ -5,26 +5,14 @@
 # Exit 77 (ctest SKIP) without a display or a built fixture.
 set -uo pipefail
 host=$1 fixture=$2 origin=$3
+source "$(dirname "$0")/lib.sh"
 
-if [[ ! -f "$fixture/index.html" ]]; then
-  echo "skipped: the fixture isn't built (pnpm --filter @pico-desktop/host-fixture build)"
-  exit 77
-fi
-runner=()
-# macOS has no `timeout` unless coreutils is installed.
-command -v timeout > /dev/null || timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
-if [[ "$(uname)" == Linux && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-  if command -v xvfb-run > /dev/null; then
-    runner=(xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24")
-  else
-    echo "skipped: no display (set DISPLAY or install xvfb-run)"
-    exit 77
-  fi
-fi
+pd_require_fixture "$fixture"
+pd_display_runner
 
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
-timeout 120 ${runner[@]+"${runner[@]}"} "$host" --app-dir="$fixture" --app-id=pd-self-test --origin="$origin" --self-test \
+timeout 120 ${pd_runner[@]+"${pd_runner[@]}"} "$host" --app-dir="$fixture" --app-id=pd-self-test --origin="$origin" --self-test \
   --no-external-open > "$log" 2>&1
 code=$?
 grep -E '^(pd-|console: pd-info)' "$log"
