@@ -1,9 +1,11 @@
 #include "pico_desktop/host/sandbox.hpp"
 
+#if defined(__linux__)
 #include <sched.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 #include <cerrno>
 #include <charconv>
