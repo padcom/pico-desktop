@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstddef>
 #include <string>
+#include <thread>
 
 #include "pico_desktop/ipc/process.hpp"
 
@@ -33,8 +34,9 @@ std::string describe(int status);
 /// on an error (EINTR is retried).
 long read_some(int fd, std::byte* data, std::size_t size);
 
-/// Unblocks a thread waiting to read or write `fd` (Windows; POSIX waits wake on the stop pipe).
-void cancel_io(int fd);
+/// Unblocks `thread` if it's waiting in a pipe read or write (Windows: CancelSynchronousIo; POSIX
+/// waits wake on the stop pipe instead). Never touches a descriptor, which may be closed by then.
+void cancel_blocking_io(std::thread& thread);
 
 void close_fd(int fd);
 

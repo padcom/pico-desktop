@@ -1,10 +1,11 @@
+import { pathToFileURL } from 'node:url'
 // The backend's clipboard (host.clipboard.*), checked against Chromium's own X11 clipboard: the
 // backend writes and the page reads what it wrote, the page writes and the backend reads it (a
 // large text too, which X11 may hand over in chunks); without the `clipboard` capability the
 // backend can still write but reading is NOT_ALLOWED. Driven with the CLI's e2e driver.
 // Usage: node clipboard.mjs <pico-desktop-host> <fixture dist dir> <the CLI's dist/index.js> <backend>
 const [host, fixture, cli, backend] = process.argv.slice(2)
-const { launchApp } = await import(cli)
+const { launchApp } = await import(pathToFileURL(cli).href) // (a bare path isn't a URL on Windows)
 
 const failures = []
 const check = (what, ok, detail = '') => {

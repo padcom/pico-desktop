@@ -375,8 +375,8 @@ int Link::end_process(std::chrono::milliseconds grace) {
   // Then both threads stop waiting, even if something the backend started still holds its pipes.
   const int status = os::reap(process->child, grace);
 #if defined(_WIN32)
-  os::cancel_io(process->child.from_child);
-  os::cancel_io(process->child.to_child);
+  os::cancel_blocking_io(process->reader);
+  os::cancel_blocking_io(process->writer);
 #else
   if (process->stop[1] >= 0) {
     [[maybe_unused]] const auto written = ::write(process->stop[1], "x", 1);
@@ -419,7 +419,7 @@ int wait_for(int fd, bool out, int pidfd, int stop) {
 }
 
 #else
-/// Windows: the reads and writes block, and ending the process cancels them (os::cancel_io).
+/// Windows: the reads and writes block, and ending the process cancels them (os::cancel_blocking_io).
 int wait_for(int, bool, int, int) { return 0; }
 #endif
 

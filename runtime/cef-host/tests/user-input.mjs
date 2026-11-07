@@ -8,9 +8,10 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const [host, fixture, cli] = process.argv.slice(2)
-const { launchApp } = await import(cli)
+const { launchApp } = await import(pathToFileURL(cli).href) // (a bare path isn't a URL on Windows)
 
 const bin = mkdtempSync(join(tmpdir(), 'pd-user-input-'))
 const opened = join(bin, 'opened')

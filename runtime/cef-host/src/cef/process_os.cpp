@@ -56,10 +56,9 @@ long read_some(int fd, std::byte* data, std::size_t size) {
   return ::_read(fd, data, static_cast<unsigned>(size));
 }
 
-void cancel_io(int fd) {
-  const intptr_t handle = ::_get_osfhandle(fd);
-  if (handle != -1) {
-    CancelIoEx(reinterpret_cast<HANDLE>(handle), nullptr);
+void cancel_blocking_io(std::thread& thread) {
+  if (thread.joinable()) {
+    CancelSynchronousIo(static_cast<HANDLE>(thread.native_handle()));
   }
 }
 
@@ -142,7 +141,7 @@ long read_some(int fd, std::byte* data, std::size_t size) {
   }
 }
 
-void cancel_io(int) {}
+void cancel_blocking_io(std::thread&) {}
 
 void close_fd(int fd) { ::close(fd); }
 
