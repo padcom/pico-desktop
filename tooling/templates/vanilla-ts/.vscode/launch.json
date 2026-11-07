@@ -3,8 +3,8 @@
   "configurations": [
     {
       // Start this first, then `pnpm dev --debug`: it attaches to the next backend that starts.
-      // After a rebuild, start it again and save a Pico file. Needs lldb-dap and pico 0.4.2 or
-      // later; on Linux, kernel.yama.ptrace_scope must be 0 for lldb to attach.
+      // After a rebuild, start it again and save a Pico file. Needs lldb-dap (on Linux with
+      // kernel.yama.ptrace_scope 0); pico newer than 0.4.2 shows strings and arrays as values.
       "type": "pico",
       "request": "attach",
       "name": "Debug the backend",

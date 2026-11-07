@@ -28,25 +28,26 @@ commit, saying why.
 
 The absolute-path workaround for #93 is gone: the CLI and hello-world pass relative paths again.
 
-Two fixes are still in review. Until they're merged and released, develop with the compiler
-built from the `pico-lang` clone next to this repository, first on `PATH`:
-`export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`. That build comes from a
-local branch, `local/integration`, which is never pushed: pico-lang `main` plus these fixes.
-- `pico dap` attach with the formatters (#99, PR #101): merged on `main` (not released yet).
-  `pnpm dev --debug` with VS Code's **Debug the backend** needs it. ctest `cli.debug-attach`
-  checks it: a breakpoint in the backend that the host starts, a variable read, the backend
-  held past the hang timeout, and a detach.
-- PR #103 (a subclass's fields after `instanceof` narrowing panicked the compiler, #102): only
-  backends that narrow class hierarchies need it (pico-mavlink's decoded messages do).
-- PR #105 (a field named `target` was taken for the build constant inside async methods, #104):
-  pico-mavlink works around it with `this.target`.
-
-pico-lang `main` also has `Reader.close()` (#100), which cancels a waiting read. padcom/serialport
-uses it, so serial ports need a pico newer than 0.4.2 to close cleanly while a read is waiting.
+Fixes merged on pico-lang `main` after 0.4.2, which the next release will have. Until then,
+develop with the compiler built from the `pico-lang` clone next to this repository, first on
+`PATH`: `export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`.
+- `pico dap` loads pico's formatters when it attaches too (#99, PR #101), so **Debug the
+  backend** (`pnpm dev --debug`) shows strings and arrays as values. 0.4.2 attaches as well, but
+  shows them as lldb's `0x… "…"`. ctest `cli.debug-attach` checks attaching: a breakpoint in the
+  backend that the host starts, a variable read, the backend held past the hang timeout, and a
+  detach. CI skips it (no lldb-dap there).
+- `Reader.close()` (#100) cancels a waiting read: padcom/serialport needs it to close a port
+  while a read waits.
+- A subclass's fields after `instanceof` narrowing no longer panic the compiler (#102, PR #103):
+  pico-mavlink's decoded messages need it.
+- A field named `target` is the field in async methods, not the build constant (#104, PR #105):
+  pico-mavlink uses plain `target` again.
+- `pico doc` follows an `index.pi`'s re-exports (#107, PR #108).
 
 Newer Pico is stricter than 0.4.1 in two ways the code handles: `TextDecoder`'s constructor
-`throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI's Pico job turns
-on by itself once the 0.4.2 release exists (see `.github/workflows/ci.yml`). Release archives are
+`throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI uses the 0.4.2
+release (see `.github/workflows/ci.yml`): its Pico job, and the CEF job's `cli.dev-loop` and
+`cli.bundle`, run with it. Release archives are
 named `pico-<version>-<host>.tar.gz|zip` (linux-arm64, linux-x64, macos-arm64, windows-arm64,
 windows-x64; no macos-x64, #86).
 

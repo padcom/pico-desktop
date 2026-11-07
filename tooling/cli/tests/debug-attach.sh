@@ -3,20 +3,18 @@
 # backend" does it, on a freshly created app:
 #   a debugger client (dap-attach.mjs, in VS Code's place) asks `pico dap` to attach to the next
 #   backend that starts; `pnpm dev --debug` starts the app; the page's request stops the backend
-#   at a breakpoint in its handler, where a variable is read (through pico's formatters); the
+#   at a breakpoint in its handler, where a variable is read (as text with pico's formatters,
+#   which pico newer than 0.4.2 loads when attaching, pico-lang #99; else lldb's `0x… "…"`); the
 #   backend stays stopped for longer than the host's hang timeout and isn't restarted; the
 #   debugger continues and detaches, and the page gets its answer from the same backend.
-# Usage: debug-attach.sh <pico-desktop-host>. Exit 77 (ctest SKIP) without pico (with an `attach`
-# in `pico dap`), lldb-dap, a ptrace scope that allows attaching, a display or the host.
+# Usage: debug-attach.sh <pico-desktop-host>. Exit 77 (ctest SKIP) without pico, lldb-dap, a
+# ptrace scope that allows attaching, a display or the host.
 set -uo pipefail
 host=$1
 framework=$(cd "$(dirname "$0")/../../.." && pwd)
 cli=$framework/tooling/cli/bin/pico-desktop.mjs
 
 pico --version 2> /dev/null | grep -q '^pico [0-9]' || { echo "skipped: no Pico compiler on the PATH"; exit 77; }
-# `pico dap` attaches from 0.4.2 (pico-lang #99).
-version=$(pico --version | cut -d' ' -f2)
-[[ "$(printf '0.4.2\n%s\n' "$version" | sort -V | head -1)" == 0.4.2 ]] || { echo "skipped: pico $version's dap can't attach (0.4.2 can)"; exit 77; }
 if [[ -z "${PICO_LLDB_DAP:-}" ]] && ! compgen -c lldb-dap | grep -q .; then
   echo "skipped: no lldb-dap"; exit 77
 fi
@@ -93,7 +91,7 @@ line=$(grep -n 'encodeGreeting(Greeting' "$source" | cut -d: -f1)
 # The debugger first, as the launch configuration's comment says; it holds the backend stopped
 # for 20 s, past the 15 s after which the host would otherwise count it as hung.
 PD_DAP_HOLD_MS=20000 node "$framework/tooling/cli/tests/dap-attach.mjs" \
-  "$PWD/.pico-desktop/dev/backend" "$source" "$line" request.name '"debugger"' > "$scratch/dap.log" 2>&1 &
+  "$PWD/.pico-desktop/dev/backend" "$source" "$line" request.name 'debugger' > "$scratch/dap.log" 2>&1 &
 dap_pid=$!
 wait_for '^dap: attaching' 30 "$scratch/dap.log"
 

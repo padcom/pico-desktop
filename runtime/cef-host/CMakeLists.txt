@@ -152,8 +152,8 @@ set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN
 
 # The Pico debugger on the backend that the host starts (tooling/cli/tests/debug-attach.sh): a
 # DAP client attaches through `pico dap` to the next backend, and `pnpm dev --debug` stops at a
-# breakpoint in its handler, held past the hang timeout, then detaches. Needs pico 0.4.2,
-# lldb-dap and ptrace_scope 0; skipped otherwise.
+# breakpoint in its handler, held past the hang timeout, then detaches. Needs pico, lldb-dap and
+# ptrace_scope 0; skipped otherwise.
 add_test(NAME cli.debug-attach
   COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/debug-attach.sh $<TARGET_FILE:pico-desktop-host>)
 set_tests_properties(cli.debug-attach PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)

@@ -1,7 +1,7 @@
 // A debugger client for debug-attach.sh, in VS Code's place: it starts `pico dap`, asks it to
 // attach to the next process started from <backend> (what the template's "Debug the backend"
 // does), sets a breakpoint at <source>:<line>, and when the backend stops there checks the
-// frame and evaluates <expression> (which must give <expected>). Then it continues and detaches,
+// frame and evaluates <expression> (whose value must contain <expected>). Then it continues and detaches,
 // leaving the backend running.
 // Usage: node dap-attach.mjs <backend> <source> <line> <expression> <expected>
 // Prints `dap: attaching` once it waits, and exits 0 when everything checked out.
@@ -105,8 +105,8 @@ if (top.line !== Number(line) || !top.source?.path?.endsWith(source.split('/').p
 }
 console.log(`dap: stopped at ${top.name} (${top.source.path.split('/').pop()}:${top.line})`)
 const value = await request('evaluate', { expression, frameId: top.id, context: 'watch' })
-if (value.body.result !== expected) {
-  fail(`${expression} is ${value.body.result}, not ${expected}`)
+if (!String(value.body.result).includes(expected)) {
+  fail(`${expression} is ${value.body.result}, without ${expected}`)
 }
 console.log(`dap: ${expression} = ${value.body.result}`)
 
