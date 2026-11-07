@@ -115,7 +115,52 @@ jobs:
           pnpm --filter @pico-desktop/hello-world build:self-test
           pnpm --filter @pico-desktop/hello-world backend
       - name: Build the host and run its self-tests (hello-world and the dev loop too, when pico is there)
+        env:
+          PD_BUNDLE_OUT: ${{ runner.temp }}/bundle  # cli.bundle keeps its package for bundle-smoke
         run: pnpm cef
+      - name: Keep the packaged app (cli.bundle's) for the clean-machine smoke test
+        if: steps.pico.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ matrix.target }}
+          path: ${{ runner.temp }}/bundle/
+          retention-days: 3
+          if-no-files-found: error
+
+  bundle-smoke:
+    # F6's clean-machine smoke: the packaged app on a fresh runner of its target, with only the
+    # runtime libraries a desktop has (docs/platform-linux.md) and a display. No build tree, no
+    # Node, pnpm, Pico or CMake on the app's PATH.
+    name: Packaged app on a clean machine, ${{ matrix.target }}
+    needs: cef-host
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: linux-x64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tooling/cli/tests/smoke-bundle.sh
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundle-${{ matrix.target }}
+          path: ${{ runner.temp }}/bundle
+      - name: Runtime libraries and Xvfb only
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth libnss3 libatk1.0-0t64 \
+            libatk-bridge2.0-0t64 libcups2t64 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
+            libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 libgtk-3-0t64
+      - name: Allow unprivileged user namespaces (the sandbox needs them; it's never disabled)
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Run it
+        run: tooling/cli/tests/smoke-bundle.sh "$(ls "$RUNNER_TEMP"/bundle/*.tar.gz)"
 
   pico:
     name: Pico (communicator-pico, probes)
