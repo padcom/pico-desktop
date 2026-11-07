@@ -74,8 +74,14 @@ std::optional<ChildProcess> spawn_piped(const std::string& program, const std::v
                                         std::string& error) {
   SECURITY_ATTRIBUTES inheritable{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
   HANDLE in_read = nullptr, in_write = nullptr, out_read = nullptr, out_write = nullptr;
-  if (!CreatePipe(&in_read, &in_write, &inheritable, 0) || !CreatePipe(&out_read, &out_write, &inheritable, 0)) {
+  if (!CreatePipe(&in_read, &in_write, &inheritable, 0)) {
     error = last_error("CreatePipe");
+    return std::nullopt;
+  }
+  if (!CreatePipe(&out_read, &out_write, &inheritable, 0)) {
+    error = last_error("CreatePipe");  // before CloseHandle replaces the last error
+    CloseHandle(in_read);
+    CloseHandle(in_write);
     return std::nullopt;
   }
   // Our ends stay ours; the child's ends are the only handles it inherits (with stderr).
@@ -142,7 +148,20 @@ bool write_all(int fd, std::span<const std::byte> bytes) {
 
 namespace {
 
-/// A pipe whose ends don't leak into other programs this process starts.
+/// Closes both ends of a pipe (those that are open), keeping errno for the caller's message.
+void close_pipe(int fds[2]) {
+  const int saved = errno;
+  for (int i = 0; i < 2; ++i) {
+    if (fds[i] >= 0) {
+      close(fds[i]);
+      fds[i] = -1;
+    }
+  }
+  errno = saved;
+}
+
+/// A pipe whose ends don't leak into other programs this process starts. On failure nothing is
+/// left open and errno says why.
 bool cloexec_pipe(int fds[2]) {
 #if defined(__APPLE__)
   // No pipe2 on macOS; between pipe and fcntl another thread's spawn could inherit the ends, but
@@ -150,7 +169,11 @@ bool cloexec_pipe(int fds[2]) {
   if (pipe(fds) != 0) {
     return false;
   }
-  return fcntl(fds[0], F_SETFD, FD_CLOEXEC) == 0 && fcntl(fds[1], F_SETFD, FD_CLOEXEC) == 0;
+  if (fcntl(fds[0], F_SETFD, FD_CLOEXEC) == 0 && fcntl(fds[1], F_SETFD, FD_CLOEXEC) == 0) {
+    return true;
+  }
+  close_pipe(fds);
+  return false;
 #else
   return pipe2(fds, O_CLOEXEC) == 0;
 #endif
@@ -162,8 +185,13 @@ std::optional<ChildProcess> spawn_piped(const std::string& program, const std::v
                                         std::string& error) {
   int in[2] = {-1, -1};
   int out[2] = {-1, -1};
-  if (!cloexec_pipe(in) || !cloexec_pipe(out)) {
+  if (!cloexec_pipe(in)) {
     error = std::string("pipe: ") + std::strerror(errno);
+    return std::nullopt;
+  }
+  if (!cloexec_pipe(out)) {
+    error = std::string("pipe: ") + std::strerror(errno);
+    close_pipe(in);
     return std::nullopt;
   }
   posix_spawn_file_actions_t actions;
