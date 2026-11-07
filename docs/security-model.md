@@ -41,7 +41,7 @@ The host never runs the page unsandboxed, never exposes general native primitive
 
 - **The page's own JavaScript** is the app's responsibility, as on the web: the CSP and the origin limit it.
 - **A backend is as powerful as its user.** Pico code can use the file system and the network directly; capabilities limit only what it asks *the host* for.
-- **Not built yet:** clipboard access, and a per-capability consent UI.
+- **Not built yet:** a per-capability consent UI. (The backend's clipboard follows the page's rule: writing is free, reading needs `clipboard`.)
 
 ## First launch of unsigned builds
 

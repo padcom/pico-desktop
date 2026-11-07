@@ -1,10 +1,11 @@
-// The host's native services, for the backend: window controls, file dialogs, notifications and
-// quitting (contracts/host.cddl). Each group needs a capability the app declares in
-// pico-desktop.config.ts (`capabilities: ["window", "dialogs", "notifications"]`); calling an
-// undeclared one fails with NOT_ALLOWED. Quitting needs none.
+// The host's native services, for the backend: window controls, file dialogs, notifications, the
+// clipboard and quitting (contracts/host.cddl). Each group needs a capability the app declares in
+// pico-desktop.config.ts (`capabilities: ["window", "dialogs", "notifications", "clipboard"]`);
+// calling an undeclared one fails with NOT_ALLOWED. Writing the clipboard and quitting need none.
 import { Cbor } from "./cbor"
 import { Communicator } from "./communicator"
 import {
+  ClipboardText,
   Notification,
   OpenFile,
   OpenFolder,
@@ -12,10 +13,12 @@ import {
   WindowBounds,
   WindowSize,
   WindowTitle,
+  decodeClipboardContent,
   decodeFilePath,
   decodeFilePaths,
   decodeWindowBounds,
   decodeWindowTitle,
+  encodeClipboardText,
   encodeNotification,
   encodeOpenFile,
   encodeOpenFolder,
@@ -83,6 +86,17 @@ export class Host {
   /// A desktop notification (UNAVAILABLE where the desktop has no notification service).
   public async notify(title: string, body: string? = null): Promise<void> throws Error {
     await call("host.notification.show", encodeNotification(Notification { title: title, body: body }))
+  }
+
+  /// Puts text on the system clipboard (UNAVAILABLE without X11 or XWayland; TOO_LARGE over 1 MiB).
+  /// Needs no capability, like the page's.
+  public async writeClipboard(text: string): Promise<void> throws Error {
+    await call("host.clipboard.writeText", encodeClipboardText(ClipboardText { text: text }))
+  }
+
+  /// The clipboard's text: null when it has none. Needs the `clipboard` capability.
+  public async readClipboard(): Promise<string?> throws Error {
+    decodeClipboardContent((await call("host.clipboard.readText", null)) ?? Cbor.Null, "$").text
   }
 
   /// Closes the app the orderly way (this backend gets `closing` next).

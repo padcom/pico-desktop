@@ -1,6 +1,7 @@
-; The host's native services for the backend: window controls, file dialogs, notifications and
-; quitting. The backend calls them as ordinary requests (host.ts: `Host`); each group needs a
-; capability the app declares (window, dialogs, notifications), host.app.* none.
+; The host's native services for the backend: window controls, file dialogs, notifications, the
+; clipboard and quitting. The backend calls them as ordinary requests (host.pi: `Host`); each
+; group needs a capability the app declares (window, dialogs, notifications; reading the
+; clipboard needs `clipboard`), writing the clipboard and host.app.* none.
 services = {
   "host.window.setTitle": ["method", window-title, null],
   "host.window.getTitle": ["method", null, window-title],
@@ -14,6 +15,8 @@ services = {
   "host.dialog.saveFile": ["method", save-file, file-path],
   "host.dialog.openFolder": ["method", open-folder, file-path],
   "host.notification.show": ["method", notification, null],
+  "host.clipboard.writeText": ["method", clipboard-text, null],
+  "host.clipboard.readText": ["method", null, clipboard-content],
   "host.app.quit": ["method", null, null],
 }
 
@@ -34,3 +37,8 @@ file-paths = { paths: [* tstr] }
 file-path = { ? path: tstr }
 
 notification = { title: tstr, ? body: tstr }
+
+clipboard-text = { text: tstr }
+
+; No text: the clipboard has none (or holds something else, such as an image).
+clipboard-content = { ? text: tstr }

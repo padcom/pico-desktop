@@ -40,6 +40,7 @@ add_executable(pico-desktop-host
   src/cef/app.cpp
   src/cef/bridge.cpp
   src/cef/client.cpp
+  src/cef/clipboard.cpp
   src/cef/control.cpp
   src/cef/external.cpp
   src/cef/link.cpp
@@ -50,7 +51,7 @@ add_executable(pico-desktop-host
   src/cef/window.cpp)
 SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
 add_dependencies(pico-desktop-host libcef_dll_wrapper)
-target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
+target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc xcb)
 target_compile_definitions(pico-desktop-host PRIVATE PD_VERSION="${PROJECT_VERSION}")
 
 if(OS_LINUX)
@@ -103,6 +104,14 @@ foreach(origin IN ITEMS app https)
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/run-self-test.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR} ${origin})
   set_tests_properties(host.self-test.${origin} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endforeach()
+
+# The backend's clipboard (tests/clipboard.sh): written by the backend and read by the page
+# (Chromium's own X11 clipboard), written by the page and read by the backend, a large text, and
+# NOT_ALLOWED reading without the capability. In its own Xvfb (it replaces the clipboard);
+# skipped without pico, xvfb-run (or PD_TEST_REAL_CLIPBOARD=1), the fixture or the built CLI.
+add_test(NAME host.clipboard
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/clipboard.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+set_tests_properties(host.clipboard PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180 RUN_SERIAL TRUE)
 
 # Real keys and clicks (tests/user-input.sh, with the CLI's e2e driver, under --dev): F12 opens
 # DevTools and another key doesn't; a clicked link to another site goes to xdg-open (a fake one)
