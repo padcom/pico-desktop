@@ -50,21 +50,39 @@ int process_id() {
 
 namespace fs = std::filesystem;
 
+/// Where the host's profiles live: %LOCALAPPDATA% on Windows, the XDG cache elsewhere.
+fs::path cache_base() {
+#if defined(_WIN32)
+  const char* local = std::getenv("LOCALAPPDATA");
+  return local && *local ? fs::path(local) : fs::temp_directory_path();
+#else
+  const char* xdg = std::getenv("XDG_CACHE_HOME");
+  const char* home = std::getenv("HOME");
+  return xdg && *xdg ? fs::path(xdg) : fs::path(home ? home : "/tmp") / ".cache";
+#endif
+}
+
 fs::path cache_root(const Options& options, bool& temporary) {
   if (options.mode == Mode::self_test) {
     // Self-tests never touch (or lock) a real profile.
     temporary = true;
-    return make_private_temp_dir("pd-host-self-test-");
-  }
 #if defined(_WIN32)
-  const char* local = std::getenv("LOCALAPPDATA");
-  const fs::path base = local && *local ? fs::path(local) : fs::temp_directory_path();
+    // Windows: a process can't remove its own profile (#23), so self-test profiles are named by
+    // pid and swept like --multi-instance ones: each run removes ended runs' (#41). %TEMP% is
+    // per user, so the name needn't be random.
+    const fs::path runs = cache_base() / "pico-desktop" / "self-test";
+    remove_ended_instances(runs, process_id(), process_alive);
+    const fs::path dir = runs / std::to_string(process_id());
+    std::error_code error;
+    remove_temp_dir(dir, std::chrono::milliseconds(0), error);  // an ended process's with this pid
+    fs::create_directories(dir, error);
+    return error ? fs::path() : dir;
 #else
-  const char* xdg = std::getenv("XDG_CACHE_HOME");
-  const char* home = std::getenv("HOME");
-  const fs::path base = xdg && *xdg ? fs::path(xdg) : fs::path(home ? home : "/tmp") / ".cache";
+    // POSIX: a private (0700) directory with a random name in the shared /tmp, removed at exit.
+    return make_private_temp_dir("pd-host-self-test-");
 #endif
-  const fs::path app = base / "pico-desktop" / "apps" / options.policy.app_id;
+  }
+  const fs::path app = cache_base() / "pico-desktop" / "apps" / options.policy.app_id;
   if (options.multi_instance) {
     // Each instance its own profile (CEF allows one process per profile), removed on exit, or
     // where that can't be done (Windows, #23) by the next --multi-instance run.

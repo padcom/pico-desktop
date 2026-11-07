@@ -10,6 +10,17 @@ source "$(dirname "$0")/lib.sh"
 pd_require_fixture "$fixture"
 pd_display_runner
 
+# Windows: an ended run's profile (a pid no process has: Windows pids are multiples of 4) is
+# removed by this run, which can't remove its own at exit (#23, #41). (2147483647: odd, and it fits
+# the 32-bit long the sweep parses names into.)
+stale=
+case "$(uname)" in
+  MINGW* | MSYS* | CYGWIN*)
+    stale="$(cygpath -u "$LOCALAPPDATA")/pico-desktop/self-test/2147483647"
+    mkdir -p "$stale/Default" && echo x > "$stale/Default/LOCK"
+    ;;
+esac
+
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
 timeout 120 ${pd_runner[@]+"${pd_runner[@]}"} "$host" --app-dir="$fixture" --app-id=pd-self-test --origin="$origin" --self-test \
@@ -18,6 +29,10 @@ code=$?
 grep -E '^(pd-|console: pd-info)' "$log"
 
 failed=0
+if [[ -n "$stale" && -e "$stale" ]]; then
+  echo "FAIL: the ended self-test run's profile wasn't removed ($stale)"
+  failed=1
+fi
 expect() {
   if ! grep -qF -- "$1" "$log"; then
     echo "FAIL: expected '$1' in the host's output"
