@@ -49,8 +49,17 @@ jobs:
           time build/sanitize/runtime/ipc/pd_ipc_fuzz_test 300000 "$GITHUB_RUN_NUMBER"
 
   cef-host:
-    name: CEF host (build, self-tests under Xvfb)
-    runs-on: ubuntu-24.04-arm
+    name: CEF host, ${{ matrix.target }} (build, self-tests under Xvfb)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Native runners for both: real ARM64 and x64 execution, not cross-compiled output.
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: linux-x64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -63,7 +72,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pico-desktop/cef
-          key: cef-linux-arm64-${{ hashFiles('toolchain.json') }}
+          key: cef-${{ matrix.target }}-${{ hashFiles('toolchain.json') }}
       - name: Fetch and verify CEF
         run: pnpm cef:fetch
       - name: Build and runtime libraries, Xvfb
@@ -94,8 +103,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           v=${{ steps.pico.outputs.version }}
-          gh release download "v$v" -R padcom/pico-lang -p "pico-$v-linux-arm64.tar.gz" -D "$RUNNER_TEMP"
-          mkdir -p "$RUNNER_TEMP/pico" && tar -xzf "$RUNNER_TEMP/pico-$v-linux-arm64.tar.gz" -C "$RUNNER_TEMP/pico"
+          gh release download "v$v" -R padcom/pico-lang -p "pico-$v-${{ matrix.target }}.tar.gz" -D "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/pico" && tar -xzf "$RUNNER_TEMP/pico-$v-${{ matrix.target }}.tar.gz" -C "$RUNNER_TEMP/pico"
           bin=$(dirname "$(find "$RUNNER_TEMP/pico" -type f -name pico -perm -u+x | head -1)")
           echo "$bin" >> "$GITHUB_PATH"
       - name: Build hello-world (self-test frontend, Pico backend) and the CLI (for the dev-loop test)

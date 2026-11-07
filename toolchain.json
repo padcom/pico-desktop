@@ -13,12 +13,12 @@
   },
   "pico": {
     "minimum": "0.4.2",
-    "releasedPin": "0.4.1",
-    "localBuild": "~/projects/padcom/pico/pico-lang (clone of padcom/pico-lang), branch local/integration (never pushed): main (with PR #91, #90) + PR #94 (#93) + PR #96 (#95) + PR #98 (#97)",
-    "$comment": "0.4.2 (stdout flush #82, bulk copies #84; on pico-lang main) isn't released yet: develop with the clone's build (docs/toolchain.md); CI's Pico job waits for 0.4.2."
+    "releasedPin": "0.4.2",
+    "localBuild": "~/projects/padcom/pico/pico-lang (clone of padcom/pico-lang), branch local/integration (never pushed): pico-lang main, which has every fix the framework's PRs needed",
+    "$comment": "0.4.2 is released (2026-11-07) and CI uses it. pico-lang main has fixes after it (dap formatters on attach #99, Reader.close #100, #102, #104, #107): docs/toolchain.md."
   },
   "cef": {
-    "status": "pinned for linux-arm64 (verified in F1); provisional for the other targets",
+    "status": "pinned for linux-arm64 (verified in F1) and linux-x64 (SHA-1 from the upstream index; built and run in CI on native x64); provisional for the other targets",
     "version": "156.0.15+gcf671c0+chromium-156.0.8078.80",
     "chromium": "156.0.8078.80",
     "source": "https://cef-builds.spotifycdn.com/index.json (Spotify Automated Builds, channel stable)",
