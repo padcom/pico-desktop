@@ -30,8 +30,9 @@ The machine is Debian 13 (Linux 6.12, arm64 VM, 12 cores). The Pico compiler is 
 | backend hung (SIGSTOP) | the link stays open and silent: **only a timeout notices** |
 | clean shutdown (close stdin, wait for exit) | **0.3–0.4 ms** |
 
-With pipes, a crash is detected immediately; a hang needs the request timeouts and health checks of
-F5. Host-side cost was negligible (0.8 s CPU and 8 MB RSS for the whole run, against the backend's 6.5 s).
+With pipes, a crash is detected immediately. A hang is noticed by the host's liveness pings since
+F5: `lifecycle` `ping`/`pong` every 5 s, and a hang after 15 s of silence (docs/protocol.md §7,
+ctest `host.hang`). Host-side cost was negligible (0.8 s CPU and 8 MB RSS for the whole run, against the backend's 6.5 s).
 
 ## What the benchmark found in Pico: pico-lang #90
 
@@ -40,9 +41,9 @@ throughput fell from ~100k msg/s in short runs to ~26k in long ones. In 0.4.1:
 - the event loop runs finalization callbacks only once it's idle, which a backend never is, so `ArrayBuffer` memory was never freed;
 - collections are triggered by GC-heap allocation only, which leaves off-heap buffer memory out of the picture.
 
-pico-lang #90 has the analysis. A fix is prepared, but not merged yet: it runs due finalizers between busy loop steps and counts buffer memory toward the triggers. With it:
+pico-lang #90 has the analysis. The fix runs due finalizers between busy loop steps and counts buffer memory toward the triggers; it was merged (PR #91) on 2026-11-07. With it:
 - a tight allocation loop stays at ~120 MB instead of growing past 660 MB;
 - 100-in-flight throughput stays at ~50k msg/s;
-- peak RSS is still ~420 MB, mostly from the 1 MiB phase, so more work is needed there (tracked in #90).
+- peak RSS is still ~410 MB, mostly from the 1 MiB phase (re-measured 2026-11-07 with main: 413 MB; 1 MiB p50 4.0 ms, 256 MB/s), so more work is needed there.
 
 This doesn't depend on the transport: both transports showed the same growth.
