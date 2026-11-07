@@ -28,3 +28,8 @@ add_executable(pd_ipc_fuzz_test tests/fuzz_test.cpp)
 target_link_libraries(pd_ipc_fuzz_test PRIVATE pd_ipc)
 pd_warnings(pd_ipc_fuzz_test)
 add_test(NAME ipc.fuzz COMMAND pd_ipc_fuzz_test)
+
+# A soak of the Pico side: 600 × 1 MiB echoes, the backend's peak memory bounded (needs pico and
+# the built protocol package; skipped otherwise).
+add_test(NAME ipc.soak COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/soak.sh)
+set_tests_properties(ipc.soak PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
