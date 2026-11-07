@@ -181,9 +181,11 @@ add_test(NAME host.close
 set_tests_properties(host.close PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 
 # No user namespaces: the host explains and refuses to start (simulated with unshare, no root).
-add_test(NAME host.no-userns
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/no-userns.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
-set_tests_properties(host.no-userns PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
+if(OS_LINUX)  # Linux only for now
+  add_test(NAME host.no-userns
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/no-userns.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+  set_tests_properties(host.no-userns PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
+endif()
 
 # Hangs (liveness pings) and crash loops (the restart budget). Needs pico for the hang backend.
 add_test(NAME host.hang
@@ -203,17 +205,21 @@ set_tests_properties(hello-world.self-test PROPERTIES SKIP_RETURN_CODE 77 TIMEOU
 # The F4 developer loop on a freshly created app (tooling/cli/tests/dev-loop.sh): create,
 # install, test, then `pnpm dev` with backend edits, a syntax error, frontend and contract edits,
 # and Ctrl+C. Needs pico and the built CLI (`pnpm build`); skipped otherwise.
-add_test(NAME cli.dev-loop
-  COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/dev-loop.sh $<TARGET_FILE:pico-desktop-host>)
-set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+if(OS_LINUX)  # Linux only for now
+  add_test(NAME cli.dev-loop
+    COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/dev-loop.sh $<TARGET_FILE:pico-desktop-host>)
+  set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+endif()
 
 # The Pico debugger on the backend that the host starts (tooling/cli/tests/debug-attach.sh): a
 # DAP client attaches through `pico dap` to the next backend, and `pnpm dev --debug` stops at a
 # breakpoint in its handler, held past the hang timeout, then detaches. Needs pico, lldb-dap and
 # ptrace_scope 0; skipped otherwise.
-add_test(NAME cli.debug-attach
-  COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/debug-attach.sh $<TARGET_FILE:pico-desktop-host>)
-set_tests_properties(cli.debug-attach PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+if(OS_LINUX)  # Linux only for now
+  add_test(NAME cli.debug-attach
+    COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/debug-attach.sh $<TARGET_FILE:pico-desktop-host>)
+  set_tests_properties(cli.debug-attach PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+endif()
 
 # The F6 bundle on a freshly created app (tooling/cli/tests/bundle.sh): build, run it with a bare
 # environment, SIGTERM, package, verify, unpack and run again, and a tampered runtime refused.
