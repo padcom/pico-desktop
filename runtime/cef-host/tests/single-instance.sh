@@ -58,7 +58,15 @@ grep -q 'launched again: bringing the window to the front' "$scratch/first.log" 
 timeout 30 "$host" "${app[@]}" --multi-instance --dev --control=stdin < /dev/null > "$scratch/third.log" 2>&1
 grep -q 'no --backend' "$scratch/third.log" || fail "--multi-instance didn't start"
 grep -q 'quitting' "$scratch/third.log" || fail "--multi-instance didn't quit at the end of its input"
-[[ -z "$(ls -A "$XDG_CACHE_HOME/pico-desktop/apps/pd-single-instance/instances" 2> /dev/null)" ]] \
+# Its profile goes at exit, or (Windows: Chromium holds files in it until the process ends) with the
+# next --multi-instance run, #23.
+instances=$XDG_CACHE_HOME/pico-desktop/apps/pd-single-instance/instances
+left=$(ls -A "$instances" 2> /dev/null)
+timeout 30 "$host" "${app[@]}" --multi-instance --dev --control=stdin < /dev/null > "$scratch/fourth.log" 2>&1
+for d in $left; do
+  [[ ! -e "$instances/$d" ]] || fail "the next --multi-instance run didn't remove the ended run's profile ($d)"
+done
+$windows || [[ -z "$(ls -A "$instances" 2> /dev/null)" ]] \
   || fail "--multi-instance left its profile behind"
 
 touch "$scratch/quit"
@@ -68,8 +76,8 @@ first_pid=
 sleep 1
 host_running && { fail "processes outlived the test:"; $windows || pgrep -af -- "^$host "; }
 
-grep -h '^pd-\|^pico-desktop-host:' "$scratch/first.log" "$scratch/second.log" "$scratch/third.log"
+grep -h '^pd-\|^pico-desktop-host:' "$scratch/first.log" "$scratch/second.log" "$scratch/third.log" "$scratch/fourth.log"
 if [[ $failed -ne 0 ]]; then
-  for f in first second third; do echo "---- $f ----"; cat "$scratch/$f.log"; done
+  for f in first second third fourth; do echo "---- $f ----"; cat "$scratch/$f.log"; done
 fi
 exit $failed

@@ -1,13 +1,22 @@
 #include "pico_desktop/host/temp_dir.hpp"
 
 #if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <process.h>
+#include <windows.h>
 
 #include <chrono>
 #else
+#include <signal.h>
 #include <stdlib.h>  // mkdtemp (glibc)
 #include <unistd.h>  // mkdtemp (macOS)
+
+#include <cerrno>
 #endif
+
+#include <charconv>
+#include <string>
 
 #include <system_error>
 #include <thread>
@@ -86,6 +95,47 @@ bool remove_temp_dir(const std::filesystem::path& dir, std::chrono::milliseconds
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
+}
+
+bool process_alive(long pid) {
+  if (pid <= 0) {
+    return false;
+  }
+#if defined(_WIN32)
+  const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(pid));
+  if (process == nullptr) {
+    return GetLastError() == ERROR_ACCESS_DENIED;  // someone else's, but running
+  }
+  DWORD code = 0;
+  const bool running = GetExitCodeProcess(process, &code) && code == STILL_ACTIVE;
+  CloseHandle(process);
+  return running;
+#else
+  return ::kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
+#endif
+}
+
+int remove_ended_instances(const std::filesystem::path& instances, long own_pid,
+                           const std::function<bool(long)>& alive) {
+  int removed = 0;
+  std::error_code error;
+  for (fs::directory_iterator it(instances, error), end; !error && it != end; it.increment(error)) {
+    std::error_code status_error;
+    if (!it->is_directory(status_error) || it->is_symlink(status_error)) {
+      continue;
+    }
+    const std::string name = it->path().filename().string();
+    long pid = 0;
+    const auto [rest, parsed] = std::from_chars(name.data(), name.data() + name.size(), pid);
+    if (parsed != std::errc{} || rest != name.data() + name.size() || pid == own_pid || alive(pid)) {
+      continue;  // not a process id, this run's own, or still running
+    }
+    std::error_code remove_error;
+    if (remove_temp_dir(it->path(), std::chrono::milliseconds(0), remove_error)) {
+      ++removed;
+    }
+  }
+  return removed;
 }
 
 }  // namespace pico_desktop::host

@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <system_error>
 
@@ -20,5 +21,15 @@ std::filesystem::path make_private_temp_dir(const std::string& prefix);
 /// directories holding them) are left. True once `dir` is gone (or never existed); otherwise
 /// `error` is the first failure of the last pass.
 bool remove_temp_dir(const std::filesystem::path& dir, std::chrono::milliseconds budget, std::error_code& error);
+
+/// Whether a process with this id is running.
+bool process_alive(long pid);
+
+/// Removes the subdirectories of `instances` named after a process id that `alive` says has
+/// ended, other than `own_pid`'s: the profiles of earlier --multi-instance runs. On Windows a
+/// process can't remove its own profile (Chromium holds files in it until the process exits,
+/// #23), so the next run does. Anything else there is left alone. Returns how many it removed.
+int remove_ended_instances(const std::filesystem::path& instances, long own_pid,
+                           const std::function<bool(long)>& alive);
 
 }  // namespace pico_desktop::host

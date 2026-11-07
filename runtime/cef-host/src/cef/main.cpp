@@ -66,8 +66,10 @@ fs::path cache_root(const Options& options, bool& temporary) {
 #endif
   const fs::path app = base / "pico-desktop" / "apps" / options.policy.app_id;
   if (options.multi_instance) {
-    // Each instance its own profile (CEF allows one process per profile), removed on exit.
+    // Each instance its own profile (CEF allows one process per profile), removed on exit, or
+    // where that can't be done (Windows, #23) by the next --multi-instance run.
     temporary = true;
+    remove_ended_instances(app / "instances", process_id(), process_alive);
     return app / "instances" / std::to_string(process_id());
   }
   return app;

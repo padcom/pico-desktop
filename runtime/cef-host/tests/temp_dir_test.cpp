@@ -21,6 +21,8 @@
 
 namespace fs = std::filesystem;
 using pico_desktop::host::make_private_temp_dir;
+using pico_desktop::host::process_alive;
+using pico_desktop::host::remove_ended_instances;
 using pico_desktop::host::remove_temp_dir;
 using namespace std::chrono_literals;
 
@@ -113,6 +115,32 @@ int main() {
     CHECK(remove_temp_dir(dir, 1s, error) && !error);
   }
 #endif
+  // remove_ended_instances (#23): the profiles of ended runs go; this run's, running ones', and
+  // anything not named after a process id stay.
+  {
+    const fs::path dir = make_private_temp_dir(prefix);
+    for (const char* name : {"101", "202", "303", "notapid", "12x"}) {
+      fs::create_directories(dir / name / "Default");
+      std::ofstream(dir / name / "Default" / "data") << "x";
+    }
+    std::ofstream(dir / "404") << "a file, not a profile";
+    const int removed = remove_ended_instances(dir, 303, [](long pid) { return pid == 202; });
+    CHECK(removed == 1);
+    CHECK(!fs::exists(dir / "101"));  // ended
+    CHECK(fs::exists(dir / "202"));   // still running
+    CHECK(fs::exists(dir / "303"));   // this run's own
+    CHECK(fs::exists(dir / "notapid") && fs::exists(dir / "12x") && fs::exists(dir / "404"));
+    CHECK(remove_ended_instances(dir / "missing", 1, [](long) { return false; }) == 0);
+    std::error_code error;
+    fs::remove_all(dir, error);
+  }
+#if defined(_WIN32)
+  CHECK(process_alive(static_cast<long>(GetCurrentProcessId())));
+#else
+  CHECK(process_alive(static_cast<long>(::getpid())));
+#endif
+  CHECK(!process_alive(0) && !process_alive(-1));
+
   if (failures == 0) {
     std::puts("host.temp-dir: all checks passed");
   }
