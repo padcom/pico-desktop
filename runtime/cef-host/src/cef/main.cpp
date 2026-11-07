@@ -178,6 +178,13 @@ int run_browser(int argc, char** argv) {
   if (temporary_cache && !remove_temp_dir(cache, std::chrono::seconds(10), error)) {
     std::fprintf(stderr, "pico-desktop-host: couldn't remove the temporary profile %s: %s\n", cache.string().c_str(),
                  error.message().c_str());
+    // What's left, so the log says which files were held.
+    std::error_code walk;
+    int listed = 0;
+    for (auto it = fs::recursive_directory_iterator(cache, walk); !walk && it != fs::recursive_directory_iterator() && listed < 20;
+         it.increment(walk), ++listed) {
+      std::fprintf(stderr, "pico-desktop-host:   left: %s\n", it->path().string().c_str());
+    }
   }
   int code = 0;
   if (state.options.mode == Mode::self_test) {
