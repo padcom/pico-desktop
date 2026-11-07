@@ -35,10 +35,27 @@ The host never runs the page unsandboxed, never exposes general native primitive
 
 - **The runtime is checked file by file.** `build` uses a runtime only if every file matches its `runtime.json` (SHA-256), it has no unlisted files, and it's for the right target and protocol. A downloaded runtime must match its `.sha256`.
 - **`package` writes a `.sha256` next to the archive.** The bundle's `manifest.json` lists every app and backend file's hash, and `sbom.cdx.json` lists what's inside.
-- **Nothing is signed yet.** macOS and Windows signing and notarization are deferred (F7), so on those systems expect first-launch warnings.
+- **Nothing is signed yet.** macOS and Windows signing and notarization are deferred (F7), so on those systems expect first-launch warnings. See [First launch of unsigned builds](#first-launch-of-unsigned-builds).
 
 ## Not covered (yet)
 
 - **The page's own JavaScript** is the app's responsibility, as on the web: the CSP and the origin limit it.
 - **A backend is as powerful as its user.** Pico code can use the file system and the network directly; capabilities limit only what it asks *the host* for.
 - **Not built yet:** clipboard access, and a per-capability consent UI.
+
+## First launch of unsigned builds
+
+Until signing and notarization are in place (F7), the operating systems treat Pico Desktop apps as
+coming from an unidentified developer. What users see, and what to tell them:
+
+| System | What happens | What the user does |
+|---|---|---|
+| macOS | Gatekeeper refuses to open the app downloaded from the internet ("cannot be opened because Apple cannot check it for malicious software") | Control-click the app, choose **Open**, then **Open** again, once. Or remove the quarantine attribute: `xattr -dr com.apple.quarantine <app>` |
+| Windows | SmartScreen shows "Windows protected your PC" | **More info**, then **Run anyway**, once |
+| Linux (AppImage) | Nothing is checked, but the file isn't executable after downloading | `chmod +x <app>.AppImage`. It also needs FUSE 2; without it, `--appimage-extract` unpacks it |
+| Linux (bundle) | Nothing is checked | Run `<bundle>/<name>` |
+
+Publish the SHA-256 of every download (`pico-desktop package` writes `.sha256` files), so users can
+check what they got before overriding the warning. Signing replaces these steps; it doesn't change
+the sandbox, origin or capability rules above.
+
