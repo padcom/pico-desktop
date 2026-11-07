@@ -89,10 +89,25 @@ export async function buildFrontend(config: ResolvedConfig, outDir: string) {
   await vite.build({ root: config.frontend.root, base: './', logLevel: 'warn', build: { outDir, emptyOutDir: true } })
 }
 
-async function buildBackend(config: ResolvedConfig, out: string, io: Output): Promise<boolean> {
+/**
+ * The release build's arguments, with the bundle's target named. A portable backend needs the
+ * architecture's baseline CPU; pico 0.4.2 compiles a host build (even with --target naming the
+ * host) for this machine's CPU, so it can die with SIGILL on another machine (pico-lang #117,
+ * fixed by PR #120; until a release has it, linux-x64 bundles aren't portable).
+ *
+ * @param entry the backend's entry file
+ * @param out the executable
+ * @param target the bundle's target (`linux-x64`, …)
+ * @returns pico's arguments
+ */
+export function releaseBuildArgs(entry: string, out: string, target: string): string[] {
+  return ['build', '--release', '--target', target, entry, '-o', out]
+}
+
+async function buildBackend(config: ResolvedConfig, out: string, target: string, io: Output): Promise<boolean> {
   mkdirSync(join(out, '..'), { recursive: true })
   const entry = join(config.backend.root, config.backend.entry)
-  const { code, output } = await capture('pico', ['build', '--release', entry, '-o', out], config.backend.root)
+  const { code, output } = await capture('pico', releaseBuildArgs(entry, out, target), config.backend.root)
   if (code !== 0) {
     output.trimEnd().split('\n').forEach(line => io.err(`pico │ ${line}`))
   }
@@ -176,7 +191,7 @@ export async function buildBundle(config: ResolvedConfig, io: Output): Promise<B
   rmSync(dir, { recursive: true, force: true })
   await buildFrontend(config, join(dir, 'app'))
 
-  if (!(await buildBackend(config, join(dir, 'backend', 'backend'), io))) {
+  if (!(await buildBackend(config, join(dir, 'backend', 'backend'), target, io))) {
     return null
   }
   cpSync(runtime.dir, join(dir, 'runtime'), { recursive: true, dereference: true })
