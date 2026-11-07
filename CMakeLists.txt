@@ -52,3 +52,9 @@ endif()
 
 add_subdirectory(runtime/ipc)
 add_subdirectory(runtime/cef-host)
+
+# The test scripts' shared helpers (scripts/lib), POSIX (bash and perl).
+if(NOT WIN32)
+  add_test(NAME scripts.timeout COMMAND ${PROJECT_SOURCE_DIR}/scripts/tests/timeout.sh)
+  set_tests_properties(scripts.timeout PROPERTIES TIMEOUT 60)
+endif()
