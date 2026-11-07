@@ -121,8 +121,8 @@ export function notices(app: string, packages: Package[]): string {
     '',
     'The frontend includes the packages below; their license texts follow. The runtime\'s',
     'licenses (CEF, Chromium, Pico Desktop) are in runtime/licenses. The Pico backend\'s',
-    'statically linked runtime libraries aren\'t listed yet (pico-lang has no way to report',
-    'them).',
+    'statically linked runtime libraries aren\'t listed yet: pico has no way to report them',
+    '(https://github.com/padcom/pico-lang/issues/106).',
   ]
   for (const p of packages) {
     parts.push('', '-'.repeat(78), `${p.name} ${p.version}${p.license ? ` (${p.license})` : ''}`, '-'.repeat(78), '')
