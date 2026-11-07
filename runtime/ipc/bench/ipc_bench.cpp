@@ -2,6 +2,7 @@
 // (packages/communicator-pico/bench/echo.pi) over stdin/stdout pipes and over loopback TCP.
 // Usage: pd_ipc_bench <echo executable> [--quick]
 // Prints Markdown tables (docs/ipc-benchmark.md records the results).
+#include <fcntl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -86,7 +87,8 @@ std::optional<Link> start_stdio(const std::string& echo) {
 }
 
 std::optional<Link> start_tcp(const std::string& echo) {
-  const int listener = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  const int listener = socket(AF_INET, SOCK_STREAM, 0);
+  fcntl(listener, F_SETFD, FD_CLOEXEC);  // (macOS has no SOCK_CLOEXEC)
   sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -102,7 +104,8 @@ std::optional<Link> start_tcp(const std::string& echo) {
     std::fprintf(stderr, "%s\n", error.c_str());
     return std::nullopt;
   }
-  const int conn = accept4(listener, nullptr, nullptr, SOCK_CLOEXEC);
+  const int conn = accept(listener, nullptr, nullptr);
+  fcntl(conn, F_SETFD, FD_CLOEXEC);
   close(listener);
   const int one = 1;
   setsockopt(conn, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
