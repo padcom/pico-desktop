@@ -220,7 +220,9 @@ void Link::on_backend_message(std::uint64_t generation, Bytes message) {
   if (!was_ready && router_.backend_ready()) {
     budget_.ready(RestartBudget::Clock::now());
     log("pd-host: the backend is ready (epoch " + std::to_string(router_.epoch()) + ")");
-    liveness_tick(generation);
+    if (options_.liveness_interval_ms > 0) {
+      liveness_tick(generation);
+    }
   }
 }
 

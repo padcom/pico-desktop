@@ -23,3 +23,9 @@ framework checkout's build).
 In VS Code, the `dev` and `test` tasks run the same commands (Terminal → Run Task).
 `pnpm dev --trace-ipc` logs every message between the window and the backend (envelopes only,
 never payloads), and F12 opens DevTools.
+
+To debug the backend in VS Code, start **Debug the backend** (F5), then run `pnpm dev --debug`.
+The debugger attaches to the backend when it starts, and breakpoints in `.pi` files work. With
+`--debug` the host stops pinging the backend, so a paused backend isn't taken for a hung one
+and killed. Every rebuild starts a new backend process: to follow it, start **Debug the
+backend** again, then save.

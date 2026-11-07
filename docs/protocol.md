@@ -157,7 +157,8 @@ number every 5 s, and the backend answers `lifecycle` `pong` with the same `p`. 
 loop is stuck (a synchronous loop, a deadlock) can't answer. Once a backend has answered one ping,
 the host treats 15 s without a `pong` as a hang: it kills the backend, and the restart policy takes
 over as after a crash. A backend that never answers a ping (an implementation without liveness) is
-never judged by it. The frontend is never pinged.
+never judged by it. The frontend is never pinged. The intervals are host options (`--liveness=<ms>/<ms>`);
+`--liveness=off` sends no pings at all, for a backend paused in a debugger (`pico-desktop dev --debug`).
 
 The host also bounds what waits to be written to the backend: 1024 messages or 16 MiB. While that's
 full, the host refuses new requests and subscriptions from pages with `BUSY` and drops their events.

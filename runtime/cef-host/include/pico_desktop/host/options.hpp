@@ -51,7 +51,8 @@ struct Options {
   /// How long the backend has to finish after `closing` before it's killed.
   int close_grace_ms = 3000;
   /// Liveness (docs/protocol.md §7): ping the ready backend every `liveness_interval_ms`; once it
-  /// has answered one, `liveness_timeout_ms` without an answer is a hang.
+  /// has answered one, `liveness_timeout_ms` without an answer is a hang. 0: no pings
+  /// (`--liveness=off`).
   int liveness_interval_ms = 5000;
   int liveness_timeout_ms = 15000;
   /// Development: log every message's envelope (kind, id, name, window, subscription, size), never

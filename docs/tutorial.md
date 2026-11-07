@@ -33,7 +33,7 @@ A window opens:
 - **Backend edits** rebuild the Pico backend, and the host restarts it in the same window.
 - **A syntax error** prints the compiler's message and keeps the old backend running until you fix it.
 
-`pnpm dev --trace-ipc` logs every message's envelope (never its payload), and F12 opens DevTools. `pnpm ui` runs the frontend alone in any browser, against the mock backend.
+`pnpm dev --trace-ipc` logs every message's envelope (never its payload), and F12 opens DevTools. To debug the backend, start VS Code's **Debug the backend** first (the template's `.vscode/launch.json`), then run `pnpm dev --debug`. The debugger attaches when the backend starts, and `--debug` turns off the host's liveness pings, so a backend paused at a breakpoint isn't killed as hung. `pnpm ui` runs the frontend alone in any browser, against the mock backend.
 
 ## 3. Add a method
 

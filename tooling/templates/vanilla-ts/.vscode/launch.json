@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Start this first, then `pnpm dev --debug`: it attaches to the next backend that starts.
+      // After a rebuild, start it again and save a Pico file. Needs lldb-dap, and a pico whose
+      // `dap` supports attach (pico-lang #99).
+      "type": "pico",
+      "request": "attach",
+      "name": "Debug the backend",
+      "program": "${workspaceFolder}/.pico-desktop/dev/backend",
+      "waitFor": true
+    }
+  ]
+}

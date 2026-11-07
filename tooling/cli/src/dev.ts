@@ -64,15 +64,41 @@ export function worthShowing(line: string): boolean {
 export interface DevOptions {
   /** Log every message's envelope (not its payload) in the host. */
   traceIpc?: boolean | undefined
+  /** For a debugger attached to the backend: no liveness pings, which a stopped backend can't answer. */
+  debug?: boolean | undefined
 }
 
-function startHost(host: string, config: ResolvedConfig, url: string, options: DevOptions & { io: Output }) {
-  const { io } = options
+/** How to attach, said once when `dev --debug` starts. */
+export const DEBUG_HINT = 'dev │ debugging: the host no longer pings the backend, so a breakpoint doesn\'t get it killed. '
+  + 'The debugger attaches to the next backend that starts: start "Debug the backend" (VS Code) before this, '
+  + 'or start it and then save a Pico file'
+
+/**
+ * The host's arguments in development.
+ *
+ * @param config the app
+ * @param url the dev server
+ * @param options development options
+ * @returns the arguments
+ */
+export function devHostArgs(config: ResolvedConfig, url: string, options: DevOptions): string[] {
   const args = ['--dev', `--dev-url=${url}`, `--app-id=${config.app.id}`, `--backend=${devBackend(config)}`, '--control=stdin']
   if (options.traceIpc) {
     args.push('--trace-ipc')
   }
-  args.push(...appArgs(config))
+  if (options.debug) {
+    args.push('--liveness=off')
+  }
+
+  return [...args, ...appArgs(config)]
+}
+
+function startHost(host: string, config: ResolvedConfig, url: string, options: DevOptions & { io: Output }) {
+  const { io } = options
+  const args = devHostArgs(config, url, options)
+  if (options.debug) {
+    io.out(DEBUG_HINT)
+  }
   // Its own process group: a terminal's Ctrl+C reaches only the CLI, which then quits the host
   // (and through it the backend) in order, with the backend's grace period.
   const child = spawn(host, args, { cwd: config.root, stdio: ['pipe', 'pipe', 'pipe'], detached: true })

@@ -26,7 +26,8 @@ const usage = `Usage: pico-desktop <command> [options]
 
 Commands:
   create <dir> [--id <app-id>] [--framework <checkout>]   a new app
-  dev [--trace-ipc]   the app with HMR; Pico edits rebuild and restart the backend in the same window
+  dev [--trace-ipc] [--debug]   the app with HMR; Pico edits rebuild and restart the backend in the same window
+             (--debug: for a debugger attached to the backend; see the template's launch.json)
   generate   the contracts → TypeScript and Pico
   test       Vitest and pico test
   build      a portable bundle for this machine (dist/<name>-<version>-<target>/)
@@ -74,9 +75,9 @@ const handlers: Record<string, Handler> = {
   '--version': say(`pico-desktop ${pkg.version}`),
   'create': createCommand,
   'dev': async (args, io) => {
-    const { values } = parseArgs({ args, options: { 'trace-ipc': { type: 'boolean' } } })
+    const { values } = parseArgs({ args, options: { 'trace-ipc': { type: 'boolean' }, 'debug': { type: 'boolean' } } })
 
-    return dev(await loadConfig(process.cwd()), io, { traceIpc: values['trace-ipc'] })
+    return dev(await loadConfig(process.cwd()), io, { traceIpc: values['trace-ipc'], debug: values.debug })
   },
   'generate': inApp(generateCommand),
   'doctor': inApp(doctor),

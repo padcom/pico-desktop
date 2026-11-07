@@ -183,6 +183,11 @@ static void options() {
     const auto d = parse({"--app-dir=/x"});
     CHECK(std::get<Options>(d).liveness_interval_ms == 5000 && std::get<Options>(d).liveness_timeout_ms == 15000);
   }
+  {
+    const auto r = parse({"--app-dir=/x", "--liveness=off"});
+    const auto* o = std::get_if<Options>(&r);
+    CHECK(o && o->liveness_interval_ms == 0);
+  }
   for (const char* bad : {"--liveness=500", "--liveness=500/400", "--liveness=50/1000", "--liveness=a/b", "--liveness=-1/5"}) {
     CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", bad})));
   }

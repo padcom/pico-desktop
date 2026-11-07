@@ -25,11 +25,15 @@ then, develop with the compiler built from the `pico-lang` clone next to this re
 (`~/projects/padcom/pico/pico-lang`, `cargo build --release -p pico-cli`), first on `PATH`:
 `export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`. Since 2026-11-07 that
 build comes from a local branch, `local/integration`, which is never pushed. It holds pico-lang
-`main` (which has PR #91 since 2026-11-07: finalizers and buffer memory, #90) plus the fixes
-still in review: PR #94 (workspace imports from relative paths, #93), PR #96 (buffers freed in
-long synchronous code, #95) and PR #98 (`Map` kept deleted entries: memory grew with every I/O job,
-#97). The framework works around #93 with absolute paths
-until #94 lands. Newer `main` is stricter than 0.4.1 in two ways the code now handles:
+`main` plus the fixes still in review. `main` has had these merged since 2026-11-07: PR #91
+(finalizers and buffer memory, #90), PR #94 (workspace imports from relative paths, #93) and
+PR #96 (buffers freed in long synchronous code, #95). In review:
+- PR #98 (`Map` kept deleted entries: memory grew with every I/O job, #97), which `ipc.soak` needs.
+  Without it the backend peaks at 560 MB, over the test's 150 MB limit.
+- The `pico dap` attach fix (#99), which `pnpm dev --debug` with VS Code's **Debug the backend** needs.
+
+The framework keeps working around #93 with absolute paths until a release has the fix (0.4.1
+doesn't). Newer `main` is stricter than 0.4.1 in two ways the code now handles:
 `TextDecoder`'s constructor `throws RangeError` (#26), and later declarations in a block shadow
 earlier uses. CI's Pico job turns
 on by itself once the 0.4.2 release exists (see `.github/workflows/ci.yml`). Release archives are

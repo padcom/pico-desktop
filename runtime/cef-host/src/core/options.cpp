@@ -41,6 +41,11 @@ int small_number(const std::string& s) {
 }
 
 bool parse_liveness(const std::string& text, Options& options) {
+  if (text == "off") {  // a backend stopped in a debugger answers no pings
+    options.liveness_interval_ms = 0;
+    options.liveness_timeout_ms = 0;
+    return true;
+  }
   const auto slash = text.find('/');
   if (slash == std::string::npos) {
     return false;
@@ -71,7 +76,8 @@ std::string usage() {
          "  --trace-ipc            log each message's envelope, not its payload (needs --dev)\n"
          "  --multi-instance       allow several instances (default: a second launch focuses the first)\n"
          "  --capabilities=<list>  the native services the backend may use: window,dialogs,notifications\n"
-         "  --liveness=<ms>/<ms>   ping interval and hang timeout for the backend (default 5000/15000)\n"
+         "  --liveness=<ms>/<ms>   ping interval and hang timeout for the backend (default 5000/15000),\n"
+         "                         or off (for a backend stopped in a debugger)\n"
          "  --window-size=<w>x<h>  the window's initial size (default 1024x768)\n"
          "  --window-title=<text>  the window's title (default: the page's <title>)\n"
          "  --close-grace=<ms>     how long the backend has to finish when the app closes (default 3000)\n"
