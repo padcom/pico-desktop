@@ -81,8 +81,11 @@ int main() {
     std::ofstream(file) << "x";
     const HANDLE held = CreateFileW(file.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, 0, nullptr);
     CHECK(held != INVALID_HANDLE_VALUE);
+    fs::create_directories(dir / "Default");
+    std::ofstream(dir / "Default" / "data") << "x";
     std::error_code error;
     CHECK(!remove_temp_dir(dir, 200ms, error) && error);  // still held: fails, and says why
+    CHECK(fs::exists(file) && !fs::exists(dir / "Default"));  // but the rest is gone already
     std::thread release([held] {
       std::this_thread::sleep_for(500ms);
       CloseHandle(held);
@@ -98,11 +101,14 @@ int main() {
     const fs::path dir = make_private_temp_dir(prefix);
     fs::create_directories(dir / "locked");
     std::ofstream(dir / "locked" / "file") << "x";
+    fs::create_directories(dir / "other");
+    std::ofstream(dir / "other" / "data") << "x";
     fs::permissions(dir / "locked", fs::perms::owner_read | fs::perms::owner_exec);
     std::error_code error;
     const auto start = std::chrono::steady_clock::now();
     CHECK(!remove_temp_dir(dir, 300ms, error) && error);
     CHECK(std::chrono::steady_clock::now() - start < 5s);
+    CHECK(fs::exists(dir / "locked" / "file") && !fs::exists(dir / "other"));  // all else is gone
     fs::permissions(dir / "locked", fs::perms::owner_all);
     CHECK(remove_temp_dir(dir, 1s, error) && !error);
   }

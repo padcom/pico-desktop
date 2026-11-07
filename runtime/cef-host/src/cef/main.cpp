@@ -146,10 +146,17 @@ int run_browser(int argc, char** argv) {
   settings.no_sandbox = false;  // never disabled (PROJECT_DESCRIPTION.md §6)
   settings.remote_debugging_port = 0;
   settings.persist_session_cookies = false;
-  settings.log_severity = LOGSEVERITY_WARNING;
   CefString(&settings.root_cache_path) = cache.string();
   CefString(&settings.cache_path) = cache.string();
-  CefString(&settings.log_file) = (cache / "cef.log").string();
+  if (temporary_cache) {
+    // A temporary profile is removed at exit, its log with it, so there's nothing to keep; and on
+    // Windows the log, which stays open until the process ends, kept it from being removed at
+    // all (#23). No file then (FATAL messages still go to stderr).
+    settings.log_severity = LOGSEVERITY_DISABLE;
+  } else {
+    settings.log_severity = LOGSEVERITY_WARNING;
+    CefString(&settings.log_file) = (cache / "cef.log").string();
+  }
   if (!CefInitialize(main_args, settings, app, g_sandbox_info)) {
     if (CefGetExitCode() == CEF_RESULT_CODE_NORMAL_EXIT_PROCESS_NOTIFIED) {
       std::printf("pico-desktop-host: %s is already running; its window was brought to the front\n",
