@@ -59,6 +59,10 @@ build/cef/runtime/cef-host/pico-desktop-host --help
 - hello-world end to end;
 - the CLI's dev loop and its bundle.
 
+## Releasing
+
+See [docs/releasing.md](docs/releasing.md).
+
 ## Related projects
 
 These are independent projects: Pico Desktop doesn't depend on them.
