@@ -22,3 +22,9 @@ add_executable(pd_ipc_value_test tests/value_test.cpp)
 target_link_libraries(pd_ipc_value_test PRIVATE pd_ipc)
 pd_warnings(pd_ipc_value_test)
 add_test(NAME ipc.value COMMAND pd_ipc_value_test)
+
+# Untrusted bytes through every reader (run it under the `sanitize` preset for memory errors).
+add_executable(pd_ipc_fuzz_test tests/fuzz_test.cpp)
+target_link_libraries(pd_ipc_fuzz_test PRIVATE pd_ipc)
+pd_warnings(pd_ipc_fuzz_test)
+add_test(NAME ipc.fuzz COMMAND pd_ipc_fuzz_test)

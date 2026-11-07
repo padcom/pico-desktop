@@ -34,6 +34,12 @@ jobs:
       - run: cmake --preset default
       - run: cmake --build --preset default
       - run: ctest --preset default
+      - name: The same under ASan and UBSan (with the fuzz test)
+        run: |
+          cmake --preset sanitize
+          cmake --build --preset sanitize
+          ctest --preset sanitize
+          build/sanitize/runtime/ipc/pd_ipc_fuzz_test 2000000 "$GITHUB_RUN_NUMBER"
 
   cef-host:
     name: CEF host (build, self-tests under Xvfb)

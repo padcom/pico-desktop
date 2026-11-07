@@ -23,6 +23,13 @@ function(pd_warnings target)
   endif()
 endfunction()
 
+# The fuzz tests' preset (`sanitize`): ASan and UBSan, failing on the first report.
+option(PD_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+if(PD_SANITIZE AND NOT MSVC)
+  add_compile_options(-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address,undefined)
+endif()
+
 enable_testing()
 
 if(PD_WITH_CEF)

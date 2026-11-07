@@ -1,0 +1,132 @@
+// Untrusted bytes (what the host delivers) through the Pico decoders: random bytes and mutations
+// of valid envelopes. decode may only throw CborError and decodeEnvelope ProtocolError; a panic
+// (an out-of-bounds read, an overflow) would end the test run. What they accept must round-trip.
+// Deterministic (a fixed seed).
+import { describe, it, expect } from "std/test"
+import { Random } from "std/math"
+import { hex } from "std/encoding"
+import { Cbor, CborError, decode, encode } from "./cbor"
+import { ProtocolError, decodeEnvelope, encodeEnvelope, envelope } from "./envelope"
+
+const EDGES: int[] = [0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1f, 0x5f, 0x7f, 0x9f, 0xbf, 0xc0, 0xd8, 0xf7, 0xf8, 0xf9, 0xff, 0x00]
+
+function seeds(): Uint8Array[] {
+  const hello = envelope("lifecycle")
+  hello.n = "hello"
+  const request = envelope("request")
+  request.id = 42
+  request.n = "greeting.hello"
+  const p = new Map<string, Cbor>()
+  p.set("a", Cbor.List([Cbor.Uint(1), Cbor.Negative(0), Cbor.Text("x")]))
+  const b = new Uint8Array(2)
+  b.set(1, 255)
+  p.set("b", Cbor.Bytes(b))
+  p.set("c", Cbor.Bool(true))
+  p.set("d", Cbor.Float(1.5))
+  request.p = Cbor.Dict(p)
+  const tick = envelope("event")
+  tick.n = "tick"
+  tick.s = 5
+  const cancel = envelope("cancel")
+  cancel.id = 1
+  [encodeEnvelope(hello), encodeEnvelope(request), encodeEnvelope(tick), encodeEnvelope(cancel)]
+}
+
+/// One change at `at`: replace, insert, delete, truncate, or an interesting byte.
+function mutateOnce(bytes: int[], op: int, at: int, random: Random): void {
+  if (op == 1) {
+    const _inserted = bytes.splice(at, 0, random.int(0, 256))
+    return
+  }
+  if (op == 3) {
+    const _truncated = bytes.splice(at, bytes.length - at)
+    return
+  }
+  if (at >= bytes.length) {
+    return
+  }
+  if (op == 0) {
+    bytes[at] = random.int(0, 256)
+  } else if (op == 2) {
+    const _deleted = bytes.splice(at, 1)
+  } else {
+    bytes[at] = EDGES[random.int(0, EDGES.length)]
+  }
+}
+
+function mutate(valid: Uint8Array, random: Random): Uint8Array {
+  const bytes: int[] = []
+  let k = 0
+  while (k < valid.length) {
+    bytes.push(valid.get(k) as int)
+    k += 1
+  }
+  const n = random.int(1, 5)
+  let i = 0
+  while (i < n) {
+    const at = if (bytes.length == 0) 0 else random.int(0, bytes.length)
+    const op = random.int(0, 5)
+    mutateOnce(bytes, op, at, random)
+    i += 1
+  }
+  const out = new Uint8Array(bytes.length)
+  let j = 0
+  while (j < bytes.length) {
+    out.set(j, bytes[j] as u8)
+    j += 1
+  }
+  out
+}
+
+function randomBytes(random: Random): Uint8Array {
+  const out = new Uint8Array(random.int(0, 48))
+  let i = 0
+  while (i < out.length) {
+    out.set(i, random.int(0, 256) as u8)
+    i += 1
+  }
+  out
+}
+
+/// Whether `bytes` decode as CBOR (and if so, that they round-trip).
+function cborChecks(bytes: Uint8Array): bool {
+  try {
+    const value = decode(bytes)
+    expect(hex.encode(encode(decode(encode(value))))).toBe(hex.encode(encode(value)))
+    true
+  } catch (e: CborError) {
+    false
+  }
+}
+
+/// Whether `bytes` decode as an envelope (and if so, that it round-trips).
+function envelopeChecks(bytes: Uint8Array): bool {
+  try {
+    const e = decodeEnvelope(bytes)
+    const again = encodeEnvelope(decodeEnvelope(encodeEnvelope(e)))
+    expect(hex.encode(again)).toBe(hex.encode(encodeEnvelope(e)))
+    true
+  } catch (e: ProtocolError) {
+    false
+  }
+}
+
+function survivesUntrustedBytes(): void {
+  const random = new Random(24301)
+  const valid = seeds()
+  let accepted = 0
+  let i = 0
+  while (i < 20000) {
+    const bytes = if (i % 4 == 0) randomBytes(random) else mutate(valid[random.int(0, valid.length)], random)
+    cborChecks(bytes)
+    if (envelopeChecks(bytes)) {
+      accepted += 1
+    }
+    i += 1
+  }
+  expect(accepted > 50).toBe(true)
+}
+
+describe("decoding untrusted bytes", () => {
+  it("throws only CborError/ProtocolError, and what it accepts round-trips", survivesUntrustedBytes)
+})
