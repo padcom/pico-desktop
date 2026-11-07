@@ -190,6 +190,36 @@ jobs:
       - name: The host's tests in a real window
         run: ctest --preset cef --output-on-failure
 
+  cef-host-windows:
+    # F6: the CEF host on Windows x64: pico-desktop-host.dll run by CEF's console bootstrap
+    # (the sandbox's way since CEF 138), built with MSVC and self-tested in a real window.
+    name: CEF host, windows-x64 (build, self-tests)
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Cache the pinned CEF
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pico-desktop/cef
+          key: cef-windows-x64-${{ hashFiles('toolchain.json') }}
+      - name: Fetch, verify and configure CEF
+        run: PD_CEF_ROOT=$(node scripts/fetch-cef.mjs) cmake --preset cef
+      - name: Build the host
+        run: cmake --build --preset cef
+      - name: The self-test fixture
+        run: pnpm --filter @pico-desktop/host-fixture... build
+      - name: Self-tests in a real window
+        run: ctest --preset cef --output-on-failure -R "host\.(version|refuses-remote-debugging|self-test)"
+
   bundle-smoke:
     # F6's clean-machine smoke: the packaged app on a fresh runner of its target, with only the
     # runtime libraries a desktop has (docs/platform-linux.md) and a display. No build tree, no

@@ -1,15 +1,9 @@
 #include "link.hpp"
 
-#include <fcntl.h>
+#if !defined(_WIN32)
 #include <poll.h>
-#if defined(__APPLE__)
-#include <sys/event.h>
-#else
-#include <sys/syscall.h>
-#endif
-#include <signal.h>
-#include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 #include <cerrno>
 #include <chrono>
@@ -17,6 +11,7 @@
 #include <vector>
 
 #include "host.hpp"
+#include "process_os.hpp"
 #include "include/base/cef_bind.h"
 #include "include/base/cef_callback.h"
 #include "include/cef_process_message.h"
@@ -41,65 +36,6 @@ Link* g_link = nullptr;
 std::string page_key(const std::string& frame_id, int context) { return frame_id + "#" + std::to_string(context); }
 
 /// Reaps `pid`, waiting up to `grace` and then killing it; the wait status, or -1.
-/// A descriptor that becomes readable when `pid` exits (-1 if there's none): a pidfd on Linux, a
-/// kqueue watching for the exit on macOS.
-int exit_watch(pid_t pid) {
-#if defined(__APPLE__)
-  const int kq = ::kqueue();
-  if (kq < 0) {
-    return -1;
-  }
-  struct kevent change;
-  EV_SET(&change, pid, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, nullptr);
-  if (::kevent(kq, &change, 1, nullptr, 0, nullptr) != 0) {
-    ::close(kq);
-    return -1;
-  }
-  ::fcntl(kq, F_SETFD, FD_CLOEXEC);
-  return kq;
-#else
-  return static_cast<int>(::syscall(SYS_pidfd_open, pid, 0));
-#endif
-}
-
-int reap(pid_t pid, std::chrono::milliseconds grace) {
-  const auto until = std::chrono::steady_clock::now() + grace;
-  int status = 0;
-  for (;;) {
-    const pid_t r = waitpid(pid, &status, WNOHANG);
-    if (r == pid) {
-      return status;
-    }
-    if (r < 0 && errno != EINTR) {
-      return -1;
-    }
-    if (std::chrono::steady_clock::now() >= until) {
-      break;
-    }
-    poll(nullptr, 0, 10);
-  }
-  kill(pid, SIGKILL);
-  while (waitpid(pid, &status, 0) < 0) {
-    if (errno != EINTR) {
-      return -1;
-    }
-  }
-  return status;
-}
-
-std::string describe(int status) {
-  if (status < 0) {
-    return "an unknown status";
-  }
-  if (WIFEXITED(status)) {
-    return "exit code " + std::to_string(WEXITSTATUS(status));
-  }
-  if (WIFSIGNALED(status)) {
-    return "signal " + std::to_string(WTERMSIG(status));
-  }
-  return "status " + std::to_string(status);
-}
-
 }  // namespace
 
 void Link::trace(const char* direction, std::span<const std::byte> message) {
@@ -114,7 +50,7 @@ void init_link(const Options& options) { g_link = new Link(options); }
 
 Link::Link(const Options& options) : options_(options), router_(*this, options.mode == Mode::self_test) {
   // A backend that dies mid-write must not take the host down: writes fail with EPIPE instead.
-  signal(SIGPIPE, SIG_IGN);
+  os::init_process_handling();
 }
 
 Link::~Link() { stop(std::chrono::milliseconds(0)); }
@@ -190,7 +126,7 @@ void Link::log(const std::string& line) { log_line(line); }
 void Link::kill_backend() {
   if (process_) {
     log("pd-host: killing the backend (self-test)");
-    kill(process_->child.pid, SIGKILL);
+    os::kill(process_->child);
   }
 }
 
@@ -211,11 +147,13 @@ void Link::spawn() {
   process_ = std::make_unique<Process>();
   process_->child = *child;
   process_->generation = ++generation_;
-  process_->pidfd = exit_watch(child->pid);
+  process_->pidfd = os::exit_watch(*child);
+#if !defined(_WIN32)
   if (!ipc::cloexec_pipe(process_->stop)) {
     process_->stop[0] = process_->stop[1] = -1;
   }
-  ::fcntl(child->to_child, F_SETFL, ::fcntl(child->to_child, F_GETFL) | O_NONBLOCK);
+#endif
+  os::prepare_pipes(*child);
   process_->reader = std::thread(read_loop, process_.get());
   process_->writer = std::thread(write_loop, process_.get());
   log("pd-host: started the backend (pid " + std::to_string(child->pid) + ")");
@@ -257,11 +195,11 @@ void Link::on_backend_exit(std::uint64_t generation) {
   }
   const int status = end_process(std::chrono::milliseconds(0));
   if (closing_) {
-    log("pd-host: the backend ended (" + describe(status) + ")");
+    log("pd-host: the backend ended (" + os::describe(status) + ")");
     finish_close();
     return;
   }
-  log("pd-host: the backend exited (" + describe(status) + ")");
+  log("pd-host: the backend exited (" + os::describe(status) + ")");
   router_.backend_stopped();
   if (planned_restart_) {
     planned_restart_ = false;
@@ -294,7 +232,7 @@ void Link::restart_backend() {
 void Link::force_end(std::uint64_t generation) {
   if (process_ && process_->generation == generation) {
     log("pd-host: the backend didn't finish in time; killing it");
-    kill(process_->child.pid, SIGKILL);
+    os::kill(process_->child);
   }
 }
 
@@ -321,7 +259,7 @@ void Link::liveness_tick(std::uint64_t generation) {
   if (process_->answered && silent > std::chrono::milliseconds(options_.liveness_timeout_ms)) {
     log("pd-host: the backend stopped answering (no pong for " +
         std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(silent).count()) + " ms); killing it");
-    kill(process_->child.pid, SIGKILL);  // then it's a crash: the restart policy takes over
+    os::kill(process_->child);  // then it's a crash: the restart policy takes over
     return;
   }
   router_.ping(++process_->pings);
@@ -422,7 +360,7 @@ void Link::stop(std::chrono::milliseconds grace) {
   closing_ = true;
   if (process_) {
     const int status = end_process(grace);
-    log("pd-host: the backend ended (" + describe(status) + ")");
+    log("pd-host: the backend ended (" + os::describe(status) + ")");
   }
 }
 
@@ -435,16 +373,21 @@ int Link::end_process(std::chrono::milliseconds grace) {
   process->wake.notify_one();
   // The writer closes stdin once the queue is out; a backend that doesn't exit then is killed.
   // Then both threads stop waiting, even if something the backend started still holds its pipes.
-  const int status = reap(process->child.pid, grace);
+  const int status = os::reap(process->child, grace);
+#if defined(_WIN32)
+  os::cancel_io(process->child.from_child);
+  os::cancel_io(process->child.to_child);
+#else
   if (process->stop[1] >= 0) {
     [[maybe_unused]] const auto written = ::write(process->stop[1], "x", 1);
   }
+#endif
   process->writer.join();
   process->reader.join();
-  close(process->child.from_child);
+  os::close_fd(process->child.from_child);
   for (const int fd : {process->pidfd, process->stop[0], process->stop[1]}) {
     if (fd >= 0) {
-      close(fd);
+      os::close_fd(fd);
     }
   }
   return status;
@@ -452,6 +395,7 @@ int Link::end_process(std::chrono::milliseconds grace) {
 
 namespace {
 
+#if !defined(_WIN32)
 /// Waits until `fd` can be read (or written, `out`), the process has exited (`pidfd`), or `stop`
 /// is signalled. Returns which: 0 fd, 1 exited, 2 stopped, -1 an error.
 int wait_for(int fd, bool out, int pidfd, int stop) {
@@ -474,6 +418,11 @@ int wait_for(int fd, bool out, int pidfd, int stop) {
   }
 }
 
+#else
+/// Windows: the reads and writes block, and ending the process cancels them (os::cancel_io).
+int wait_for(int, bool, int, int) { return 0; }
+#endif
+
 }  // namespace
 
 void Link::read_loop(Process* process) {
@@ -485,10 +434,7 @@ void Link::read_loop(Process* process) {
     if (wait_for(process->child.from_child, false, process->pidfd, process->stop[0]) != 0) {
       break;
     }
-    const ssize_t n = ::read(process->child.from_child, chunk.data(), chunk.size());
-    if (n < 0 && errno == EINTR) {
-      continue;
-    }
+    const long n = os::read_some(process->child.from_child, chunk.data(), chunk.size());
     if (n <= 0) {
       break;
     }
@@ -509,7 +455,10 @@ void Link::read_loop(Process* process) {
 namespace {
 
 /// Writes all of `bytes` to the non-blocking `fd`; false once the backend is gone or `stop` came.
-bool write_out(int fd, std::span<const std::byte> bytes, int pidfd, int stop) {
+bool write_out(int fd, std::span<const std::byte> bytes, [[maybe_unused]] int pidfd, [[maybe_unused]] int stop) {
+#if defined(_WIN32)
+  return ipc::write_all(fd, bytes);  // blocking; ending the process cancels it
+#else
   std::size_t done = 0;
   while (done < bytes.size()) {
     const ssize_t n = ::write(fd, bytes.data() + done, bytes.size() - done);
@@ -524,6 +473,7 @@ bool write_out(int fd, std::span<const std::byte> bytes, int pidfd, int stop) {
     }
   }
   return true;
+#endif
 }
 
 }  // namespace
@@ -545,7 +495,7 @@ void Link::write_loop(Process* process) {
     // After a failed write the backend is gone: the rest is dropped (the reader reports the exit).
     broken = broken || !write_out(process->child.to_child, ipc::frame(message), process->pidfd, process->stop[0]);
   }
-  close(process->child.to_child);
+  os::close_fd(process->child.to_child);
 }
 
 }  // namespace pico_desktop::host::cef

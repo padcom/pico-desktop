@@ -1,7 +1,9 @@
 #include "services.hpp"
 
+#if !defined(_WIN32)
 #include <spawn.h>
 #include <sys/wait.h>
+#endif
 
 #include <cerrno>
 #include <thread>
@@ -14,7 +16,9 @@
 #include "link.hpp"
 #include "pico_desktop/ipc/cbor.hpp"
 
+#if !defined(_WIN32)
 extern char** environ;
+#endif
 
 namespace pico_desktop::host::cef {
 
@@ -150,6 +154,10 @@ void notify(const ServiceCall& call, const ipc::Value& params) {
     link().refuse(call, "INVALID_PAYLOAD", "$.title: expected text");
     return;
   }
+#if defined(_WIN32)
+  link().refuse(call, "UNAVAILABLE", "desktop notifications aren't implemented on Windows yet");
+  return;
+#else
   // The desktop's notification service through libnotify's notify-send (D-Bus directly: later).
   std::string app = "--app-name=" + browser_state().options.policy.app_id;
   std::string body = text_or(params, "body");
@@ -169,6 +177,7 @@ void notify(const ServiceCall& call, const ipc::Value& params) {
     }
   }).detach();
   ok(call);
+#endif
 }
 
 }  // namespace

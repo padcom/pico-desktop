@@ -8,12 +8,13 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { execFileSync } from 'node:child_process'
 
-const root = new URL('..', import.meta.url).pathname
+const root = fileURLToPath(new URL('..', import.meta.url)) // (pathname is /C:/… on Windows)
 const toolchain = JSON.parse(readFileSync(join(root, 'toolchain.json'), 'utf8'))
 const cdn = 'https://cef-builds.spotifycdn.com'
 

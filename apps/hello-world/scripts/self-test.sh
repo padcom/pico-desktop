@@ -16,9 +16,9 @@ for need in "$host" "$frontend/index.html" "$backend"; do
   fi
 done
 runner=()
-# macOS has no `timeout` unless coreutils is installed, and needs no X display.
+# macOS has no `timeout` unless coreutils is installed; only Linux needs an X display.
 command -v timeout > /dev/null || timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
-if [[ "$(uname)" != Darwin && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+if [[ "$(uname)" == Linux && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   if command -v xvfb-run > /dev/null; then
     runner=(xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24")
   else

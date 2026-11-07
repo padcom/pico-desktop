@@ -1,8 +1,16 @@
 #include "signals.hpp"
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
+#include <atomic>
+#else
 #include <fcntl.h>
 #include <signal.h>
 #include <unistd.h>
+#endif
 
 #include <cerrno>
 #include <string>
@@ -19,14 +27,6 @@ namespace pico_desktop::host::cef {
 
 namespace {
 
-int g_pipe[2] = {-1, -1};
-
-// Async-signal-safe: only a write.
-void on_signal(int signo) {
-  const auto byte = static_cast<char>(signo);
-  [[maybe_unused]] const auto written = ::write(g_pipe[1], &byte, 1);
-}
-
 void handle(int signo, int count) {
   if (count == 1) {
     log_line("pd-host: got signal " + std::to_string(signo) + ": closing");
@@ -35,6 +35,25 @@ void handle(int signo, int count) {
     log_line("pd-host: got signal " + std::to_string(signo) + " again: quitting now");
     CefQuitMessageLoop();
   }
+}
+
+#if defined(_WIN32)
+
+// Ctrl+C, Ctrl+Break, the console closing, logoff, shutdown: on the console's own thread.
+BOOL WINAPI on_console_event(DWORD type) {
+  static std::atomic<int> count{0};
+  CefPostTask(TID_UI, base::BindOnce(&handle, static_cast<int>(type), ++count));
+  return TRUE;
+}
+
+#else
+
+int g_pipe[2] = {-1, -1};
+
+// Async-signal-safe: only a write.
+void on_signal(int signo) {
+  const auto byte = static_cast<char>(signo);
+  [[maybe_unused]] const auto written = ::write(g_pipe[1], &byte, 1);
 }
 
 void watch() {
@@ -52,8 +71,13 @@ void watch() {
   }
 }
 
+#endif
+
 }  // namespace
 
+#if defined(_WIN32)
+void start_signal_watch() { SetConsoleCtrlHandler(on_console_event, TRUE); }
+#else
 void start_signal_watch() {
   if (!pico_desktop::ipc::cloexec_pipe(g_pipe)) {
     return;
@@ -67,5 +91,6 @@ void start_signal_watch() {
   }
   std::thread(watch).detach();
 }
+#endif
 
 }  // namespace pico_desktop::host::cef
