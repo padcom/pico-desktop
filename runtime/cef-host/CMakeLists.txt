@@ -7,7 +7,8 @@ add_library(pd_host_core STATIC
   src/core/policy.cpp
   src/core/router.cpp
   src/core/sandbox.cpp
-  src/core/services.cpp)
+  src/core/services.cpp
+  src/core/temp_dir.cpp)
 target_include_directories(pd_host_core PUBLIC include)
 target_link_libraries(pd_host_core PUBLIC pd_ipc)
 pd_warnings(pd_host_core)
@@ -23,6 +24,12 @@ add_executable(pd_host_exit_code_test tests/exit_code_test.cpp)
 target_link_libraries(pd_host_exit_code_test PRIVATE pd_host_core)
 pd_warnings(pd_host_exit_code_test)
 add_test(NAME host.exit-code COMMAND pd_host_exit_code_test)
+
+# The self-test's throwaway profile directory: private and unguessable on POSIX (#27).
+add_executable(pd_host_temp_dir_test tests/temp_dir_test.cpp)
+target_link_libraries(pd_host_temp_dir_test PRIVATE pd_host_core)
+pd_warnings(pd_host_temp_dir_test)
+add_test(NAME host.temp-dir COMMAND pd_host_temp_dir_test)
 
 add_executable(pd_host_router_test tests/router_test.cpp)
 target_link_libraries(pd_host_router_test PRIVATE pd_host_core)
