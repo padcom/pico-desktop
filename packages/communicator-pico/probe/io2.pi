@@ -1,0 +1,34 @@
+import { readText } from "std/fs"
+import { args, stdin, stdout, stderr } from "std/process"
+import { delay } from "std/timers"
+
+async function hwm(): Promise<string> throws Error {
+  for (const line of (await readText("/proc/self/status")).split("\n")) {
+    if (line.startsWith("VmHWM:")) {
+      return line.replace("VmHWM:", "").trim()
+    }
+  }
+  "?"
+}
+
+async function main(): Promise<void> throws Error {
+  if (args[0] == "read") {
+    let total = 0
+    for await (const chunk of stdin) {
+      total += chunk.length
+      await delay(0)
+    }
+    await stderr.writeText(`read ${total / 1048576} MiB: ${await hwm()}\n`)
+  } else {
+    const n = parseInt(args[1])
+    const block = new Uint8Array(1024 * 1024)
+    let i = 0
+    while (i < n) {
+      await stdout.write(block.slice())
+      i += 1
+    }
+    await stderr.writeText(`wrote ${n} MiB: ${await hwm()}\n`)
+  }
+}
+
+await main()

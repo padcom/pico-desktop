@@ -1,0 +1,50 @@
+import { readText } from "std/fs"
+import { args } from "std/process"
+import { delay } from "std/timers"
+import { Cbor, decode, encode } from "../cbor"
+import { decodeEnvelope, encodeEnvelope, envelope } from "../envelope"
+import { encodeFrame, FrameReader } from "../framing"
+
+async function hwm(): Promise<string> throws Error {
+  for (const line of (await readText("/proc/self/status")).split("\n")) {
+    if (line.startsWith("VmHWM:")) {
+      return line.replace("VmHWM:", "").trim()
+    }
+  }
+  "?"
+}
+
+const mode = args[0]
+const n = parseInt(args[1])
+const payload = new Uint8Array(1024 * 1024)
+let i = 0
+while (i < n) {
+  if (mode == "cbor") {
+    const bytes = encode(Cbor.Bytes(payload))
+    const back = decode(bytes)
+    encode(back)
+  } else if (mode == "envelope") {
+    const e = envelope("request")
+    e.id = (i + 1) as u64
+    e.n = "echo"
+    e.p = Cbor.Bytes(payload)
+    const d = decodeEnvelope(encodeEnvelope(e))
+    const r = envelope("response")
+    r.id = d.id
+    r.p = d.p
+    encodeFrame(encodeEnvelope(r))
+  } else if (mode == "frames") {
+    const reader = new FrameReader()
+    const e = envelope("request")
+    e.id = 1
+    e.n = "echo"
+    e.p = Cbor.Bytes(payload)
+    reader.push(encodeFrame(encodeEnvelope(e)))
+    reader.next()
+  } else {
+    payload.slice()
+  }
+  i += 1
+  await delay(0)
+}
+println(`${mode} n=${n}: ${await hwm()}`)

@@ -1,0 +1,36 @@
+import { readText } from "std/fs"
+import { stdin, stderr } from "std/process"
+import { delay } from "std/timers"
+import { gc } from "std/gc"
+
+class Counts {
+  public made: int = 0
+  public finalized: int = 0
+}
+const counts = new Counts()
+const registry = new FinalizationRegistry<int>((n: int) => {
+  counts.finalized += 1
+})
+
+async function hwm(): Promise<string> throws Error {
+  for (const line of (await readText("/proc/self/status")).split("\n")) {
+    if (line.startsWith("VmRSS:")) {
+      return line.replace("VmRSS:", "").trim()
+    }
+  }
+  "?"
+}
+
+async function main(): Promise<void> throws Error {
+  for await (const chunk of stdin) {
+    counts.made += 1
+    registry.register(chunk.buffer, chunk.length)
+  }
+  gc.collect()
+  await delay(10)
+  gc.collect()
+  await delay(10)
+  await stderr.writeText(`chunks ${counts.made}, finalized ${counts.finalized}, rss ${await hwm()}\n`)
+}
+
+await main()

@@ -24,6 +24,15 @@ The machine is Debian 13 (Linux 6.12, arm64 VM, 12 cores). The Pico compiler is 
 - **Bulk:** TCP moves 1 MiB messages faster (larger socket buffers). At 400 MB/s, pipes are far beyond what the UI link needs.
 - **Throughput:** pipelined throughput is the same for both and is limited by the backend, not the transport (see the next section).
 
+**After three runtime fixes (2026-11-07):** pico-lang `main` 70c61e6 plus PR #94, PR #96 (#95: buffers in synchronous code) and PR #98 (#97: `Map` kept deleted entries), release build:
+
+| transport | 64 B round trip p50 / p95 / p99 | 64 KiB p50 | 1 MiB p50 | msg/s, 1 in flight | 10 in flight | 100 in flight |
+|---|---|---|---|---|---|---|
+| stdin/stdout pipes | **44** / 78 / 131 µs | 142 µs (425 MB/s) | 2.0 ms (**501 MB/s**) | **20 592** | **84 784** | **144 068** |
+| loopback TCP | 81 / 118 / 177 µs | 148 µs (402 MB/s) | 1.2 ms (816 MB/s) | 11 852 | 69 503 | 140 316 |
+
+Backend CPU for the whole run fell from 6.3 s to 2.4 s, and its peak RSS from ~410 MB to **50 MB**. The pipelined numbers aren't limited by the backend's bookkeeping any more. The cause is described under "What the benchmark found in Pico" below.
+
 | failure | observed (pipes) |
 |---|---|
 | backend killed (SIGKILL) with a request pending | EOF on the pipe after **0.07–0.14 ms** |
@@ -47,3 +56,5 @@ pico-lang #90 has the analysis. The fix runs due finalizers between busy loop st
 - peak RSS is still ~410 MB, mostly from the 1 MiB phase (re-measured 2026-11-07 with main: 413 MB; 1 MiB p50 4.0 ms, 256 MB/s), so more work is needed there.
 
 This doesn't depend on the transport: both transports showed the same growth.
+
+**The rest: pico-lang #97 (2026-11-07).** The remaining ~410 MB grew linearly with the number of requests, about 1 MiB kept per 1 MiB echoed, and the code under test wasn't the cause. `Map.delete` kept a deleted entry, key and value, until a rehash, and rehashes always doubled the buckets. The event loop's `io` map has one entry per I/O job, so it kept every read's promise and its 64 KiB chunk: a program reading stdin kept about half of everything it had read. PR #98 fixes it, and the backend now stays at 20 MB after 400 × 1 MiB requests. The pico-desktop Communicator's own maps (running handlers, waiting requests) churn the same way and get the fix too. #95 (PR #96) is separate: buffers in long synchronous code.
