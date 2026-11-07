@@ -69,8 +69,9 @@ pnpm test > "$scratch/test.log" 2>&1 || { cat "$scratch/test.log"; fail "pnpm te
 (cd apps/frontend && pnpm exec tsc -p .) || fail "the template's frontend doesn't typecheck"
 # The template's end-to-end tests: the real window and backend, driven over DevTools.
 PICO_DESKTOP_HOST=$host pnpm e2e > "$scratch/e2e.log" 2>&1 || { cat "$scratch/e2e.log"; fail "pnpm e2e"; }
-grep -q 'Tests  3 passed' "$scratch/e2e.log" || { cat "$scratch/e2e.log"; fail "pnpm e2e didn't run the template's 3 tests"; }
-grep "Tests  " "$scratch/e2e.log"
+# (Without colors: CI forces them.)
+sed 's/\x1b\[[0-9;]*m//g' "$scratch/e2e.log" | grep -q 'Tests  3 passed' \
+  || { cat "$scratch/e2e.log"; fail "pnpm e2e didn't run the template's 3 tests"; }
 
 mkfifo "$scratch/keys"
 exec 3<> "$scratch/keys"
