@@ -31,6 +31,7 @@
 #include "include/cef_command_line.h"
 #include "include/cef_version.h"
 #include "pico_desktop/host/sandbox.hpp"
+#include "pico_desktop/host/temp_dir.hpp"
 
 namespace pico_desktop::host::cef {
 
@@ -53,16 +54,7 @@ fs::path cache_root(const Options& options, bool& temporary) {
   if (options.mode == Mode::self_test) {
     // Self-tests never touch (or lock) a real profile.
     temporary = true;
-    for (int attempt = 0; attempt < 100; ++attempt) {
-      const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-      const fs::path dir = fs::temp_directory_path() /
-                           ("pd-host-self-test-" + std::to_string(process_id()) + "-" + std::to_string(stamp + attempt));
-      std::error_code error;
-      if (fs::create_directory(dir, error)) {
-        return dir;
-      }
-    }
-    return {};
+    return make_private_temp_dir("pd-host-self-test-");
   }
 #if defined(_WIN32)
   const char* local = std::getenv("LOCALAPPDATA");
@@ -184,10 +176,12 @@ int run_browser(int argc, char** argv) {
   if (temporary_cache) {
     fs::remove_all(cache, error);
   }
+  int code = 0;
   if (state.options.mode == Mode::self_test) {
-    return state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
+    code = state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
   }
-  return 0;
+  signal_watch_shutdown_done();  // a console close/logoff/shutdown handler may be waiting for this
+  return code;
 }
 
 }  // namespace pico_desktop::host::cef
