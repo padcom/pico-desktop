@@ -25,8 +25,8 @@ then, develop with the compiler built from the `pico-lang` clone next to this re
 (`~/projects/padcom/pico/pico-lang`, `cargo build --release -p pico-cli`), first on `PATH`:
 `export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`. Since 2026-11-07 that
 build comes from a local branch, `local/integration`, which is never pushed. It holds pico-lang
-`main` plus the fixes still in review: PR #91 (finalizers and buffer memory, #90) and PR #94
-(workspace imports from relative paths, #93). The framework works around #93 with absolute paths
+`main` (which has PR #91 since 2026-11-07: finalizers and buffer memory, #90) plus the fix still
+in review: PR #94 (workspace imports from relative paths, #93). The framework works around #93 with absolute paths
 until #94 lands. Newer `main` is stricter than 0.4.1 in two ways the code now handles:
 `TextDecoder`'s constructor `throws RangeError` (#26), and later declarations in a block shadow
 earlier uses. CI's Pico job turns
