@@ -18,6 +18,7 @@
 
 #include "include/base/cef_callback.h"
 #include "include/cef_browser.h"
+#include "pico_desktop/host/interruptible_io.hpp"
 #include "pico_desktop/host/options.hpp"
 #include "pico_desktop/host/restart.hpp"
 #include "pico_desktop/host/router.hpp"
@@ -92,6 +93,11 @@ class Link : public RouterOutput {
     int pidfd = -1;
     // Written by end_process: the reader and writer stop waiting on the pipes.
     int stop[2] = {-1, -1};
+    // The reader's and writer's blocking pipe calls (Windows), stopped when the process exits
+    // (`watcher`) or is ended (end_process).
+    InterruptibleIo reader_io;
+    InterruptibleIo writer_io;
+    std::thread watcher;  // Windows: waits for the process's exit (os::watch_exit)
     // Liveness: pings sent, and when the last pong came (judged only once one came).
     std::uint64_t pings = 0;
     bool answered = false;

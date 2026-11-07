@@ -1,9 +1,18 @@
 #include "client.hpp"
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
 #include <unistd.h>
 #endif
 
+#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -103,6 +112,20 @@ bool HostClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severit
   return true;
 }
 
+#if defined(_WIN32)
+namespace {
+/// An integrity level as Windows writes it (0x1000), or "?".
+std::string integrity_text(long level) {
+  if (level < 0) {
+    return "?";
+  }
+  char text[16];
+  std::snprintf(text, sizeof text, "0x%04lX", static_cast<unsigned long>(level));
+  return text;
+}
+}  // namespace
+#endif
+
 void HostClient::finish_self_test(CefRefPtr<CefBrowser> browser) {
   BrowserState& state = browser_state();
   if (state.self_test_done) {
@@ -122,9 +145,20 @@ void HostClient::finish_self_test(CefRefPtr<CefBrowser> browser) {
     log_line("pd-test: fail renderer is sandboxed");
     ++state.self_test_failed;
   }
-#elif !defined(__linux__)
-  // (Windows: the renderers run with restricted tokens in job objects, not inspected from here yet.)
-  log_line("pd-info: the renderer's sandbox isn't inspected on this system (only on Linux and macOS)");
+#elif defined(_WIN32)
+  // Windows: restricted tokens below Medium integrity, in job objects (set up by the bootstrap).
+  const auto processes = inspect_descendants_windows(GetCurrentProcessId());
+  for (const auto& p : processes) {
+    log_line("pd-sandbox: " + p.type + " pid=" + std::to_string(p.pid) + " integrity=" + integrity_text(p.integrity) +
+             " job=" + (p.in_job ? "yes" : "no"));
+  }
+  if (windows_renderers_sandboxed(processes)) {
+    log_line("pd-test: ok renderer is sandboxed (below Medium integrity, in a job object)");
+    ++state.self_test_passed;
+  } else {
+    log_line("pd-test: fail renderer is sandboxed");
+    ++state.self_test_failed;
+  }
 #else
   const auto processes = inspect_descendants(static_cast<int>(::getpid()));
   for (const auto& p : processes) {
