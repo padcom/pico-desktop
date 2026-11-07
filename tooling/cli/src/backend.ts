@@ -27,9 +27,7 @@ export function devBackend(config: ResolvedConfig): string {
 export async function buildBackend(config: ResolvedConfig, out: string, io: Output): Promise<boolean> {
   mkdirSync(dirname(out), { recursive: true })
   const next = `${out}.next`
-  // An absolute entry path: pico-lang #93 (fixed on main by PR #94; 0.4.1 has the bug).
-  const entry = join(config.backend.root, config.backend.entry)
-  const { code, output } = await capture('pico', ['build', entry, '-o', next], config.backend.root)
+  const { code, output } = await capture('pico', ['build', config.backend.entry, '-o', next], config.backend.root)
   if (code !== 0) {
     output.trimEnd().split('\n').forEach(line => io.err(`pico │ ${line}`))
 

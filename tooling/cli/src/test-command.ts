@@ -26,8 +26,7 @@ export async function test(config: ResolvedConfig, io: Output): Promise<number> 
   generate(config)
   const vitest = [vitestBin(config.frontend.root), 'run']
   const frontend = await passthrough(process.execPath, vitest, { cwd: config.frontend.root, io, prefix: 'vitest │ ' })
-  // An absolute path: pico-lang #93.
-  const backend = await passthrough('pico', ['test', config.backend.root], { cwd: config.backend.root, io, prefix: 'pico │ ' })
+  const backend = await passthrough('pico', ['test', '.'], { cwd: config.backend.root, io, prefix: 'pico │ ' })
 
   return frontend === 0 ? backend : frontend
 }

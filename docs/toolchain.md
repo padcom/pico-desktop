@@ -18,24 +18,27 @@ commit, saying why.
 
 ### Pico
 
-The framework needs the stdout-flush fix (pico-lang #82); the probes and the codec also use the
-bulk byte copies (#84). Both are fixed in `padcom/pico-lang` but not released: **0.4.2** will
-carry them (both are on pico-lang `main` since `75fc4aa`; the released 0.4.1 predates them). Until
-then, develop with the compiler built from the `pico-lang` clone next to this repository
-(`~/projects/padcom/pico/pico-lang`, `cargo build --release -p pico-cli`), first on `PATH`:
-`export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`. Since 2026-11-07 that
-build comes from a local branch, `local/integration`, which is never pushed. It holds pico-lang
-`main` plus the fixes still in review. `main` has had these merged since 2026-11-07: PR #91
-(finalizers and buffer memory, #90), PR #94 (workspace imports from relative paths, #93) and
-PR #96 (buffers freed in long synchronous code, #95). In review:
-- PR #98 (`Map` kept deleted entries: memory grew with every I/O job, #97), which `ipc.soak` needs.
-  Without it the backend peaks at 560 MB, over the test's 150 MB limit.
-- The `pico dap` attach fix (#99), which `pnpm dev --debug` with VS Code's **Debug the backend** needs.
+**Pico 0.4.2** (released 2026-11-07) has every fix the framework needs:
+- stdout flushed to a pipe (#82) and bulk byte copies (#84);
+- finalizers and buffer memory (#90, PR #91), and workspace imports from relative paths
+  (#93, PR #94);
+- buffers freed in long synchronous code (#95, PR #96), and `Map` keeping only live entries
+  (#97, PR #98). `ipc.soak` needs those two: without them the backend peaks at 560 MB, over the
+  test's 150 MB limit.
 
-The framework keeps working around #93 with absolute paths until a release has the fix (0.4.1
-doesn't). Newer `main` is stricter than 0.4.1 in two ways the code now handles:
-`TextDecoder`'s constructor `throws RangeError` (#26), and later declarations in a block shadow
-earlier uses. CI's Pico job turns
+The absolute-path workaround for #93 is gone: the CLI and hello-world pass relative paths again.
+
+Two fixes are still in review. Until they're merged and released, develop with the compiler
+built from the `pico-lang` clone next to this repository, first on `PATH`:
+`export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`. That build comes from a
+local branch, `local/integration`, which is never pushed: pico-lang `main` plus these fixes.
+- PR #101 (`pico dap` attach with the formatters, #99): `pnpm dev --debug` with VS Code's
+  **Debug the backend** needs it.
+- PR #103 (a subclass's fields after `instanceof` narrowing panicked the compiler, #102): only
+  backends that narrow class hierarchies need it (pico-mavlink's decoded messages do).
+
+Newer Pico is stricter than 0.4.1 in two ways the code handles: `TextDecoder`'s constructor
+`throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI's Pico job turns
 on by itself once the 0.4.2 release exists (see `.github/workflows/ci.yml`). Release archives are
 named `pico-<version>-<host>.tar.gz|zip` (linux-arm64, linux-x64, macos-arm64, windows-arm64,
 windows-x64; no macos-x64, #86).
