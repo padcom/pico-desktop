@@ -171,10 +171,24 @@ jobs:
         run: pnpm cef:configure
       - name: Build the host (the app bundle and its helpers)
         run: pnpm cef:build
-      - name: The self-test fixture
-        run: pnpm --filter @pico-desktop/host-fixture... build
-      - name: Self-tests in a real window
-        run: ctest --preset cef -R "host\.(version|refuses-remote-debugging|self-test)"
+      - name: Install Pico (the macos-arm64 release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(jq -r .pico.minimum toolchain.json)
+          gh release download "v$v" -R padcom/pico-lang -p "pico-$v-macos-arm64.tar.gz" -D "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/pico" && tar -xzf "$RUNNER_TEMP/pico-$v-macos-arm64.tar.gz" -C "$RUNNER_TEMP/pico"
+          bin=$(dirname "$(find "$RUNNER_TEMP/pico" -type f -name pico -perm -u+x | head -1)")
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: The fixture, hello-world and the CLI
+        run: |
+          pnpm --filter @pico-desktop/host-fixture... build
+          pnpm --filter pico-desktop... build
+          pnpm --filter @pico-desktop/hello-world... build
+          pnpm --filter @pico-desktop/hello-world build:self-test
+          pnpm --filter @pico-desktop/hello-world backend
+      - name: The host's tests in a real window
+        run: ctest --preset cef --output-on-failure
 
   bundle-smoke:
     # F6's clean-machine smoke: the packaged app on a fresh runner of its target, with only the
