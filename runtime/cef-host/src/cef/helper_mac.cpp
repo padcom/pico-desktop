@@ -4,18 +4,19 @@
 #include "include/cef_app.h"
 #include "include/wrapper/cef_library_loader.h"
 
-#if defined(CEF_USE_SANDBOX)
-#include "include/cef_sandbox_mac.h"
+// The helpers never run without the sandbox (PROJECT_DESCRIPTION.md §6): a build that lost the
+// define fails here instead of shipping unsandboxed helpers.
+#if !defined(CEF_USE_SANDBOX)
+#error "CEF_USE_SANDBOX isn't defined: the helpers would run without the sandbox"
 #endif
+#include "include/cef_sandbox_mac.h"
 
 int main(int argc, char* argv[]) {
-#if defined(CEF_USE_SANDBOX)
   // The helper's sandbox first, then the framework (loaded at run time, as the sandbox requires).
   CefScopedSandboxContext sandbox_context;
   if (!sandbox_context.Initialize(argc, argv)) {
     return 1;
   }
-#endif
   CefScopedLibraryLoader library_loader;
   if (!library_loader.LoadInHelper()) {
     return 1;
