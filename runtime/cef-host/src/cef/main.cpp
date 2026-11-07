@@ -68,8 +68,8 @@ fs::path cache_root(const Options& options, bool& temporary) {
     temporary = true;
 #if defined(_WIN32)
     // Windows: a process can't remove its own profile (#23), so self-test profiles are named by
-    // pid and swept like --multi-instance ones: each run removes ended runs' (#41). %TEMP% is
-    // per user, so the name needn't be random.
+    // pid and swept like --multi-instance ones: each run removes ended runs' (#41). %LOCALAPPDATA%
+    // is per user, so the name needn't be random.
     const fs::path runs = cache_base() / "pico-desktop" / "self-test";
     remove_ended_instances(runs, process_id(), process_alive);
     const fs::path dir = runs / std::to_string(process_id());
