@@ -108,6 +108,30 @@ async function retitles({ c }: Context): Promise<Outcome> {
   return title === 'Hello from Pico' || `the window says '${title}'`
 }
 
+/**
+ * A permission the app didn't ask for is denied at once, not left pending: the host answers every
+ * prompt (hello-world doesn't declare `clipboard`, so reading the clipboard is refused).
+ *
+ * @returns the outcome
+ */
+async function permissionAnswered(): Promise<Outcome> {
+  const timeout = new Promise<string>(resolve => {
+    setTimeout(() => resolve('still pending after 2 s'), 2000)
+  })
+  const read = (async () => {
+    try {
+      await navigator.clipboard.readText()
+
+      return 'granted'
+    } catch (error) {
+      return (error as Error).name
+    }
+  })()
+  const got = await Promise.race([read, timeout])
+
+  return got === 'NotAllowedError' || got
+}
+
 async function subscribes({ clock, ticks }: Context): Promise<Outcome> {
   await clock
   const ticked = await until(() => ticks.length >= 3)
@@ -188,6 +212,7 @@ const CHECKS: [string, Check][] = [
   ['Pico sets the window title through the host (the window capability)', retitles],
   ['the host refuses a service the app didn\'t declare (dialogs)',
     ({ c }) => expectCode(c.request('files.pick', null), 'NOT_ALLOWED')],
+  ['a permission the app didn\'t declare (clipboard read) is denied, not left pending', permissionAnswered],
   ['a managed subscription ticks', subscribes],
   ['2000 round trips through the bridge (measured)', throughput],
   ['a backend crash fails the pending call with DISCONNECTED; the window stays', crash],
