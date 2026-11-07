@@ -28,6 +28,8 @@ export interface UserConfig {
   window?: { title?: string, width?: number, height?: number }
   /** How long the backend has to finish when the app closes, in ms (3000). */
   closeGraceMs?: number
+  /** The app's icon for its AppImage (.png or .svg; a plain one otherwise). */
+  icon?: string
   frontend?: { root?: string }
   backend?: { root?: string, entry?: string }
   contracts?: ContractConfig[]
@@ -43,6 +45,7 @@ export interface ResolvedConfig {
   capabilities: Capability[]
   window: { title?: string | undefined, width: number, height: number }
   closeGraceMs: number
+  icon: string | undefined
   frontend: { root: string }
   backend: { root: string, entry: string }
   contracts: ContractConfig[]
@@ -67,6 +70,10 @@ const DEFAULT_CONTRACTS: ContractConfig[] = [{
   typescript: 'apps/frontend/src/generated/app.ts',
   pico: 'apps/backend/generated/app.pi',
 }]
+
+function optionalPath(root: string, path: string | undefined): string | undefined {
+  return path === undefined ? undefined : resolve(root, path)
+}
 
 function runtimeLocation(root: string, runtime: string | undefined): string | undefined {
   if (runtime === undefined || /^https?:\/\//u.test(runtime)) {
@@ -117,10 +124,11 @@ export function resolveConfig(root: string, user: UserConfig): ResolvedConfig {
     capabilities: checkedCapabilities(user),
     window: { width: 1024, height: 768, ...user.window },
     closeGraceMs: user.closeGraceMs ?? 3000,
+    icon: optionalPath(root, user.icon),
     frontend: { root: at(frontend.root) },
     backend: { root: at(backend.root), entry: backend.entry },
     contracts,
-    host: user.host === undefined ? undefined : at(user.host),
+    host: optionalPath(root, user.host),
     runtime: runtimeLocation(root, user.runtime),
   }
 }

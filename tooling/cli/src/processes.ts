@@ -33,12 +33,13 @@ export function lines(stream: NodeJS.ReadableStream, onLine: (line: string) => v
  * @param program the executable
  * @param args its arguments
  * @param cwd where it runs
+ * @param env its environment (this process's by default)
  * @returns its exit code (127 if it couldn't start) and its output
  */
-export function capture(program: string, args: string[], cwd: string): Promise<Finished> {
+export function capture(program: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<Finished> {
   return new Promise(resolve => {
     const chunks: string[] = []
-    const child = spawn(program, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(program, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] })
     child.stdout.on('data', (b: Buffer) => chunks.push(b.toString()))
     child.stderr.on('data', (b: Buffer) => chunks.push(b.toString()))
     child.on('error', error => resolve({ code: 127, output: String(error) }))

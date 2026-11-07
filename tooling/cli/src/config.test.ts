@@ -10,6 +10,7 @@ describe('resolveConfig', () => {
       capabilities: [],
       window: { width: 1024, height: 768 },
       closeGraceMs: 3000,
+      icon: undefined,
       frontend: { root: '/app/apps/frontend' },
       backend: { root: '/app/apps/backend', entry: 'main.pi' },
       contracts: [{

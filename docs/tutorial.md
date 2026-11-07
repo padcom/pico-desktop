@@ -108,4 +108,4 @@ The bundle runs on a machine with nothing installed beyond the system libraries 
 
 `build` refuses a runtime whose files don't match its manifest. Unpack the archive anywhere and run `./my-app`.
 
-The AppImage isn't there yet (see [PLAN.md](../../PLAN.md), F7).
+`package` also writes the AppImage's directory, `dist/my-app-0.1.0-linux-arm64.AppDir`. Its `AppRun` runs the app the same way. With [`appimagetool`](https://github.com/AppImage/appimagetool) on the `PATH` (or `PICO_DESKTOP_APPIMAGETOOL` naming it), `package` squashes the AppDir into `my-app-0.1.0-aarch64.AppImage` with a `.sha256`. The CLI never downloads it. Set `icon` in the config to a .png or .svg; otherwise you get a plain one. That last step hasn't been run here yet (PLAN.md, F7).

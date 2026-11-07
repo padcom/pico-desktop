@@ -2,7 +2,8 @@
 # The F6 bundle on linux-arm64, from a freshly created app:
 #   build → run the bundle with a bare environment (PATH=/usr/bin:/bin: no Node, pnpm, Pico or
 #   CMake) → SIGTERM closes it in order; package → the archive matches its .sha256 → unpacked
-#   elsewhere it runs again; a runtime with a file its manifest doesn't list is refused.
+#   elsewhere it runs again; so does the AppDir's AppRun; a runtime with a file its manifest
+#   doesn't list is refused.
 # Usage: bundle.sh. Exit 77 without pico, a display, the built CLI or a staged runtime
 # (`pnpm cef && pnpm runtime:stage` in the framework).
 set -uo pipefail
@@ -76,6 +77,11 @@ run_bundle "$PWD/$bundle/demo" "$scratch/run.log"
 
 PICO_DESKTOP_RUNTIME=$runtime node "$cli" package > "$scratch/package.log" 2>&1 || { cat "$scratch/package.log"; fail "package"; }
 (cd dist && sha256sum -c "$(basename "$bundle").tar.gz.sha256" > /dev/null) || fail "the archive doesn't match its .sha256"
+# The AppDir (the AppImage's contents): AppRun starts the app from it the same way.
+for f in AppRun demo.desktop demo.svg .DirIcon; do
+  [[ -e "$bundle.AppDir/$f" ]] || fail "the AppDir has no $f"
+done
+run_bundle "$PWD/$bundle.AppDir/AppRun" "$scratch/appdir.log"
 mkdir -p "$scratch/elsewhere" && tar -xzf "$bundle.tar.gz" -C "$scratch/elsewhere"
 run_bundle "$scratch/elsewhere/$(basename "$bundle")/demo" "$scratch/unpacked.log"
 
@@ -86,7 +92,7 @@ PICO_DESKTOP_RUNTIME=$scratch/tampered-runtime node "$cli" build > "$scratch/tam
 grep -q "has a file runtime.json doesn't list: libinjected.so" "$scratch/tampered.log" || { cat "$scratch/tampered.log"; fail "no word about the tampered runtime"; }
 
 du -sh "$bundle" "$bundle.tar.gz" | sed 's/^/size: /'
-grep -h 'pd-host: \(got signal\|the backend\)' "$scratch/run.log" "$scratch/unpacked.log"
+grep -h 'pd-host: \(got signal\|the backend\)' "$scratch/run.log" "$scratch/unpacked.log" "$scratch/appdir.log"
 if [[ $failed -ne 0 ]]; then
   for f in build run package unpacked; do echo "---- $f ----"; grep -v GetVSync "$scratch/$f.log" 2> /dev/null; done
 fi
