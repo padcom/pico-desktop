@@ -39,8 +39,8 @@ expect() {
 [[ $code -eq 0 ]] || { echo "FAIL: the host exited with $code"; failed=1; }
 expect "pd-test: done"
 expect " 0 failed"
-if [[ "$(uname)" != Linux ]]; then
-  expect "pd-info: the renderer's sandbox isn't inspected on this system (only on Linux)"
+if [[ "$(uname)" == Darwin ]]; then
+  expect "pd-info: the renderer's sandbox isn't inspected on this system (only on Linux and Windows)"
 else
   expect "pd-test: ok renderer is sandboxed"
 fi

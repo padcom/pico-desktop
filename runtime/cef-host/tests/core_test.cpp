@@ -284,6 +284,16 @@ static void sandbox() {
   CHECK(!renderers_sandboxed({{1, "renderer", 0, true}}));
   CHECK(!renderers_sandboxed({{2, "gpu-process", 2, true}}));
   CHECK(!renderers_sandboxed({}));
+
+  // Windows (#11): every renderer below Medium integrity and in a job, and at least one.
+  CHECK(windows_renderers_sandboxed({{1, "renderer", 0x0000, true}, {2, "gpu-process", 0x2000, false}}));
+  CHECK(windows_renderers_sandboxed({{1, "renderer", 0x1000, true}, {2, "renderer", 0x0000, true}}));
+  CHECK(!windows_renderers_sandboxed({{1, "renderer", 0x2000, true}}));  // Medium: the user's own rights
+  CHECK(!windows_renderers_sandboxed({{1, "renderer", 0x0000, false}}));  // not in a job
+  CHECK(!windows_renderers_sandboxed({{1, "renderer", -1, true}}));  // the token couldn't be read
+  CHECK(!windows_renderers_sandboxed({{1, "renderer", 0x0000, true}, {2, "renderer", 0x3000, true}}));
+  CHECK(!windows_renderers_sandboxed({{2, "gpu-process", 0x0000, true}}));  // no renderer
+  CHECK(!windows_renderers_sandboxed({}));
   CHECK(!suid_sandbox_usable("/nonexistent/chrome-sandbox"));
   CHECK(!suid_sandbox_usable("/bin/sh"));  // not setuid
   CHECK(sandbox_unavailable_message("/x/chrome-sandbox").find("user namespaces") != std::string::npos);
