@@ -93,7 +93,9 @@ async function main() {
     }
     process.stderr.write(`verified SHA-1 ${sha1}${archive.sha256 ? ' and SHA-256' : ''}\nSHA-256 ${sha256}\nunpacking…\n`)
     rmSync(unpacked, { recursive: true, force: true })
-    execFileSync('tar', ['-xjf', file, '-C', dir], { stdio: 'inherit' })
+    // Windows: its own tar.exe (bsdtar); Git Bash's GNU tar takes `C:` for a remote host.
+    const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
+    execFileSync(tar, ['-xjf', file, '-C', dir], { stdio: 'inherit' })
     rmSync(file)
     writeFileSync(marker, JSON.stringify({ version: toolchain.cef.version, target, sha1, sha256 }, null, 2) + '\n')
   }
