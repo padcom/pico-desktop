@@ -4,14 +4,15 @@
 #   CMake) → SIGTERM closes it in order; package → the archive matches its .sha256 → unpacked
 #   elsewhere it runs again; a runtime with a file its manifest doesn't list is refused.
 # Usage: bundle.sh. Exit 77 without pico, a display, the built CLI or a staged runtime
-# (`pnpm cef && pnpm runtime` in the framework).
+# (`pnpm cef && pnpm runtime:stage` in the framework).
 set -uo pipefail
 framework=$(cd "$(dirname "$0")/../../.." && pwd)
 cli=$framework/tooling/cli/bin/pico-desktop.mjs
 runtime=$(ls -d "$framework"/build/runtime/pico-desktop-runtime-*-linux-* 2> /dev/null | grep -v '\.tar\.gz' | tail -1)
-command -v pico > /dev/null || { echo "skipped: no pico on the PATH"; exit 77; }
+# The Pico compiler, not Debian/Ubuntu's `pico` (nano).
+pico --version 2> /dev/null | grep -q '^pico [0-9]' || { echo "skipped: no Pico compiler on the PATH"; exit 77; }
 [[ -f "$framework/tooling/cli/dist/index.js" ]] || { echo "skipped: the CLI isn't built"; exit 77; }
-[[ -n "$runtime" ]] || { echo "skipped: no staged runtime (pnpm runtime)"; exit 77; }
+[[ -n "$runtime" ]] || { echo "skipped: no staged runtime (pnpm runtime:stage)"; exit 77; }
 if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   command -v xvfb-run > /dev/null || { echo "skipped: no display"; exit 77; }
   exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" "$0" "$@"
@@ -52,7 +53,7 @@ fi
 host_build=$framework/build/cef/runtime/cef-host/pico-desktop-host
 build_id() { readelf -n "$1" 2> /dev/null | awk '/Build ID/ { print $3 }'; }
 if [[ -x "$host_build" && "$(build_id "$host_build")" != "$(build_id "$runtime/pico-desktop-host")" ]]; then
-  echo "FAIL: $runtime has an older host than build/cef: run pnpm runtime"
+  echo "FAIL: $runtime has an older host than build/cef: run pnpm runtime:stage"
   exit 1
 fi
 

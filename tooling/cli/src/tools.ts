@@ -41,7 +41,8 @@ function warningFor(version: string): string | null {
  */
 export async function findPico(): Promise<Pico | null> {
   const { code, output } = await capture('pico', ['--version'], process.cwd())
-  const version = code === 0 ? /\d+\.\d+\.\d+/u.exec(output)?.[0] : undefined
+  // The Pico compiler says `pico x.y.z`; Debian's `pico` is nano.
+  const version = code === 0 ? /^pico (?<version>\d+\.\d+\.\d+)/mu.exec(output)?.groups?.version : undefined
 
   return version === undefined ? null : { version, warning: warningFor(version) }
 }

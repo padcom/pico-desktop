@@ -8,7 +8,8 @@
 set -uo pipefail
 host=$1 fixture=$2
 here=$(cd "$(dirname "$0")" && pwd)
-command -v pico > /dev/null || { echo "skipped: no pico on the PATH"; exit 77; }
+# The Pico compiler, not Debian/Ubuntu's `pico` (nano).
+pico --version 2> /dev/null | grep -q '^pico [0-9]' || { echo "skipped: no Pico compiler on the PATH"; exit 77; }
 [[ -f "$fixture/index.html" ]] || { echo "skipped: the fixture isn't built"; exit 77; }
 if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   command -v xvfb-run > /dev/null || { echo "skipped: no display"; exit 77; }

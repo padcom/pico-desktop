@@ -142,6 +142,6 @@ set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN
 
 # The F6 bundle on a freshly created app (tooling/cli/tests/bundle.sh): build, run it with a bare
 # environment, SIGTERM, package, verify, unpack and run again, and a tampered runtime refused.
-# Needs pico, the built CLI and a staged runtime (`pnpm runtime`); skipped otherwise.
+# Needs pico, the built CLI and a staged runtime (`pnpm runtime:stage`); skipped otherwise.
 add_test(NAME cli.bundle COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/bundle.sh)
 set_tests_properties(cli.bundle PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)

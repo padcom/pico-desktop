@@ -7,7 +7,7 @@
 | `dev │ no pico on the PATH` | `pnpm dev` and `pnpm test` build the backend with `pico` | Install Pico ≥ 0.4.2, or put a pico-lang build first on the `PATH` ([toolchain.md](toolchain.md)) |
 | `dev │ pico 0.4.1 is older than 0.4.2…` | Released 0.4.1 lacks fixes the framework needs (pico-lang #82: stdout to a pipe) | Use a newer build. The warning is harmless with a pico-lang build that has them |
 | `dev │ no pico-desktop-host` | `dev` runs the host from `host` in the config, `$PICO_DESKTOP_HOST` or a framework checkout's `build/cef` | Set one of them, or run `pnpm cef` in the checkout |
-| `pico-desktop build: no Pico Desktop runtime for linux-arm64` | `build` bundles a staged runtime | Run `pnpm cef && pnpm runtime` in a framework checkout, or point `runtime` / `$PICO_DESKTOP_RUNTIME` at a runtime directory, archive or URL |
+| `pico-desktop build: no Pico Desktop runtime for linux-arm64` | `build` bundles a staged runtime | Run `pnpm cef && pnpm runtime:stage` in a framework checkout, or point `runtime` / `$PICO_DESKTOP_RUNTIME` at a runtime directory, archive or URL |
 | `the runtime in … was changed or is incomplete: <file> doesn't match runtime.json` / `…has a file runtime.json doesn't list…` | The runtime's files don't match its manifest | Use an intact runtime: restage it, or download it again (delete it from `~/.cache/pico-desktop/runtimes`) |
 | `… doesn't match its SHA-256 (….sha256): refusing it` | A downloaded or copied runtime archive is corrupt or was altered | Download it again |
 | `cannot import pico-desktop/communicator` (E0341) in a backend | A workspace import from a relative file path (pico-lang #93, fixed by PR #94) | Build with an absolute path (the CLI does), or with a pico that has the fix |

@@ -12,7 +12,8 @@ host=$1
 framework=$(cd "$(dirname "$0")/../../.." && pwd)
 cli=$framework/tooling/cli/bin/pico-desktop.mjs
 
-command -v pico > /dev/null || { echo "skipped: no pico on the PATH"; exit 77; }
+# The Pico compiler, not Debian/Ubuntu's `pico` (nano).
+pico --version 2> /dev/null | grep -q '^pico [0-9]' || { echo "skipped: no Pico compiler on the PATH"; exit 77; }
 command -v script > /dev/null || { echo "skipped: no script (util-linux) for a pseudo-terminal"; exit 77; }
 [[ -x "$host" ]] || { echo "skipped: $host isn't built"; exit 77; }
 [[ -f "$framework/tooling/cli/dist/index.js" ]] || { echo "skipped: the CLI isn't built (pnpm build)"; exit 77; }

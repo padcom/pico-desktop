@@ -180,7 +180,7 @@ function stagedRuntime(target: string): string {
     : undefined
   if (!staged) {
     throw new RuntimeError(`no Pico Desktop runtime for ${target}: set PICO_DESKTOP_RUNTIME (or \`runtime\` in the config) to `
-      + 'a runtime directory or archive, or run `pnpm cef && pnpm runtime` in a framework checkout')
+      + 'a runtime directory or archive, or run `pnpm cef && pnpm runtime:stage` in a framework checkout')
   }
 
   return join(FRAMEWORK_RUNTIMES, staged)
