@@ -41,6 +41,8 @@ class WindowDelegate : public CefWindowDelegate {
   }
 
   void OnWindowCreated(CefRefPtr<CefWindow> window) override {
+    const Options& options = browser_state().options;
+    window->SetTitle(options.window_title.empty() ? options.policy.app_id : options.window_title);
     window->AddChildView(view_);
     window->Show();
     view_->RequestFocus();
@@ -63,7 +65,10 @@ class WindowDelegate : public CefWindowDelegate {
     return !browser || browser->GetHost()->TryCloseBrowser();
   }
 
-  CefSize GetPreferredSize(CefRefPtr<CefView> view) override { return CefSize(1024, 768); }
+  CefSize GetPreferredSize(CefRefPtr<CefView> view) override {
+    const Options& options = browser_state().options;
+    return CefSize(options.window_width, options.window_height);
+  }
 
   cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_ALLOY; }
 

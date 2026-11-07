@@ -32,19 +32,21 @@ std::optional<std::string> parse_capabilities(const std::string& list, Options& 
   return std::nullopt;
 }
 
+/// A non-negative number of at most 7 digits, or -1.
+int small_number(const std::string& s) {
+  if (s.empty() || s.size() > 7 || s.find_first_not_of("0123456789") != std::string::npos) {
+    return -1;
+  }
+  return std::stoi(s);
+}
+
 bool parse_liveness(const std::string& text, Options& options) {
   const auto slash = text.find('/');
   if (slash == std::string::npos) {
     return false;
   }
-  const auto number = [](const std::string& s) -> int {
-    if (s.empty() || s.size() > 7 || s.find_first_not_of("0123456789") != std::string::npos) {
-      return -1;
-    }
-    return std::stoi(s);
-  };
-  const int interval = number(text.substr(0, slash));
-  const int timeout = number(text.substr(slash + 1));
+  const int interval = small_number(text.substr(0, slash));
+  const int timeout = small_number(text.substr(slash + 1));
   if (interval < 100 || timeout <= interval) {
     return false;
   }
@@ -70,6 +72,9 @@ std::string usage() {
          "  --multi-instance       allow several instances (default: a second launch focuses the first)\n"
          "  --capabilities=<list>  the native services the backend may use: window,dialogs,notifications\n"
          "  --liveness=<ms>/<ms>   ping interval and hang timeout for the backend (default 5000/15000)\n"
+         "  --window-size=<w>x<h>  the window's initial size (default 1024x768)\n"
+         "  --window-title=<text>  the window's title (default: the page's <title>)\n"
+         "  --close-grace=<ms>     how long the backend has to finish when the app closes (default 3000)\n"
          "  --self-test            let the page test itself, check the sandbox, exit with the result\n"
          "  --no-external-open     log external links instead of opening the system browser\n"
          "  -V, --version          print the version\n"
@@ -117,6 +122,23 @@ ParseResult parse_options(const std::vector<std::string>& args) {
       if (auto problem = parse_capabilities(*c, options)) {
         return *problem;
       }
+    } else if (auto ws = value_of(arg, "--window-size")) {
+      const auto x = ws->find('x');
+      const int w = x == std::string::npos ? -1 : small_number(ws->substr(0, x));
+      const int h = x == std::string::npos ? -1 : small_number(ws->substr(x + 1));
+      if (w < 200 || h < 150 || w > 16384 || h > 16384) {
+        return "invalid --window-size '" + *ws + "': use <width>x<height>, at least 200x150";
+      }
+      options.window_width = w;
+      options.window_height = h;
+    } else if (auto t = value_of(arg, "--window-title")) {
+      options.window_title = *t;
+    } else if (auto g = value_of(arg, "--close-grace")) {
+      const int ms = small_number(*g);
+      if (ms < 0 || ms > 60000) {
+        return "invalid --close-grace '" + *g + "': milliseconds, at most 60000";
+      }
+      options.close_grace_ms = ms;
     } else if (auto l = value_of(arg, "--liveness")) {
       if (!parse_liveness(*l, options)) {
         return "invalid --liveness '" + *l + "': use <interval ms>/<timeout ms>, the timeout longer than the interval";

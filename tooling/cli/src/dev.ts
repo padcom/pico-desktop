@@ -7,6 +7,7 @@ import { basename, dirname } from 'node:path'
 import { buildBackend, devBackend } from './backend'
 import type { ResolvedConfig } from './config'
 import { generate } from './generate'
+import { appArgs } from './host-args'
 import type { Output } from './io'
 import { lines } from './processes'
 import { Rebuilder } from './rebuilder'
@@ -71,9 +72,7 @@ function startHost(host: string, config: ResolvedConfig, url: string, options: D
   if (options.traceIpc) {
     args.push('--trace-ipc')
   }
-  if (config.capabilities.length > 0) {
-    args.push(`--capabilities=${config.capabilities.join(',')}`)
-  }
+  args.push(...appArgs(config))
   // Its own process group: a terminal's Ctrl+C reaches only the CLI, which then quits the host
   // (and through it the backend) in order, with the backend's grace period.
   const child = spawn(host, args, { cwd: config.root, stdio: ['pipe', 'pipe', 'pipe'], detached: true })

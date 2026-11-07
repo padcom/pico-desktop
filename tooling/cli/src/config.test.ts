@@ -8,6 +8,8 @@ describe('resolveConfig', () => {
       root: '/app',
       app: { id: 'com.example.demo', name: 'com.example.demo', version: '0.0.0' },
       capabilities: [],
+      window: { width: 1024, height: 768 },
+      closeGraceMs: 3000,
       frontend: { root: '/app/apps/frontend' },
       backend: { root: '/app/apps/backend', entry: 'main.pi' },
       contracts: [{

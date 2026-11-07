@@ -29,6 +29,9 @@ import { defineConfig } from 'pico-desktop'
 
 export default defineConfig({
   app: { id: 'com.example.my-app', name: 'My App', version: '0.1.0' },
+  capabilities: ['window'],                         // the host services the backend may use
+  window: { title: 'My App', width: 1280, height: 800 }, // default: 1024×768, the page's <title>
+  closeGraceMs: 3000,                               // how long the backend has to finish on close
   // the defaults: frontend.root 'apps/frontend', backend.root 'apps/backend', backend.entry 'main.pi',
   // contracts [{ source: 'packages/contracts/app.cddl', typescript: 'apps/frontend/src/generated/app.ts',
   //              pico: 'apps/backend/generated/app.pi' }], host: $PICO_DESKTOP_HOST or the framework's build

@@ -10,6 +10,7 @@
 #include "include/cef_app.h"
 #include "include/cef_process_message.h"
 #include "include/views/cef_browser_view.h"
+#include "include/views/cef_window.h"
 #include "include/wrapper/cef_helpers.h"
 #include "pico_desktop/host/policy.hpp"
 #include "pico_desktop/host/sandbox.hpp"
@@ -59,6 +60,17 @@ void HostClient::OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser, Termin
   CEF_REQUIRE_UI_THREAD();
   log_line("pd-host: the renderer ended (status " + std::to_string(status) + ")");
   link().browser_gone(browser->GetIdentifier());
+}
+
+void HostClient::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) {
+  // Without a fixed --window-title the window shows the page's <title>.
+  if (!browser_state().options.window_title.empty()) {
+    return;
+  }
+  CefRefPtr<CefBrowserView> view = CefBrowserView::GetForBrowser(browser);
+  if (CefRefPtr<CefWindow> window = view ? view->GetWindow() : nullptr) {
+    window->SetTitle(title);
+  }
 }
 
 bool HostClient::OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t level, const CefString& message,

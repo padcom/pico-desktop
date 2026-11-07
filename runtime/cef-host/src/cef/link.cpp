@@ -26,7 +26,6 @@ namespace {
 
 constexpr std::size_t kMaxMessage = 4 * 1024 * 1024;  // docs/protocol.md §2
 constexpr int64_t kRestartGraceMs = 2000;
-constexpr int64_t kCloseGraceMs = 3000;
 // The queue to the backend: beyond this, pages' new requests get BUSY (docs/protocol.md §7).
 constexpr std::size_t kMaxQueuedMessages = 1024;
 constexpr std::size_t kMaxQueuedBytes = 16 * 1024 * 1024;
@@ -368,7 +367,7 @@ void Link::begin_close(base::OnceClosure done) {
     return;
   }
   CefPostDelayedTask(TID_UI, base::BindOnce(&Link::force_end, base::Unretained(this), process_->generation),
-                     kCloseGraceMs);
+                     options_.close_grace_ms);
 }
 
 void Link::finish_close() {

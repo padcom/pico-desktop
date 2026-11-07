@@ -24,6 +24,10 @@ export interface UserConfig {
   app: { id: string, name?: string, version?: string }
   /** The native services the backend may call (anything else fails with NOT_ALLOWED). */
   capabilities?: Capability[]
+  /** The window: its initial size (1024×768) and a fixed title (default: the page's <title>). */
+  window?: { title?: string, width?: number, height?: number }
+  /** How long the backend has to finish when the app closes, in ms (3000). */
+  closeGraceMs?: number
   frontend?: { root?: string }
   backend?: { root?: string, entry?: string }
   contracts?: ContractConfig[]
@@ -37,6 +41,8 @@ export interface ResolvedConfig {
   root: string
   app: { id: string, name: string, version: string }
   capabilities: Capability[]
+  window: { title?: string | undefined, width: number, height: number }
+  closeGraceMs: number
   frontend: { root: string }
   backend: { root: string, entry: string }
   contracts: ContractConfig[]
@@ -109,6 +115,8 @@ export function resolveConfig(root: string, user: UserConfig): ResolvedConfig {
     root,
     app: { name: id, version: '0.0.0', ...user.app },
     capabilities: checkedCapabilities(user),
+    window: { width: 1024, height: 768, ...user.window },
+    closeGraceMs: user.closeGraceMs ?? 3000,
     frontend: { root: at(frontend.root) },
     backend: { root: at(backend.root), entry: backend.entry },
     contracts,

@@ -23,6 +23,7 @@ class HostClient : public CefClient,
                                 CefProcessId source_process, CefRefPtr<CefProcessMessage> message) override;
 
   // CefDisplayHandler
+  void OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) override;
   bool OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t level, const CefString& message,
                         const CefString& source, int line) override;
 

@@ -198,6 +198,17 @@ static void options() {
   CHECK(service_info("host.dialog.openFile").needs == Capability::dialogs);
   CHECK(service_info("host.app.quit").known && !service_info("host.app.quit").needs);
   CHECK(!service_info("host.fs.delete").known);
+  {
+    const auto r = parse({"--app-dir=/x", "--window-size=800x600", "--window-title=My App", "--close-grace=500"});
+    const auto* o = std::get_if<Options>(&r);
+    CHECK(o && o->window_width == 800 && o->window_height == 600 && o->window_title == "My App" && o->close_grace_ms == 500);
+    const auto d = std::get<Options>(parse({"--app-dir=/x"}));
+    CHECK(d.window_width == 1024 && d.window_height == 768 && d.window_title.empty() && d.close_grace_ms == 3000);
+  }
+  for (const char* bad : {"--window-size=800", "--window-size=10x10", "--window-size=axb", "--close-grace=-1",
+                          "--close-grace=99999999"}) {
+    CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", bad})));
+  }
   CHECK(parse_control("restart-backend") == ControlCommand::restart_backend);
   CHECK(parse_control("  reload\r\n") == ControlCommand::reload);
   CHECK(parse_control("quit") == ControlCommand::quit);

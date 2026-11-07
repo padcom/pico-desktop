@@ -44,6 +44,12 @@ struct Options {
   /// Allow several instances (each with its own, temporary profile). By default a second launch
   /// brings the running instance's window to the front and exits.
   bool multi_instance = false;
+  /// The window's initial size and its title (empty: it follows the page's <title>).
+  int window_width = 1024;
+  int window_height = 768;
+  std::string window_title;
+  /// How long the backend has to finish after `closing` before it's killed.
+  int close_grace_ms = 3000;
   /// Liveness (docs/protocol.md §7): ping the ready backend every `liveness_interval_ms`; once it
   /// has answered one, `liveness_timeout_ms` without an answer is a hang.
   int liveness_interval_ms = 5000;

@@ -1,7 +1,7 @@
 import { builtinModules } from 'node:module'
 import { defineLibConfig } from '@padcom/vite-config-lib'
 
-import pkg from './package.json'
+import pkg from './package.json' with { type: 'json' }
 
 // A Node program: ES modules only, Node's built-ins and the dependencies stay imports.
 export default defineLibConfig(pkg, {
