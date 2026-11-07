@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "pico_desktop/host/assets.hpp"
+#include "pico_desktop/host/console_event.hpp"
 #include "pico_desktop/host/options.hpp"
 #include "pico_desktop/host/policy.hpp"
 #include "pico_desktop/host/sandbox.hpp"
@@ -299,6 +300,16 @@ static void sandbox() {
   CHECK(sandbox_unavailable_message("/x/chrome-sandbox").find("user namespaces") != std::string::npos);
 }
 
+// Windows console events: the ones after which the process is ended have the handler wait (#18).
+static void console_events() {
+  CHECK(ends_process_on_return(2));  // CTRL_CLOSE_EVENT
+  CHECK(ends_process_on_return(5));  // CTRL_LOGOFF_EVENT
+  CHECK(ends_process_on_return(6));  // CTRL_SHUTDOWN_EVENT
+  CHECK(!ends_process_on_return(0));  // CTRL_C_EVENT
+  CHECK(!ends_process_on_return(1));  // CTRL_BREAK_EVENT
+  CHECK(!ends_process_on_return(3));
+}
+
 int main() {
   const fs::path tmp = fs::temp_directory_path() /
                        ("pd-host-core-test-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -308,6 +319,7 @@ int main() {
   policy();
   options();
   sandbox();
+  console_events();
   fs::remove_all(tmp);
   if (failures == 0) {
     std::puts("host.core: all checks passed");
