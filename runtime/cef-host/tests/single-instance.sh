@@ -6,7 +6,9 @@
 set -uo pipefail
 host=$1 fixture=$2
 [[ -f "$fixture/index.html" ]] || { echo "skipped: the fixture isn't built"; exit 77; }
-if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+# macOS has no `timeout` unless coreutils is installed; only Linux needs an X display.
+command -v timeout > /dev/null || timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
+if [[ "$(uname)" == Linux && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   command -v xvfb-run > /dev/null || { echo "skipped: no display"; exit 77; }
   exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" "$0" "$@"
 fi

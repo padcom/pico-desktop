@@ -16,7 +16,9 @@ for need in "$host" "$frontend/index.html" "$backend"; do
   fi
 done
 runner=()
-if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+# macOS has no `timeout` unless coreutils is installed; only Linux needs an X display.
+command -v timeout > /dev/null || timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
+if [[ "$(uname)" == Linux && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   if command -v xvfb-run > /dev/null; then
     runner=(xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24")
   else
@@ -27,7 +29,7 @@ fi
 
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
-timeout 120 "${runner[@]}" "$host" --app-dir="$frontend" --app-id=dev.pico-desktop.hello-world \
+timeout 120 ${runner[@]+"${runner[@]}"} "$host" --app-dir="$frontend" --app-id=dev.pico-desktop.hello-world \
   --backend="$backend" --capabilities=window --self-test --no-external-open > "$log" 2>&1
 code=$?
 grep -E '^(pd-|console: )' "$log"
@@ -43,7 +45,11 @@ expect() {
 expect "pd-test: done"
 expect " 0 failed"
 expect "pd-host: the backend is ready (epoch 1)"
-expect "pd-host: the backend exited (signal 9)"
+# (Windows has no signals: a killed process exits with TerminateProcess's code.)
+case "$(uname)" in
+  MINGW* | MSYS* | CYGWIN*) expect "pd-host: the backend exited (exit code 1)" ;;
+  *) expect "pd-host: the backend exited (signal 9)" ;;
+esac
 expect "pd-host: the backend is ready (epoch 2)"
 # `closing` reached the backend and it ended by itself within the grace period.
 expect "pd-host: the backend ended (exit code 0)"
