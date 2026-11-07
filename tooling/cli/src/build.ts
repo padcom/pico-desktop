@@ -4,6 +4,7 @@
 //     <name>          the launcher
 //     manifest.json   the app, its capabilities, the runtime it carries and every file's SHA-256
 //     sbom.cdx.json   what's in it (CycloneDX)
+//     THIRD-PARTY-NOTICES.txt   the frontend's dependencies' license texts
 //     app/            the built frontend
 //     backend/        the compiled Pico backend (release)
 //     runtime/        pico-desktop-host and CEF (checked file by file first), with their licenses
@@ -21,6 +22,7 @@ import {
   RuntimeError, type RuntimeManifest, currentTarget, fetchRuntime, locateRuntime, runtimeCache, unpackRuntime, verifyRuntime,
 } from './runtime'
 import { frontendDependencies, sbom } from './sbom'
+import { notices, productionPackages } from './notices'
 import { findPico } from './tools'
 
 export interface Bundle {
@@ -178,6 +180,7 @@ export async function buildBundle(config: ResolvedConfig, io: Output): Promise<B
   writeManifest(config, dir, runtime.manifest, pico)
   const bom = sbom(config, runtime.manifest, pico, frontendDependencies(config.frontend.root))
   writeFileSync(join(dir, 'sbom.cdx.json'), `${JSON.stringify(bom, null, 2)}\n`)
+  writeFileSync(join(dir, 'THIRD-PARTY-NOTICES.txt'), notices(name, productionPackages(config.frontend.root)))
 
   return { dir, name }
 }
