@@ -124,8 +124,8 @@ ParseResult parse_options(const std::vector<std::string>& args) {
         return "invalid --control '" + *c + "': only stdin";
       }
       options.control_stdin = true;
-    } else if (auto c = value_of(arg, "--capabilities")) {
-      if (auto problem = parse_capabilities(*c, options)) {
+    } else if (auto caps = value_of(arg, "--capabilities")) {
+      if (auto problem = parse_capabilities(*caps, options)) {
         return *problem;
       }
     } else if (auto ws = value_of(arg, "--window-size")) {

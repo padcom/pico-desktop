@@ -8,12 +8,13 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { execFileSync } from 'node:child_process'
 
-const root = new URL('..', import.meta.url).pathname
+const root = fileURLToPath(new URL('..', import.meta.url)) // (pathname is /C:/… on Windows)
 const toolchain = JSON.parse(readFileSync(join(root, 'toolchain.json'), 'utf8'))
 const cdn = 'https://cef-builds.spotifycdn.com'
 
@@ -92,7 +93,9 @@ async function main() {
     }
     process.stderr.write(`verified SHA-1 ${sha1}${archive.sha256 ? ' and SHA-256' : ''}\nSHA-256 ${sha256}\nunpacking…\n`)
     rmSync(unpacked, { recursive: true, force: true })
-    execFileSync('tar', ['-xjf', file, '-C', dir], { stdio: 'inherit' })
+    // Windows: its own tar.exe (bsdtar); Git Bash's GNU tar takes `C:` for a remote host.
+    const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
+    execFileSync(tar, ['-xjf', file, '-C', dir], { stdio: 'inherit' })
     rmSync(file)
     writeFileSync(marker, JSON.stringify({ version: toolchain.cef.version, target, sha1, sha256 }, null, 2) + '\n')
   }

@@ -35,7 +35,11 @@ expect() {
 expect "pd-test: done"
 expect " 0 failed"
 expect "pd-host: the backend is ready (epoch 1)"
-expect "pd-host: the backend exited (signal 9)"
+# (Windows has no signals: the host kills with its own exit code, which reads "killed".)
+case "$(uname)" in
+  MINGW* | MSYS* | CYGWIN*) expect "pd-host: the backend exited (killed)" ;;
+  *) expect "pd-host: the backend exited (signal 9)" ;;
+esac
 expect "pd-host: the backend is ready (epoch 2)"
 # `closing` reached the backend and it ended by itself within the grace period.
 expect "pd-host: the backend ended (exit code 0)"

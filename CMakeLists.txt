@@ -47,6 +47,10 @@ if(PD_WITH_CEF)
   endif()
   list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
   find_package(CEF REQUIRED)
+  if(MSVC)
+    # CEF's libraries use the static C runtime (/MT); everything linked with them must too.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  endif()
   add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper)
 endif()
 
