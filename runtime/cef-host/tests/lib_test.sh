@@ -103,7 +103,8 @@ if [[ -e "$bin/perl" ]]; then
   check "the fallback stops a command that runs too long" eval '[[ $code -ne 0 && $SECONDS -lt 5 ]]'
 fi
 withtimeout=$(new_bin)
-ln -s "$(command -v timeout)" "$withtimeout/timeout"
+# A stand-in timeout(1): macOS has none to link, and only its presence matters here.
+fake "$withtimeout" timeout 'shift; exec "$@"'
 run "$withtimeout" 'type -t timeout'
 check "with timeout(1), it's left alone" is "$out" file
 
