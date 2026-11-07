@@ -132,7 +132,20 @@ void HostClient::finish_self_test(CefRefPtr<CefBrowser> browser) {
     return;
   }
   // The page passed its checks; now prove the renderer it ran in is sandboxed.
-#if defined(_WIN32)
+#if defined(__APPLE__)
+  // macOS: the helpers run under Seatbelt (sandbox_check, as Chromium's own sandbox tests ask).
+  const auto processes = inspect_descendants_mac(static_cast<int>(::getpid()));
+  for (const auto& p : processes) {
+    log_line("pd-sandbox: " + p.type + " pid=" + std::to_string(p.pid) + " seatbelt=" + std::to_string(p.seatbelt));
+  }
+  if (mac_renderers_sandboxed(processes)) {
+    log_line("pd-test: ok renderer is sandboxed (Seatbelt)");
+    ++state.self_test_passed;
+  } else {
+    log_line("pd-test: fail renderer is sandboxed");
+    ++state.self_test_failed;
+  }
+#elif defined(_WIN32)
   // Windows: restricted tokens below Medium integrity, in job objects (set up by the bootstrap).
   const auto processes = inspect_descendants_windows(GetCurrentProcessId());
   for (const auto& p : processes) {
@@ -146,9 +159,6 @@ void HostClient::finish_self_test(CefRefPtr<CefBrowser> browser) {
     log_line("pd-test: fail renderer is sandboxed");
     ++state.self_test_failed;
   }
-#elif !defined(__linux__)
-  // (macOS: the helpers run in CEF's Seatbelt sandbox, which isn't inspected from here yet.)
-  log_line("pd-info: the renderer's sandbox isn't inspected on this system (only on Linux and Windows)");
 #else
   const auto processes = inspect_descendants(static_cast<int>(::getpid()));
   for (const auto& p : processes) {

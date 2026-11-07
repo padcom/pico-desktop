@@ -40,6 +40,24 @@ std::vector<ProcessSandbox> inspect_descendants(int root_pid);
 /// Whether every renderer among `processes` is sandboxed, and there's at least one.
 bool renderers_sandboxed(const std::vector<ProcessSandbox>& processes);
 
+/// A Chromium helper process on macOS: Chromium's sandbox runs a renderer under Seatbelt.
+struct MacProcessSandbox {
+  int pid = 0;
+  std::string type;
+  /// sandbox_check(pid, NULL, SANDBOX_FILTER_NONE): 1 sandboxed, 0 not, -1 couldn't be asked.
+  int seatbelt = -1;
+};
+
+/// The arguments in a KERN_PROCARGS2 buffer (argc, the executable's path, NUL padding, then argc
+/// NUL-terminated arguments), NUL-separated as parse_cmdline_type reads them; empty if malformed.
+std::string parse_procargs2(std::string_view buffer);
+
+/// Every descendant of `root_pid` started by Chromium (macOS; empty elsewhere).
+std::vector<MacProcessSandbox> inspect_descendants_mac(int root_pid);
+
+/// Whether every renderer among `processes` runs under Seatbelt, and there's at least one (#10).
+bool mac_renderers_sandboxed(const std::vector<MacProcessSandbox>& processes);
+
 /// A Chromium child process on Windows, as the browser process sees it: Chromium's sandbox runs a
 /// renderer with a restricted token at Low or Untrusted integrity, inside a job object.
 struct WindowsProcessSandbox {

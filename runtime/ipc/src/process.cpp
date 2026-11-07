@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
+#include <utility>
 
 #if !defined(_WIN32)
 extern char** environ;
@@ -72,44 +73,121 @@ std::string last_error(const char* what) {
   return std::string(what) + ": Windows error " + std::to_string(GetLastError());
 }
 
+/// Owns a HANDLE: closed when the owner goes, unless released to a new owner.
+class UniqueHandle {
+ public:
+  UniqueHandle() = default;
+  explicit UniqueHandle(HANDLE handle) : handle_(handle) {}
+  UniqueHandle(const UniqueHandle&) = delete;
+  UniqueHandle& operator=(const UniqueHandle&) = delete;
+  ~UniqueHandle() { reset(); }
+
+  HANDLE get() const { return handle_; }
+  /// For an API that writes a new handle here (whatever was owned is closed first).
+  HANDLE* out() {
+    reset();
+    return &handle_;
+  }
+  HANDLE release() { return std::exchange(handle_, nullptr); }
+  void reset() {
+    if (handle_ != nullptr && handle_ != INVALID_HANDLE_VALUE) {
+      CloseHandle(handle_);
+    }
+    handle_ = nullptr;
+  }
+
+ private:
+  HANDLE handle_ = nullptr;
+};
+
+/// A PROC_THREAD_ATTRIBUTE_LIST that only lets the child inherit the given handles; deleted when
+/// it goes.
+class InheritOnly {
+ public:
+  InheritOnly() = default;
+  InheritOnly(const InheritOnly&) = delete;
+  InheritOnly& operator=(const InheritOnly&) = delete;
+  ~InheritOnly() {
+    if (initialized_) {
+      DeleteProcThreadAttributeList(list());
+    }
+  }
+
+  /// False (with the error in `error`) unless the list holds exactly `handles`: without it,
+  /// bInheritHandles would hand the child every inheritable handle of this process (#6).
+  bool set(std::vector<HANDLE>& handles, std::string& error) {
+    SIZE_T size = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &size);  // fails by design; says the size
+    if (size == 0) {
+      error = last_error("InitializeProcThreadAttributeList");
+      return false;
+    }
+    storage_.resize(size);
+    if (!InitializeProcThreadAttributeList(list(), 1, 0, &size)) {
+      error = last_error("InitializeProcThreadAttributeList");
+      return false;
+    }
+    initialized_ = true;
+    if (!UpdateProcThreadAttribute(list(), 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles.data(),
+                                   handles.size() * sizeof(HANDLE), nullptr, nullptr)) {
+      error = last_error("UpdateProcThreadAttribute");
+      return false;
+    }
+    return true;
+  }
+
+  LPPROC_THREAD_ATTRIBUTE_LIST list() { return reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(storage_.data()); }
+
+ private:
+  std::vector<std::byte> storage_;
+  bool initialized_ = false;
+};
+
+/// A C runtime descriptor that takes over `handle` (released to it), or -1 (`handle` kept).
+int adopt_as_descriptor(UniqueHandle& handle, int flags) {
+  const int fd = _open_osfhandle(reinterpret_cast<intptr_t>(handle.get()), flags);
+  if (fd != -1) {
+    handle.release();
+  }
+  return fd;
+}
+
 }  // namespace
 
 std::optional<ChildProcess> spawn_piped(const std::string& program, const std::vector<std::string>& args,
                                         std::string& error) {
   SECURITY_ATTRIBUTES inheritable{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
-  HANDLE in_read = nullptr, in_write = nullptr, out_read = nullptr, out_write = nullptr;
-  if (!CreatePipe(&in_read, &in_write, &inheritable, 0)) {
+  // Whatever is still owned here when spawn_piped returns is closed (#7, #8).
+  UniqueHandle in_read, in_write, out_read, out_write;
+  if (!CreatePipe(in_read.out(), in_write.out(), &inheritable, 0) ||
+      !CreatePipe(out_read.out(), out_write.out(), &inheritable, 0)) {
     error = last_error("CreatePipe");
     return std::nullopt;
   }
-  if (!CreatePipe(&out_read, &out_write, &inheritable, 0)) {
-    error = last_error("CreatePipe");  // before CloseHandle replaces the last error
-    CloseHandle(in_read);
-    CloseHandle(in_write);
+  // Our ends stay ours; the child's ends are the only handles it inherits (with stderr).
+  SetHandleInformation(in_write.get(), HANDLE_FLAG_INHERIT, 0);
+  SetHandleInformation(out_read.get(), HANDLE_FLAG_INHERIT, 0);
+  // An inheritable copy of our stderr for this child only: our own stderr's flags stay as they
+  // are, so later CreateProcess calls (CEF's too) don't inherit it (#9).
+  UniqueHandle err;
+  const HANDLE own_err = GetStdHandle(STD_ERROR_HANDLE);
+  std::vector<HANDLE> inherited{in_read.get(), out_write.get()};
+  if (own_err != nullptr && own_err != INVALID_HANDLE_VALUE &&
+      DuplicateHandle(GetCurrentProcess(), own_err, GetCurrentProcess(), err.out(), 0, TRUE, DUPLICATE_SAME_ACCESS)) {
+    inherited.push_back(err.get());
+  }
+  InheritOnly attributes;
+  if (!attributes.set(inherited, error)) {
+    error = "spawn " + program + ": " + error;
     return std::nullopt;
   }
-  // Our ends stay ours; the child's ends are the only handles it inherits (with stderr).
-  SetHandleInformation(in_write, HANDLE_FLAG_INHERIT, 0);
-  SetHandleInformation(out_read, HANDLE_FLAG_INHERIT, 0);
-  HANDLE err = GetStdHandle(STD_ERROR_HANDLE);
-  std::vector<HANDLE> inherited{in_read, out_write};
-  if (err != nullptr && err != INVALID_HANDLE_VALUE &&
-      SetHandleInformation(err, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT)) {
-    inherited.push_back(err);
-  }
-  SIZE_T size = 0;
-  InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
-  std::vector<std::byte> storage(size);
-  auto* attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(storage.data());
-  InitializeProcThreadAttributeList(attributes, 1, 0, &size);
-  UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inherited.data(),
-                            inherited.size() * sizeof(HANDLE), nullptr, nullptr);
   STARTUPINFOEXW startup{};
   startup.StartupInfo.cb = sizeof(startup);
   startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-  startup.StartupInfo.hStdInput = in_read;
-  startup.StartupInfo.hStdOutput = out_write;
-  startup.StartupInfo.hStdError = err;
+  startup.StartupInfo.hStdInput = in_read.get();
+  startup.StartupInfo.hStdOutput = out_write.get();
+  startup.StartupInfo.hStdError = err.get();
+  startup.lpAttributeList = attributes.list();
   const std::wstring application = wide(program);
   std::wstring line;
   append_quoted(line, application);
@@ -118,21 +196,26 @@ std::optional<ChildProcess> spawn_piped(const std::string& program, const std::v
     append_quoted(line, wide(a));
   }
   PROCESS_INFORMATION process{};
-  const BOOL started = CreateProcessW(application.c_str(), line.data(), nullptr, nullptr, TRUE,
-                                      EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, &startup.StartupInfo, &process);
-  DeleteProcThreadAttributeList(attributes);
-  CloseHandle(in_read);
-  CloseHandle(out_write);
-  if (!started) {
+  if (!CreateProcessW(application.c_str(), line.data(), nullptr, nullptr, TRUE, EXTENDED_STARTUPINFO_PRESENT,
+                      nullptr, nullptr, &startup.StartupInfo, &process)) {
     error = "spawn " + program + ": " + last_error("CreateProcess");
-    CloseHandle(in_write);
-    CloseHandle(out_read);
     return std::nullopt;
   }
   CloseHandle(process.hThread);
-  const int to_child = _open_osfhandle(reinterpret_cast<intptr_t>(in_write), _O_WRONLY | _O_BINARY);
-  const int from_child = _open_osfhandle(reinterpret_cast<intptr_t>(out_read), _O_RDONLY | _O_BINARY);
-  return ChildProcess{process.dwProcessId, to_child, from_child, process.hProcess};
+  UniqueHandle child(process.hProcess);
+  const int to_child = adopt_as_descriptor(in_write, _O_WRONLY | _O_BINARY);
+  const int from_child = to_child == -1 ? -1 : adopt_as_descriptor(out_read, _O_RDONLY | _O_BINARY);
+  if (from_child == -1) {
+    // A child we can't talk to: stopped, and nothing of it is kept (#8).
+    error = "spawn " + program + ": _open_osfhandle: errno " + std::to_string(errno);
+    if (to_child != -1) {
+      _close(to_child);
+    }
+    TerminateProcess(child.get(), static_cast<UINT>(ERROR_INVALID_HANDLE));
+    WaitForSingleObject(child.get(), 5000);
+    return std::nullopt;
+  }
+  return ChildProcess{process.dwProcessId, to_child, from_child, child.release()};
 }
 
 bool write_all(int fd, std::span<const std::byte> bytes) {

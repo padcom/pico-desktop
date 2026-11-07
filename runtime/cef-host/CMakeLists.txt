@@ -7,11 +7,15 @@ add_library(pd_host_core STATIC
   src/core/policy.cpp
   src/core/router.cpp
   src/core/sandbox.cpp
+  src/core/sandbox_mac.cpp
   src/core/sandbox_windows.cpp
   src/core/services.cpp
   src/core/temp_dir.cpp)
 target_include_directories(pd_host_core PUBLIC include)
 target_link_libraries(pd_host_core PUBLIC pd_ipc)
+if(APPLE)
+  target_link_libraries(pd_host_core PRIVATE sandbox)  # sandbox_check (src/core/sandbox_mac.cpp)
+endif()
 pd_warnings(pd_host_core)
 
 add_executable(pd_host_core_test tests/core_test.cpp)
@@ -36,6 +40,13 @@ add_executable(pd_host_router_test tests/router_test.cpp)
 target_link_libraries(pd_host_router_test PRIVATE pd_host_core)
 pd_warnings(pd_host_router_test)
 add_test(NAME host.router COMMAND pd_host_router_test)
+
+# tests/lib.sh, the helper the end-to-end scripts below source (skips, the display, `timeout`).
+# Needs no CEF or display, so it runs in every preset. POSIX: it fakes uname, xvfb-run and pico
+# with symlinks under `env -i`, which Git Bash on Windows can't stand in for.
+if(NOT WIN32)
+  add_test(NAME host.test-lib COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/lib_test.sh)
+endif()
 
 if(NOT PD_WITH_CEF)
   # Without CEF: a stub that only identifies itself (so packaging and CI have a binary to run).

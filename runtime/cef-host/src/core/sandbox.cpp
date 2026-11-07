@@ -9,6 +9,7 @@
 
 #include <cerrno>
 #include <charconv>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -148,6 +149,48 @@ bool renderers_sandboxed(const std::vector<ProcessSandbox>& processes) {
     if (p.type == "renderer") {
       any = true;
       if (p.seccomp_mode != 2 || !p.own_pid_namespace) {
+        return false;
+      }
+    }
+  }
+  return any;
+}
+
+std::string parse_procargs2(std::string_view buffer) {
+  int argc = 0;
+  if (buffer.size() < sizeof(argc)) {
+    return {};
+  }
+  std::memcpy(&argc, buffer.data(), sizeof(argc));
+  buffer.remove_prefix(sizeof(argc));
+  const auto path_end = buffer.find('\0');  // the executable's path
+  if (argc < 0 || path_end == std::string_view::npos) {
+    return {};
+  }
+  buffer.remove_prefix(path_end);
+  const auto first = buffer.find_first_not_of('\0');
+  if (first == std::string_view::npos) {
+    return {};
+  }
+  buffer.remove_prefix(first);
+  std::string args;
+  for (int i = 0; i < argc && !buffer.empty(); ++i) {
+    const auto end = buffer.find('\0');
+    if (i > 0) {
+      args += '\0';
+    }
+    args += buffer.substr(0, end);
+    buffer.remove_prefix(end == std::string_view::npos ? buffer.size() : end + 1);
+  }
+  return args;
+}
+
+bool mac_renderers_sandboxed(const std::vector<MacProcessSandbox>& processes) {
+  bool any = false;
+  for (const auto& p : processes) {
+    if (p.type == "renderer") {
+      any = true;
+      if (p.seatbelt != 1) {
         return false;
       }
     }
