@@ -14,6 +14,20 @@ if [[ "$(uname)" == Linux && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; 
 fi
 scratch=$(mktemp -d)
 export XDG_CACHE_HOME=$scratch/cache  # never the user's profiles
+windows=false
+case "$(uname)" in MINGW* | MSYS* | CYGWIN*) windows=true ;; esac
+if $windows; then
+  LOCALAPPDATA=$(cygpath -w "$scratch/cache")  # the Windows host's profiles live there
+  export LOCALAPPDATA
+fi
+# Whether any host process is still running.
+host_running() {
+  if $windows; then
+    tasklist //FI "IMAGENAME eq $(basename "$host")" 2> /dev/null | grep -qi -- "$(basename "$host")"
+  else
+    pgrep -f -- "^$host " > /dev/null
+  fi
+}
 first_pid=
 cleanup() {
   [[ -n "$first_pid" ]] && kill "$first_pid" 2> /dev/null
@@ -27,9 +41,12 @@ fail() {
 }
 app=(--app-dir="$fixture" --app-id=pd-single-instance --no-external-open)
 
-mkfifo "$scratch/control"
-exec 3<> "$scratch/control"
-"$host" "${app[@]}" --dev --control=stdin < "$scratch/control" > "$scratch/first.log" 2>&1 &
+# The first instance quits once $scratch/quit exists (its stdin is a pipe, not a fifo: Git Bash's
+# fifos don't reach Windows programs).
+{
+  until [[ -e "$scratch/quit" ]]; do sleep 0.25; done
+  echo quit
+} | "$host" "${app[@]}" --dev --control=stdin > "$scratch/first.log" 2>&1 &
 first_pid=$!
 for _ in $(seq 1 40); do grep -q 'no --backend' "$scratch/first.log" && break; sleep 0.25; done
 sleep 1
@@ -48,12 +65,12 @@ grep -q 'quitting' "$scratch/third.log" || fail "--multi-instance didn't quit at
 [[ -z "$(ls -A "$XDG_CACHE_HOME/pico-desktop/apps/pd-single-instance/instances" 2> /dev/null)" ]] \
   || fail "--multi-instance left its profile behind"
 
-echo quit >&3
+touch "$scratch/quit"
 for _ in $(seq 1 40); do kill -0 "$first_pid" 2> /dev/null || break; sleep 0.25; done
 kill -0 "$first_pid" 2> /dev/null && fail "the first instance didn't quit"
 first_pid=
 sleep 1
-pgrep -f -- "^$host " > /dev/null && { fail "processes outlived the test:"; pgrep -af -- "^$host "; }
+host_running && { fail "processes outlived the test:"; $windows || pgrep -af -- "^$host "; }
 
 grep -h '^pd-\|^pico-desktop-host:' "$scratch/first.log" "$scratch/second.log" "$scratch/third.log"
 if [[ $failed -ne 0 ]]; then
