@@ -8,9 +8,10 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const [host, fixture, cli] = process.argv.slice(2)
-const { launchApp } = await import(cli)
+const { launchApp } = await import(pathToFileURL(cli).href) // (a bare path isn't a URL on Windows)
 
 const bin = mkdtempSync(join(tmpdir(), 'pd-user-input-'))
 const opened = join(bin, 'opened')
@@ -54,13 +55,18 @@ try {
     '<a id="pd-external" href="${url}" style="display:block;padding:20px">elsewhere</a>')`)
   // Laid out before the click (a frame), and clicked again if the first one landed too early.
   await app.evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
-  for (let attempt = 0; attempt < 3 && read(opened) === ''; attempt++) {
+  const out = () => read(opened) !== '' || app.log.some(l => l.includes(`pd-host: external open ${url}`))
+  for (let attempt = 0; attempt < 3 && !out(); attempt++) {
     await app.click('#pd-external')
-    for (let i = 0; i < 30 && read(opened) === ''; i++) {
+    for (let i = 0; i < 30 && !out(); i++) {
       await sleep(100)
     }
   }
-  check('a clicked link to another site goes to the system browser, unchanged', read(opened) === `${url}\n`, JSON.stringify(read(opened)))
+  // (Windows hands the link to ShellExecute, which no fake on the PATH stands in for: the host's
+  // log line says it went out.)
+  if (process.platform !== 'win32') {
+    check('a clicked link to another site goes to the system browser, unchanged', read(opened) === `${url}\n`, JSON.stringify(read(opened)))
+  }
   check('the window stays on the app', (await app.evaluate('location.origin')) === origin)
   check('the host logs it', app.log.some(l => l.includes(`pd-host: external open ${url}`)), app.log.filter(l => l.includes('pd-host')).join(' | '))
 }

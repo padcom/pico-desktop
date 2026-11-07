@@ -1,6 +1,8 @@
 #include "client.hpp"
 
+#if !defined(_WIN32)
 #include <unistd.h>
+#endif
 
 #include <string>
 #include <vector>
@@ -107,9 +109,10 @@ void HostClient::finish_self_test(CefRefPtr<CefBrowser> browser) {
     return;
   }
   // The page passed its checks; now prove the renderer it ran in is sandboxed.
-#if defined(__APPLE__)
-  // (macOS: the helpers run in CEF's Seatbelt sandbox, which can't be inspected from here.)
-  log_line("pd-info: the renderer's sandbox isn't inspected on macOS");
+#if !defined(__linux__)
+  // (macOS: the helpers run in CEF's Seatbelt sandbox; Windows: in its restricted tokens and job
+  // objects. Neither is inspected from here.)
+  log_line("pd-info: the renderer's sandbox isn't inspected on this system (only on Linux)");
 #else
   const auto processes = inspect_descendants(static_cast<int>(::getpid()));
   for (const auto& p : processes) {
