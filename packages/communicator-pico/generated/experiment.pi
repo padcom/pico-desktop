@@ -382,6 +382,79 @@ export function encodePortBusy(v: PortBusy): Cbor {
   Cbor.Dict(m)
 }
 
+export struct SerialOpenResponse {
+  handle: u32
+}
+
+export function decodeSerialOpenResponse(v: Cbor, path: string): SerialOpenResponse throws InvalidPayload {
+  const m = members(v, path, ["handle"])
+  SerialOpenResponse {
+    handle: (uint(required(m, "handle", path), `${path}.handle`, 4294967295) as u32),
+  }
+}
+
+export function encodeSerialOpenResponse(v: SerialOpenResponse): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("handle", Cbor.Uint(v.handle as u64))
+  Cbor.Dict(m)
+}
+
+export struct SerialWriteResponse {
+  written: u64
+}
+
+export function decodeSerialWriteResponse(v: Cbor, path: string): SerialWriteResponse throws InvalidPayload {
+  const m = members(v, path, ["written"])
+  SerialWriteResponse {
+    written: (uint(required(m, "written", path), `${path}.written`, 18446744073709551615) as u64),
+  }
+}
+
+export function encodeSerialWriteResponse(v: SerialWriteResponse): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("written", Cbor.Uint(v.written as u64))
+  Cbor.Dict(m)
+}
+
+export struct UiReadyPayload {
+}
+
+export function decodeUiReadyPayload(v: Cbor, path: string): UiReadyPayload throws InvalidPayload {
+  members(v, path, [])
+  UiReadyPayload {
+  }
+}
+
+export function encodeUiReadyPayload(_v: UiReadyPayload): Cbor {
+  const m = new Map<string, Cbor>()
+  Cbor.Dict(m)
+}
+
+export struct DroneTelemetryParams {
+  rateHz?: u8
+}
+
+export function decodeDroneTelemetryParams(v: Cbor, path: string): DroneTelemetryParams throws InvalidPayload {
+  const m = members(v, path, ["rateHz"])
+  const cbor0 = m.get("rateHz")
+  let opt0: u8? = null
+  if (cbor0 != null) {
+    opt0 = (uint(cbor0, `${path}.rateHz`, 255) as u8)
+  }
+  DroneTelemetryParams {
+    rateHz: opt0,
+  }
+}
+
+export function encodeDroneTelemetryParams(v: DroneTelemetryParams): Cbor {
+  const m = new Map<string, Cbor>()
+  const opt0 = v.rateHz
+  if (opt0 != null) {
+    m.set("rateHz", Cbor.Uint(opt0 as u64))
+  }
+  Cbor.Dict(m)
+}
+
 /// Decodes `v` as the contract type named `name` (the experiment's test drives it).
 export function decodeNamed(name: string, v: Cbor): void throws InvalidPayload {
   switch (name) {

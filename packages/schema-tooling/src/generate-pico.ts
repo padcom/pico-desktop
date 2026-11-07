@@ -3,7 +3,7 @@
 // text choices, payload enums for tagged unions, decoders from `Cbor` that use communicator-pico's
 // payload helpers, and encoders back to `Cbor`. Pico has no async closures and throwing closures
 // can't go into `map`, so the decoders are plain functions with loops.
-import type { Contract, Field, Type } from './ir'
+import type { Contract, Field, Service, Type } from './ir'
 import { typeName } from './generate-ts'
 
 const UINT_BITS: Record<number, [string, string]> = {
@@ -27,6 +27,14 @@ export interface PicoOptions {
 
 const PAYLOAD_HELPERS = ['members', 'required', 'text', 'bytes', 'boolean', 'uint', 'int', 'float', 'items', 'tagOf']
 
+const SERVICE_PARTS: Record<Service['kind'], [string, string][]> = {
+  method: [['request', 'Request'], ['response', 'Response']],
+  event: [['payload', 'Payload']],
+  subscription: [['params', 'Params'], ['value', 'Value']],
+}
+
+const NAMEABLE = new Set<Type['kind']>(['struct', 'enum', 'union'])
+
 const used = (body: string, names: string[]) => names.filter(h => new RegExp(`\\b${h}\\(`).test(body))
 
 class PicoGenerator {
@@ -45,6 +53,7 @@ class PicoGenerator {
     for (const { name, type } of this.contract.types) {
       this.named(typeName(name), type)
     }
+    this.serviceTypes()
 
     if (this.dispatchers) {
       this.dispatcher()
@@ -63,6 +72,19 @@ class PicoGenerator {
     return runtime
       ? [`import { ${[...cbor, ...payload].join(', ')} } from ${JSON.stringify(runtime)}`]
       : [`import { ${cbor.join(', ')} } from "../cbor"`, `import { ${payload.join(', ')} } from "../payload"`]
+  }
+
+  /**
+   * Names the services' inline maps, choices and unions after the service and the part
+   * (`math.add` → `MathAddRequest`, `MathAddResponse`; events `…Payload`; subscriptions
+   * `…Params`, `…Value`), so a backend can decode and encode them. Named rules keep their names.
+   */
+  private serviceTypes() {
+    const inline = this.contract.services.flatMap(service => SERVICE_PARTS[service.kind].map(([part, suffix]) => ({
+      name: typeName(service.name) + suffix,
+      type: (service as Record<string, unknown>)[part] as Type,
+    })))
+    inline.filter(({ type }) => NAMEABLE.has(type.kind)).forEach(({ name, type }) => this.named(name, type))
   }
 
   /**
@@ -141,7 +163,8 @@ class PicoGenerator {
     const known = `[${fields.map(f => JSON.stringify(f.name)).join(', ')}]`
     const decoder = [
       `export function decode${name}(v: Cbor, path: string): ${name} throws InvalidPayload {`,
-      `  const m = members(v, path, ${known})`,
+      // A struct without fields only checks that it's an empty map.
+      fields.length ? `  const m = members(v, path, ${known})` : `  members(v, path, ${known})`,
     ]
     decoder.push(...this.optionalLocals(name, fields))
     decoder.push(`  ${name} {`)
@@ -183,7 +206,8 @@ class PicoGenerator {
   }
 
   private structEncoder(name: string, fields: Field[]): string[] {
-    const lines = [`export function encode${name}(v: ${name}): Cbor {`, '  const m = new Map<string, Cbor>()']
+    const param = fields.length ? 'v' : '_v'
+    const lines = [`export function encode${name}(${param}: ${name}): Cbor {`, '  const m = new Map<string, Cbor>()']
     fields.forEach((f, i) => {
       const key = JSON.stringify(f.name)
       const owner = name + typeName(f.name)

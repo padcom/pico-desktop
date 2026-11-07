@@ -5,8 +5,14 @@ TypeScript + Vite UI, hosted by Chromium (CEF). The shipped app has no Node.js r
 host runs the window, a compiled Pico process runs the application logic, and the two talk through
 small, matching `Communicator` libraries over CBOR.
 
-> **Status: phase F0 (repository skeleton).** Nothing here runs an app yet. See the plan and the
-> architecture docs for what comes next.
+> **Status (2026-11-07): it works on linux-arm64.** Phases F0–F5 are done there (PLAN.md):
+> - the CEF host with the sandbox on;
+> - typed CBOR RPC, events and subscriptions between a Vite frontend and a compiled Pico backend;
+> - the `pico-desktop` CLI with a live dev loop;
+> - native services behind capabilities;
+> - single instance, orderly close, crash and hang recovery.
+>
+> F6/F7 so far: portable bundles and archives (`pico-desktop build`/`package`). Still open: the AppImage, the other five targets, and published packages and runtimes. Start with the [tutorial](docs/tutorial.md).
 
 ## Layout
 
@@ -22,7 +28,7 @@ small, matching `Communicator` libraries over CBOR.
 | `tooling/vite-plugin`, `tooling/templates` | Vite integration, `create` templates |
 | `apps/`, `tests/` | Example apps; integration and end-to-end tests |
 | `probes/` | Pico capability probes (Workstream 0) |
-| `docs/` | [Architecture](docs/architecture.md), [ADRs](docs/adr/README.md), [toolchain](docs/toolchain.md), [Pico capabilities](docs/pico-capabilities.md) |
+| `docs/` | [Tutorial](docs/tutorial.md), [architecture](docs/architecture.md), [protocol](docs/protocol.md), [security model](docs/security-model.md), [troubleshooting](docs/troubleshooting.md), [versioning](docs/versioning.md), [ADRs](docs/adr/README.md), [toolchain](docs/toolchain.md), [Linux](docs/platform-linux.md), [Pico capabilities](docs/pico-capabilities.md) |
 
 ## Development
 
@@ -43,9 +49,15 @@ Individual steps: `pnpm lint`, `pnpm build`, `pnpm typecheck`, `pnpm test`, `pnp
 The CEF host (Linux for now, see [docs/platform-linux.md](docs/platform-linux.md)):
 
 ```sh
-pnpm cef              # fetch + verify the pinned CEF, build the host, run its self-tests in a window
-build/cef/runtime/cef-host/pico-desktop-host --app-dir=<built frontend> [--app-id=<id>] [--dev]
+pnpm cef              # fetch + verify the pinned CEF, build the host, stage the runtime, run the ctests
+build/cef/runtime/cef-host/pico-desktop-host --help
 ```
+
+`pnpm cef` runs 16 ctests. Some need a display (Xvfb works) and `pico` on the `PATH`, and are skipped without them:
+- the host's self-tests (assets, CSP, bridge, navigation, sandbox);
+- single instance, orderly close, hang and crash-loop recovery, a missing sandbox;
+- hello-world end to end;
+- the CLI's dev loop and its bundle.
 
 ## License
 
