@@ -25,3 +25,15 @@ primitives to JavaScript (docs/architecture.md, NativeServices).
 - New services need a contract entry, a table entry in the host (`services.cpp`), and an
   implementation per platform.
 - The clipboard isn't there: CEF has no API for it.
+
+## Addendum (2026-11-07): the page's permission prompts
+
+Chromium asks for permission before some web APIs: reading the clipboard, the camera, location,
+notifications. A desktop app has no prompt UI, and CEF (Alloy) leaves an unanswered prompt pending
+forever, so `navigator.clipboard.readText()` never settled. The host now answers every prompt:
+- it grants only reading the clipboard, only to the app's own origin, and only when the app
+  declares a fourth capability, `clipboard`;
+- it denies everything else and logs it.
+
+Writing the clipboard needs no permission. Native features beyond these stay host services that
+the backend calls.
