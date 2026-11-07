@@ -2,6 +2,7 @@
 # message routing.
 add_library(pd_host_core STATIC
   src/core/assets.cpp
+  src/core/exit_code.cpp
   src/core/interruptible_io.cpp
   src/core/options.cpp
   src/core/policy.cpp
@@ -24,6 +25,13 @@ target_link_libraries(pd_host_interruptible_io_test PRIVATE pd_host_core)
 pd_warnings(pd_host_interruptible_io_test)
 add_test(NAME host.interruptible-io COMMAND pd_host_interruptible_io_test)
 set_tests_properties(host.interruptible-io PROPERTIES TIMEOUT 30)
+
+# How Windows exit codes read in the log: NTSTATUS crashes in hex, the host's kill as "killed"
+# (#19, #20). Runs everywhere (it's only formatting).
+add_executable(pd_host_exit_code_test tests/exit_code_test.cpp)
+target_link_libraries(pd_host_exit_code_test PRIVATE pd_host_core)
+pd_warnings(pd_host_exit_code_test)
+add_test(NAME host.exit-code COMMAND pd_host_exit_code_test)
 
 # The self-test's throwaway profile directory: private and unguessable on POSIX (#27).
 add_executable(pd_host_temp_dir_test tests/temp_dir_test.cpp)

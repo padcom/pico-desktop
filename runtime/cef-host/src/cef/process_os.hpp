@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <thread>
@@ -13,6 +14,9 @@
 #include "pico_desktop/ipc/process.hpp"
 
 namespace pico_desktop::host::cef::os {
+
+/// A process's end: POSIX the wait status, Windows the whole 32-bit exit code; -1 when unknown.
+using Status = std::int64_t;
 
 /// Prepares the host (POSIX: a backend that dies mid-write gives EPIPE, not SIGPIPE).
 void init_process_handling();
@@ -23,14 +27,14 @@ int exit_watch(const ipc::ChildProcess& child);
 /// Makes writes to the child's stdin non-blocking where the link waits for room (POSIX).
 void prepare_pipes(const ipc::ChildProcess& child);
 
-/// Ends `child` at once.
+/// Ends `child` at once (Windows: with windows_killed_exit_code, so it reads "killed").
 void kill(const ipc::ChildProcess& child);
 
 /// Waits up to `grace` for `child` to exit, then kills it; its status (see describe), or -1.
-int reap(const ipc::ChildProcess& child, std::chrono::milliseconds grace);
+Status reap(const ipc::ChildProcess& child, std::chrono::milliseconds grace);
 
-/// "exit code 0", "signal 9", …
-std::string describe(int status);
+/// "exit code 0", "signal 9", "killed", "exit code 0xC0000005", …
+std::string describe(Status status);
 
 /// Reads what's there (up to `size`, blocking until something is): the count, 0 at the end, -1
 /// on an error (EINTR is retried).

@@ -199,7 +199,7 @@ void Link::on_backend_exit(std::uint64_t generation) {
   if (!process_ || process_->generation != generation) {
     return;
   }
-  const int status = end_process(std::chrono::milliseconds(0));
+  const os::Status status = end_process(std::chrono::milliseconds(0));
   if (closing_) {
     log("pd-host: the backend ended (" + os::describe(status) + ")");
     finish_close();
@@ -365,12 +365,12 @@ void Link::closing() {
 void Link::stop(std::chrono::milliseconds grace) {
   closing_ = true;
   if (process_) {
-    const int status = end_process(grace);
+    const os::Status status = end_process(grace);
     log("pd-host: the backend ended (" + os::describe(status) + ")");
   }
 }
 
-int Link::end_process(std::chrono::milliseconds grace) {
+os::Status Link::end_process(std::chrono::milliseconds grace) {
   std::unique_ptr<Process> process = std::move(process_);
   {
     std::lock_guard<std::mutex> lock(process->mutex);
@@ -379,7 +379,7 @@ int Link::end_process(std::chrono::milliseconds grace) {
   process->wake.notify_one();
   // The writer closes stdin once the queue is out; a backend that doesn't exit then is killed.
   // Then both threads stop waiting, even if something the backend started still holds its pipes.
-  const int status = os::reap(process->child, grace);
+  const os::Status status = os::reap(process->child, grace);
 #if defined(_WIN32)
   if (process->watcher.joinable()) {
     process->watcher.join();  // the process is gone, so it has fired
