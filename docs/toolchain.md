@@ -33,7 +33,9 @@ built from the `pico-lang` clone next to this repository, first on `PATH`:
 `export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`. That build comes from a
 local branch, `local/integration`, which is never pushed: pico-lang `main` plus these fixes.
 - `pico dap` attach with the formatters (#99, PR #101): merged on `main` (not released yet).
-  `pnpm dev --debug` with VS Code's **Debug the backend** needs it.
+  `pnpm dev --debug` with VS Code's **Debug the backend** needs it. ctest `cli.debug-attach`
+  checks it: a breakpoint in the backend that the host starts, a variable read, the backend
+  held past the hang timeout, and a detach.
 - PR #103 (a subclass's fields after `instanceof` narrowing panicked the compiler, #102): only
   backends that narrow class hierarchies need it (pico-mavlink's decoded messages do).
 - PR #105 (a field named `target` was taken for the build constant inside async methods, #104):

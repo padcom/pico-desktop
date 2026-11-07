@@ -143,6 +143,14 @@ add_test(NAME cli.dev-loop
   COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/dev-loop.sh $<TARGET_FILE:pico-desktop-host>)
 set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
 
+# The Pico debugger on the backend that the host starts (tooling/cli/tests/debug-attach.sh): a
+# DAP client attaches through `pico dap` to the next backend, and `pnpm dev --debug` stops at a
+# breakpoint in its handler, held past the hang timeout, then detaches. Needs pico 0.4.2,
+# lldb-dap and ptrace_scope 0; skipped otherwise.
+add_test(NAME cli.debug-attach
+  COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/debug-attach.sh $<TARGET_FILE:pico-desktop-host>)
+set_tests_properties(cli.debug-attach PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+
 # The F6 bundle on a freshly created app (tooling/cli/tests/bundle.sh): build, run it with a bare
 # environment, SIGTERM, package, verify, unpack and run again, and a tampered runtime refused.
 # Needs pico, the built CLI and a staged runtime (`pnpm runtime:stage`); skipped otherwise.
