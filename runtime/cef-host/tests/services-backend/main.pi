@@ -1,0 +1,23 @@
+// A test backend that calls a host service once it's running and reports how it went on stderr
+// (tests/services.sh): a desktop notification, which needs the `notifications` capability.
+import { stderr } from "std/process"
+import { Communicator, CommunicatorError, Host, StdioTransport } from "../../../../packages/communicator-pico/index"
+
+const communicator = new Communicator(new StdioTransport())
+const host = new Host(communicator)
+
+async function say(text: string): Promise<void> throws Error {
+  await stderr.write(new TextEncoder().encode(`services-backend: ${text}\n`))
+}
+
+async function notify(): Promise<void> throws Error {
+  try {
+    await host.notify("Pico Desktop test", "from the backend")
+    await say("notify ok")
+  } catch (e: CommunicatorError) {
+    await say(`notify ${e.code}`)
+  }
+}
+
+setTimeout(() => notify(), 300)
+await communicator.run()

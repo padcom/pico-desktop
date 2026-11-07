@@ -125,6 +125,9 @@ set_tests_properties(host.no-userns PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
 add_test(NAME host.hang
   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/hang.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
 set_tests_properties(host.hang PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+add_test(NAME host.services
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/services.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+set_tests_properties(host.services PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 
 # The F3 vertical slice end to end: the hello-world app's self-test build and its compiled Pico
 # backend in a real window (`pnpm --filter @pico-desktop/hello-world build:self-test` and
