@@ -278,3 +278,45 @@ export function encodeNotification(v: Notification): Cbor {
   }
   Cbor.Dict(m)
 }
+
+export struct ClipboardText {
+  text: string
+}
+
+export function decodeClipboardText(v: Cbor, path: string): ClipboardText throws InvalidPayload {
+  const m = members(v, path, ["text"])
+  ClipboardText {
+    text: text(required(m, "text", path), `${path}.text`),
+  }
+}
+
+export function encodeClipboardText(v: ClipboardText): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("text", Cbor.Text(v.text))
+  Cbor.Dict(m)
+}
+
+export struct ClipboardContent {
+  text?: string
+}
+
+export function decodeClipboardContent(v: Cbor, path: string): ClipboardContent throws InvalidPayload {
+  const m = members(v, path, ["text"])
+  const cbor0 = m.get("text")
+  let opt0: string? = null
+  if (cbor0 != null) {
+    opt0 = text(cbor0, `${path}.text`)
+  }
+  ClipboardContent {
+    text: opt0,
+  }
+}
+
+export function encodeClipboardContent(v: ClipboardContent): Cbor {
+  const m = new Map<string, Cbor>()
+  const opt0 = v.text
+  if (opt0 != null) {
+    m.set("text", Cbor.Text(opt0))
+  }
+  Cbor.Dict(m)
+}
