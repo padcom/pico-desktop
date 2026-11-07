@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { launcher, slug } from './build'
+import { launcher, releaseBuildArgs, slug } from './build'
 import { resolveConfig } from './config'
 
 describe('the bundle', () => {
@@ -51,5 +51,12 @@ describe('the launcher, run by sh', () => {
       "--window-title=Bob's $HOME `app`",
       '--extra',
     ])
+  })
+})
+
+describe('releaseBuildArgs', () => {
+  it('names the target, so the backend is built for the architecture\'s baseline CPU, not this machine\'s', () => {
+    expect(releaseBuildArgs('/app/main.pi', '/out/backend', 'linux-x64'))
+      .toEqual(['build', '--release', '--target', 'linux-x64', '/app/main.pi', '-o', '/out/backend'])
   })
 })
