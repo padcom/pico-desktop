@@ -11,7 +11,9 @@ if [[ ! -f "$fixture/index.html" ]]; then
   exit 77
 fi
 runner=()
-if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+# macOS has no `timeout` unless coreutils is installed.
+command -v timeout > /dev/null || timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
+if [[ "$(uname)" == Linux && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   if command -v xvfb-run > /dev/null; then
     runner=(xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24")
   else
@@ -22,7 +24,7 @@ fi
 
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
-timeout 120 "${runner[@]}" "$host" --app-dir="$fixture" --app-id=pd-self-test --origin="$origin" --self-test \
+timeout 120 ${runner[@]+"${runner[@]}"} "$host" --app-dir="$fixture" --app-id=pd-self-test --origin="$origin" --self-test \
   --no-external-open > "$log" 2>&1
 code=$?
 grep -E '^(pd-|console: pd-info)' "$log"
@@ -37,14 +39,19 @@ expect() {
 [[ $code -eq 0 ]] || { echo "FAIL: the host exited with $code"; failed=1; }
 expect "pd-test: done"
 expect " 0 failed"
-expect "pd-test: ok renderer is sandboxed"
+if [[ "$(uname)" != Linux ]]; then
+  expect "pd-info: the renderer's sandbox isn't inspected on this system (only on Linux)"
+else
+  expect "pd-test: ok renderer is sandboxed"
+fi
 expect "pd-host: blocked navigation to https://example.com/ (no user gesture)"
 
 # Nothing may outlive the host (renderers, GPU, zygotes, utilities).
 sleep 2
-if pgrep -f -- "^$host " > /dev/null; then
+# (macOS: Chromium's processes are the bundle's helper apps.)
+if pgrep -f -- "^$host " > /dev/null || pgrep -f -- "pico-desktop-host Helper" > /dev/null; then
   echo "FAIL: processes outlived the host:"
-  pgrep -af -- "^$host "
+  pgrep -lf -- "pico-desktop-host"
   failed=1
 fi
 

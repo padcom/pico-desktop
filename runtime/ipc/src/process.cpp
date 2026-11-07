@@ -1,8 +1,12 @@
 #include "pico_desktop/ipc/process.hpp"
 
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <fcntl.h>
 #include <io.h>
 #include <windows.h>
@@ -243,6 +247,8 @@ void close_pipe(int fds[2]) {
   errno = saved;
 }
 
+}  // namespace
+
 /// A pipe whose ends don't leak into other programs this process starts. On failure nothing is
 /// left open and errno says why.
 bool cloexec_pipe(int fds[2]) {
@@ -261,8 +267,6 @@ bool cloexec_pipe(int fds[2]) {
   return pipe2(fds, O_CLOEXEC) == 0;
 #endif
 }
-
-}  // namespace
 
 std::optional<ChildProcess> spawn_piped(const std::string& program, const std::vector<std::string>& args,
                                         std::string& error) {
