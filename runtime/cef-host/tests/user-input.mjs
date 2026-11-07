@@ -8,9 +8,10 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const [host, fixture, cli] = process.argv.slice(2)
-const { launchApp } = await import(cli)
+const { launchApp } = await import(pathToFileURL(cli).href) // (a bare path isn't a URL on Windows)
 
 const bin = mkdtempSync(join(tmpdir(), 'pd-user-input-'))
 const opened = join(bin, 'opened')
@@ -54,13 +55,25 @@ try {
     '<a id="pd-external" href="${url}" style="display:block;padding:20px">elsewhere</a>')`)
   // Laid out before the click (a frame), and clicked again if the first one landed too early.
   await app.evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
-  for (let attempt = 0; attempt < 3 && read(opened) === ''; attempt++) {
+  // The click is retried only until the host has the link (its log line), so a slow opener can't
+  // be handed it twice.
+  const handled = () => app.log.some(l => l.includes(`pd-host: external open ${url}`))
+  for (let attempt = 0; attempt < 3 && !handled(); attempt++) {
     await app.click('#pd-external')
-    for (let i = 0; i < 30 && read(opened) === ''; i++) {
+    for (let i = 0; i < 30 && !handled(); i++) {
       await sleep(100)
     }
   }
-  check('a clicked link to another site goes to the system browser, unchanged', read(opened) === `${url}\n`, JSON.stringify(read(opened)))
+  // (Windows hands the link to ShellExecute, which no fake on the PATH stands in for: the host's
+  // log line says it went out.) Elsewhere the host logs the link before it starts the opener, so
+  // the fake opener's file is waited for itself (#39), up to 10 s, until its line is complete.
+  if (process.platform !== 'win32') {
+    const written = () => read(opened).endsWith('\n')
+    for (let i = 0; i < 100 && !written(); i++) {
+      await sleep(100)
+    }
+    check('a clicked link to another site goes to the system browser, unchanged', read(opened) === `${url}\n`, JSON.stringify(read(opened)))
+  }
   check('the window stays on the app', (await app.evaluate('location.origin')) === origin)
   check('the host logs it', app.log.some(l => l.includes(`pd-host: external open ${url}`)), app.log.filter(l => l.includes('pd-host')).join(' | '))
 }

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# The test scripts' `timeout` fallback (scripts/lib/timeout.sh), run on every platform (#13): it
+# The test scripts' `timeout` fallback (runtime/cef-host/tests/lib.sh), run on every platform (#13): it
 # exits 124 like coreutils' and stops commands that ignore SIGALRM or SIGTERM.
 set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=../lib/timeout.sh
-source "$here/../lib/timeout.sh"
+# shellcheck source=../../runtime/cef-host/tests/lib.sh
+source "$here/../../runtime/cef-host/tests/lib.sh"
 failed=0
 fail() {
   echo "FAIL: $1"

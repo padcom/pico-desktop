@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "pico_desktop/host/assets.hpp"
+#include "pico_desktop/host/console_event.hpp"
 #include "pico_desktop/host/options.hpp"
 #include "pico_desktop/host/policy.hpp"
 #include "pico_desktop/host/sandbox.hpp"
@@ -284,9 +285,37 @@ static void sandbox() {
   CHECK(!renderers_sandboxed({{1, "renderer", 0, true}}));
   CHECK(!renderers_sandboxed({{2, "gpu-process", 2, true}}));
   CHECK(!renderers_sandboxed({}));
+
+  // macOS (#10): KERN_PROCARGS2 is argc, the executable's path, NUL padding, then the arguments.
+  {
+    const int argc = 3;
+    std::string buffer(reinterpret_cast<const char*>(&argc), sizeof(argc));
+    buffer += std::string("/App/Helper (Renderer)\0\0\0\0", 26);
+    buffer += std::string("/App/Helper (Renderer)\0--type=renderer\0--lang=en\0PATH=/usr/bin\0", 63);
+    CHECK(parse_procargs2(buffer) == std::string("/App/Helper (Renderer)\0--type=renderer\0--lang=en", 48));
+    CHECK(parse_cmdline_type(parse_procargs2(buffer)) == "renderer");  // the environment isn't read
+    CHECK(parse_procargs2("").empty());
+    CHECK(parse_procargs2(std::string(reinterpret_cast<const char*>(&argc), sizeof(argc)) + "/no-nul").empty());
+  }
+  CHECK(mac_renderers_sandboxed({{1, "renderer", 1}, {2, "gpu-process", 0}}));
+  CHECK(!mac_renderers_sandboxed({{1, "renderer", 0}}));
+  CHECK(!mac_renderers_sandboxed({{1, "renderer", -1}}));  // couldn't be asked
+  CHECK(!mac_renderers_sandboxed({{1, "renderer", 1}, {2, "renderer", 0}}));
+  CHECK(!mac_renderers_sandboxed({{2, "gpu-process", 1}}));  // no renderer
+  CHECK(!mac_renderers_sandboxed({}));
   CHECK(!suid_sandbox_usable("/nonexistent/chrome-sandbox"));
   CHECK(!suid_sandbox_usable("/bin/sh"));  // not setuid
   CHECK(sandbox_unavailable_message("/x/chrome-sandbox").find("user namespaces") != std::string::npos);
+}
+
+// Windows console events: the ones after which the process is ended have the handler wait (#18).
+static void console_events() {
+  CHECK(ends_process_on_return(2));  // CTRL_CLOSE_EVENT
+  CHECK(ends_process_on_return(5));  // CTRL_LOGOFF_EVENT
+  CHECK(ends_process_on_return(6));  // CTRL_SHUTDOWN_EVENT
+  CHECK(!ends_process_on_return(0));  // CTRL_C_EVENT
+  CHECK(!ends_process_on_return(1));  // CTRL_BREAK_EVENT
+  CHECK(!ends_process_on_return(3));
 }
 
 int main() {
@@ -298,6 +327,7 @@ int main() {
   policy();
   options();
   sandbox();
+  console_events();
   fs::remove_all(tmp);
   if (failures == 0) {
     std::puts("host.core: all checks passed");

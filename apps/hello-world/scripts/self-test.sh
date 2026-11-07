@@ -8,28 +8,18 @@
 set -uo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 host=$1 frontend=$here/dist/self-test backend=$here/dist/backend
+source "$here/../../runtime/cef-host/tests/lib.sh"
 
 for need in "$host" "$frontend/index.html" "$backend"; do
   if [[ ! -e "$need" ]]; then
-    echo "skipped: $need isn't built (pnpm --filter @pico-desktop/hello-world build:self-test, backend)"
-    exit 77
+    pd_skip "$need isn't built (pnpm --filter @pico-desktop/hello-world build:self-test, backend)"
   fi
 done
-runner=()
-# `timeout` (with a fallback where coreutils is missing, as on macOS); macOS needs no X display.
-source "$(dirname "$0")/../../../scripts/lib/timeout.sh"
-if [[ "$(uname)" != Darwin && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-  if command -v xvfb-run > /dev/null; then
-    runner=(xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24")
-  else
-    echo "skipped: no display (set DISPLAY or install xvfb-run)"
-    exit 77
-  fi
-fi
+pd_display_runner
 
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
-timeout 120 ${runner[@]+"${runner[@]}"} "$host" --app-dir="$frontend" --app-id=dev.pico-desktop.hello-world \
+timeout 120 ${pd_runner[@]+"${pd_runner[@]}"} "$host" --app-dir="$frontend" --app-id=dev.pico-desktop.hello-world \
   --backend="$backend" --capabilities=window --self-test --no-external-open > "$log" 2>&1
 code=$?
 grep -E '^(pd-|console: )' "$log"
@@ -45,7 +35,11 @@ expect() {
 expect "pd-test: done"
 expect " 0 failed"
 expect "pd-host: the backend is ready (epoch 1)"
-expect "pd-host: the backend exited (signal 9)"
+# (Windows has no signals: the host kills with its own exit code, which reads "killed".)
+case "$(uname)" in
+  MINGW* | MSYS* | CYGWIN*) expect "pd-host: the backend exited (killed)" ;;
+  *) expect "pd-host: the backend exited (signal 9)" ;;
+esac
 expect "pd-host: the backend is ready (epoch 2)"
 # `closing` reached the backend and it ended by itself within the grace period.
 expect "pd-host: the backend ended (exit code 0)"

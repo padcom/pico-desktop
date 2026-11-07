@@ -2,13 +2,19 @@
 # message routing.
 add_library(pd_host_core STATIC
   src/core/assets.cpp
+  src/core/exit_code.cpp
   src/core/options.cpp
   src/core/policy.cpp
   src/core/router.cpp
   src/core/sandbox.cpp
-  src/core/services.cpp)
+  src/core/sandbox_mac.cpp
+  src/core/services.cpp
+  src/core/temp_dir.cpp)
 target_include_directories(pd_host_core PUBLIC include)
 target_link_libraries(pd_host_core PUBLIC pd_ipc)
+if(APPLE)
+  target_link_libraries(pd_host_core PRIVATE sandbox)  # sandbox_check (src/core/sandbox_mac.cpp)
+endif()
 pd_warnings(pd_host_core)
 
 add_executable(pd_host_core_test tests/core_test.cpp)
@@ -16,10 +22,30 @@ target_link_libraries(pd_host_core_test PRIVATE pd_host_core)
 pd_warnings(pd_host_core_test)
 add_test(NAME host.core COMMAND pd_host_core_test)
 
+# How Windows exit codes read in the log: NTSTATUS crashes in hex, the host's kill as "killed"
+# (#19, #20). Runs everywhere (it's only formatting).
+add_executable(pd_host_exit_code_test tests/exit_code_test.cpp)
+target_link_libraries(pd_host_exit_code_test PRIVATE pd_host_core)
+pd_warnings(pd_host_exit_code_test)
+add_test(NAME host.exit-code COMMAND pd_host_exit_code_test)
+
+# The self-test's throwaway profile directory: private and unguessable on POSIX (#27).
+add_executable(pd_host_temp_dir_test tests/temp_dir_test.cpp)
+target_link_libraries(pd_host_temp_dir_test PRIVATE pd_host_core)
+pd_warnings(pd_host_temp_dir_test)
+add_test(NAME host.temp-dir COMMAND pd_host_temp_dir_test)
+
 add_executable(pd_host_router_test tests/router_test.cpp)
 target_link_libraries(pd_host_router_test PRIVATE pd_host_core)
 pd_warnings(pd_host_router_test)
 add_test(NAME host.router COMMAND pd_host_router_test)
+
+# tests/lib.sh, the helper the end-to-end scripts below source (skips, the display, `timeout`).
+# Needs no CEF or display, so it runs in every preset. POSIX: it fakes uname, xvfb-run and pico
+# with symlinks under `env -i`, which Git Bash on Windows can't stand in for.
+if(NOT WIN32)
+  add_test(NAME host.test-lib COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/lib_test.sh)
+endif()
 
 if(NOT PD_WITH_CEF)
   # Without CEF: a stub that only identifies itself (so packaging and CI have a binary to run).
@@ -43,6 +69,7 @@ set(PD_HOST_SOURCES
   src/cef/external.cpp
   src/cef/link.cpp
   src/cef/main.cpp
+  src/cef/process_os.cpp
   src/cef/scheme.cpp
   src/cef/services.cpp
   src/cef/signals.cpp
@@ -148,13 +175,49 @@ elseif(OS_MAC)
               "${PD_APP}/Contents/Frameworks/${_helper_output_name}.app"
       VERBATIM)
   endforeach()
+elseif(OS_WINDOWS)
+  # Windows: the host is pico-desktop-host.dll, run by CEF's console bootstrap (bootstrapc.exe,
+  # copied as pico-desktop-host.exe), which sets up the sandbox for every process. CEF's DLLs and
+  # resources go next to it.
+  add_library(pico-desktop-host SHARED ${PD_HOST_SOURCES} src/cef/main_win.cpp)
+  SET_LIBRARY_TARGET_PROPERTIES(pico-desktop-host)
+  add_dependencies(pico-desktop-host libcef_dll_wrapper)
+  ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
+  target_link_libraries(pico-desktop-host PRIVATE libcef_lib libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
+  target_compile_definitions(pico-desktop-host PRIVATE PD_VERSION="${PROJECT_VERSION}")
+  set(PD_HOST_DIR "$<TARGET_FILE_DIR:pico-desktop-host>")
+  add_custom_command(TARGET pico-desktop-host POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CEF_BINARY_DIR}/bootstrapc.exe" "${PD_HOST_DIR}/pico-desktop-host.exe"
+    VERBATIM)
+  foreach(file IN LISTS CEF_BINARY_FILES)
+    add_custom_command(TARGET pico-desktop-host POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CEF_BINARY_DIR}/${file}" "${PD_HOST_DIR}/${file}" VERBATIM)
+  endforeach()
+  foreach(file IN LISTS CEF_RESOURCE_FILES)
+    if(IS_DIRECTORY "${CEF_RESOURCE_DIR}/${file}")
+      add_custom_command(TARGET pico-desktop-host POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CEF_RESOURCE_DIR}/${file}" "${PD_HOST_DIR}/${file}" VERBATIM)
+    else()
+      add_custom_command(TARGET pico-desktop-host POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CEF_RESOURCE_DIR}/${file}" "${PD_HOST_DIR}/${file}" VERBATIM)
+    endif()
+  endforeach()
+  set(PD_HOST "${PD_HOST_DIR}/pico-desktop-host.exe")
 else()
-  message(FATAL_ERROR "the CEF host is implemented for Linux and macOS (Windows: not yet)")
+  message(FATAL_ERROR "the CEF host is implemented for Linux, macOS and Windows")
+endif()
+if(NOT DEFINED PD_HOST)
+  set(PD_HOST "$<TARGET_FILE:pico-desktop-host>")  # what the tests run
+endif()
+# The tests' scripts are bash; Windows runs them through it (Git Bash).
+set(PD_SH "")
+if(WIN32)
+  set(PD_SH bash)
 endif()
 
-add_test(NAME host.version COMMAND pico-desktop-host --version)
+add_test(NAME host.version COMMAND ${PD_HOST} --version)
 set_tests_properties(host.version PROPERTIES PASS_REGULAR_EXPRESSION "^pico-desktop-host ${PROJECT_VERSION} \\(CEF ")
-add_test(NAME host.refuses-remote-debugging COMMAND pico-desktop-host --app-dir=/nonexistent --remote-debugging-port=9222)
+add_test(NAME host.refuses-remote-debugging COMMAND ${PD_HOST} --app-dir=/nonexistent --remote-debugging-port=9222)
 set_tests_properties(host.refuses-remote-debugging PROPERTIES WILL_FAIL TRUE)
 
 # Self-tests in a real window: the fixture page tests itself under each trusted-origin scheme,
@@ -163,7 +226,7 @@ set_tests_properties(host.refuses-remote-debugging PROPERTIES WILL_FAIL TRUE)
 set(PD_FIXTURE_DIR "${PROJECT_SOURCE_DIR}/tests/host-fixture/dist" CACHE PATH "The built host self-test fixture")
 foreach(origin IN ITEMS app https)
   add_test(NAME host.self-test.${origin}
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/run-self-test.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR} ${origin})
+    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/run-self-test.sh ${PD_HOST} ${PD_FIXTURE_DIR} ${origin})
   set_tests_properties(host.self-test.${origin} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endforeach()
 
@@ -173,7 +236,7 @@ endforeach()
 # skipped without pico, xvfb-run (or PD_TEST_REAL_CLIPBOARD=1), the fixture or the built CLI.
 if(OS_LINUX)
   add_test(NAME host.clipboard
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/clipboard.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/clipboard.sh ${PD_HOST} ${PD_FIXTURE_DIR})
   set_tests_properties(host.clipboard PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180 RUN_SERIAL TRUE)
 endif()
 
@@ -181,41 +244,49 @@ endif()
 # DevTools and another key doesn't; a clicked link to another site goes to xdg-open (a fake one)
 # and the window stays. Needs a display, the fixture and the built CLI; skipped otherwise.
 add_test(NAME host.user-input
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/user-input.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+  COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/user-input.sh ${PD_HOST} ${PD_FIXTURE_DIR})
 set_tests_properties(host.user-input PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 
 # Single instance: a second launch focuses the first and exits 0; --multi-instance runs beside it.
-add_test(NAME host.single-instance
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/single-instance.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
-set_tests_properties(host.single-instance PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+if(NOT WIN32)  # Windows: the second launch doesn't reach the first yet
+  add_test(NAME host.single-instance
+    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/single-instance.sh ${PD_HOST} ${PD_FIXTURE_DIR})
+  set_tests_properties(host.single-instance PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+endif()
 
 # The orderly close: `closing` to the page and the backend while the window stays, then the close;
 # a backend that doesn't finish is killed after the grace period. Needs hello-world built.
-add_test(NAME host.close
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/close.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR}
-          ${PROJECT_SOURCE_DIR}/apps/hello-world)
-set_tests_properties(host.close PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+if(NOT WIN32)  # Windows: its stuck backend is a shell script
+  add_test(NAME host.close
+    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/close.sh ${PD_HOST} ${PD_FIXTURE_DIR}
+            ${PROJECT_SOURCE_DIR}/apps/hello-world)
+  set_tests_properties(host.close PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+endif()
 
 # No user namespaces: the host explains and refuses to start (simulated with unshare, no root).
 if(OS_LINUX)  # Linux only for now
   add_test(NAME host.no-userns
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/no-userns.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/no-userns.sh ${PD_HOST} ${PD_FIXTURE_DIR})
   set_tests_properties(host.no-userns PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
 endif()
 
 # Hangs (liveness pings) and crash loops (the restart budget). Needs pico for the hang backend.
-add_test(NAME host.hang
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/hang.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
-set_tests_properties(host.hang PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
-add_test(NAME host.services
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/services.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
-set_tests_properties(host.services PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+if(NOT WIN32)  # Windows: its crashing and stray backends are shell scripts
+  add_test(NAME host.hang
+    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/hang.sh ${PD_HOST} ${PD_FIXTURE_DIR})
+  set_tests_properties(host.hang PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+endif()
+if(NOT WIN32)  # Windows: notifications aren't implemented on Windows yet
+  add_test(NAME host.services
+    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/services.sh ${PD_HOST} ${PD_FIXTURE_DIR})
+  set_tests_properties(host.services PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+endif()
 
 # The F3 vertical slice end to end: the hello-world app's self-test build and its compiled Pico
 # backend in a real window (`pnpm --filter @pico-desktop/hello-world build:self-test` and
 # `backend`, which needs pico); skipped when they aren't built.
 add_test(NAME hello-world.self-test
-  COMMAND ${PROJECT_SOURCE_DIR}/apps/hello-world/scripts/self-test.sh $<TARGET_FILE:pico-desktop-host>)
+  COMMAND ${PD_SH} ${PROJECT_SOURCE_DIR}/apps/hello-world/scripts/self-test.sh ${PD_HOST})
 set_tests_properties(hello-world.self-test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 150 RUN_SERIAL TRUE)
 
 # The F4 developer loop on a freshly created app (tooling/cli/tests/dev-loop.sh): create,
@@ -223,7 +294,7 @@ set_tests_properties(hello-world.self-test PROPERTIES SKIP_RETURN_CODE 77 TIMEOU
 # and Ctrl+C. Needs pico and the built CLI (`pnpm build`); skipped otherwise.
 if(OS_LINUX)  # Linux only for now
   add_test(NAME cli.dev-loop
-    COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/dev-loop.sh $<TARGET_FILE:pico-desktop-host>)
+    COMMAND ${PD_SH} ${PROJECT_SOURCE_DIR}/tooling/cli/tests/dev-loop.sh ${PD_HOST})
   set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
 endif()
 
@@ -233,12 +304,12 @@ endif()
 # ptrace_scope 0; skipped otherwise.
 if(OS_LINUX)  # Linux only for now
   add_test(NAME cli.debug-attach
-    COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/debug-attach.sh $<TARGET_FILE:pico-desktop-host>)
+    COMMAND ${PD_SH} ${PROJECT_SOURCE_DIR}/tooling/cli/tests/debug-attach.sh ${PD_HOST})
   set_tests_properties(cli.debug-attach PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
 endif()
 
 # The F6 bundle on a freshly created app (tooling/cli/tests/bundle.sh): build, run it with a bare
 # environment, SIGTERM, package, verify, unpack and run again, and a tampered runtime refused.
 # Needs pico, the built CLI and a staged runtime (`pnpm runtime:stage`); skipped otherwise.
-add_test(NAME cli.bundle COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/bundle.sh)
+add_test(NAME cli.bundle COMMAND ${PD_SH} ${PROJECT_SOURCE_DIR}/tooling/cli/tests/bundle.sh)
 set_tests_properties(cli.bundle PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)

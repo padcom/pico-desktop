@@ -5,13 +5,9 @@
 # the fixture.
 set -uo pipefail
 host=$1 fixture=$2
-[[ -f "$fixture/index.html" ]] || { echo "skipped: the fixture isn't built"; exit 77; }
-# `timeout` (with a fallback where coreutils is missing, as on macOS); macOS needs no X display.
-source "$(dirname "$0")/../../../scripts/lib/timeout.sh"
-if [[ "$(uname)" != Darwin && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-  command -v xvfb-run > /dev/null || { echo "skipped: no display"; exit 77; }
-  exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" "$0" "$@"
-fi
+source "$(dirname "$0")/lib.sh"
+pd_require_fixture "$fixture"
+pd_ensure_display "$0" "$@"
 scratch=$(mktemp -d)
 export XDG_CACHE_HOME=$scratch/cache  # never the user's profiles
 first_pid=

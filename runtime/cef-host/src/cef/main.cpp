@@ -1,6 +1,17 @@
 // pico-desktop-host: the CEF Views host (docs/architecture.md). The same executable runs as the
 // browser process and as every Chromium subprocess.
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <process.h>
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <chrono>
 #include <cstdio>
@@ -20,12 +31,22 @@
 #include "include/cef_command_line.h"
 #include "include/cef_version.h"
 #include "pico_desktop/host/sandbox.hpp"
+#include "pico_desktop/host/temp_dir.hpp"
 
 namespace pico_desktop::host::cef {
 
 namespace {
 
 BrowserState* g_state = nullptr;  // browser process only; lives until exit
+void* g_sandbox_info = nullptr;   // Windows: from the bootstrap (main_win.cpp)
+
+int process_id() {
+#if defined(_WIN32)
+  return ::_getpid();
+#else
+  return static_cast<int>(::getpid());
+#endif
+}
 
 namespace fs = std::filesystem;
 
@@ -33,20 +54,21 @@ fs::path cache_root(const Options& options, bool& temporary) {
   if (options.mode == Mode::self_test) {
     // Self-tests never touch (or lock) a real profile.
     temporary = true;
-    std::string pattern = (fs::temp_directory_path() / "pd-host-self-test-XXXXXX").string();
-    if (char* made = mkdtemp(pattern.data())) {
-      return made;
-    }
-    return {};
+    return make_private_temp_dir("pd-host-self-test-");
   }
+#if defined(_WIN32)
+  const char* local = std::getenv("LOCALAPPDATA");
+  const fs::path base = local && *local ? fs::path(local) : fs::temp_directory_path();
+#else
   const char* xdg = std::getenv("XDG_CACHE_HOME");
   const char* home = std::getenv("HOME");
   const fs::path base = xdg && *xdg ? fs::path(xdg) : fs::path(home ? home : "/tmp") / ".cache";
+#endif
   const fs::path app = base / "pico-desktop" / "apps" / options.policy.app_id;
   if (options.multi_instance) {
     // Each instance its own profile (CEF allows one process per profile), removed on exit.
     temporary = true;
-    return app / "instances" / std::to_string(::getpid());
+    return app / "instances" / std::to_string(process_id());
   }
   return app;
 }
@@ -54,6 +76,8 @@ fs::path cache_root(const Options& options, bool& temporary) {
 }  // namespace
 
 BrowserState& browser_state() { return *g_state; }
+
+void set_sandbox_info(void* info) { g_sandbox_info = info; }
 
 void init_browser_state(Options options) {
   g_state = new BrowserState{};
@@ -96,6 +120,7 @@ int run_browser(int argc, char** argv) {
     std::fprintf(stderr, "pico-desktop-host: couldn't create a cache directory\n");
     return 1;
   }
+#if defined(__linux__)
   // Without user namespaces Chromium falls back to its setuid helper, and without that it aborts
   // with a trap; say what's wrong instead (the host never runs unsandboxed).
   std::error_code exe_error;
@@ -105,12 +130,17 @@ int run_browser(int argc, char** argv) {
     std::fprintf(stderr, "pico-desktop-host: %s\n", sandbox_unavailable_message(helper).c_str());
     return 1;
   }
+#endif
   std::error_code error;
   fs::create_directories(cache, error);
   init_browser_state(std::move(options));
   init_link(browser_state().options);
 
+#if defined(_WIN32)
+  CefMainArgs main_args(::GetModuleHandleW(nullptr));
+#else
   CefMainArgs main_args(argc, argv);
+#endif
   CefRefPtr<HostApp> app = new HostApp(true);
   CefSettings settings;
   settings.no_sandbox = false;  // never disabled (PROJECT_DESCRIPTION.md §6)
@@ -120,7 +150,7 @@ int run_browser(int argc, char** argv) {
   CefString(&settings.root_cache_path) = cache.string();
   CefString(&settings.cache_path) = cache.string();
   CefString(&settings.log_file) = (cache / "cef.log").string();
-  if (!CefInitialize(main_args, settings, app, nullptr)) {
+  if (!CefInitialize(main_args, settings, app, g_sandbox_info)) {
     if (CefGetExitCode() == CEF_RESULT_CODE_NORMAL_EXIT_PROCESS_NOTIFIED) {
       std::printf("pico-desktop-host: %s is already running; its window was brought to the front\n",
                   browser_state().options.policy.app_id.c_str());
@@ -146,15 +176,17 @@ int run_browser(int argc, char** argv) {
   if (temporary_cache) {
     fs::remove_all(cache, error);
   }
+  int code = 0;
   if (state.options.mode == Mode::self_test) {
-    return state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
+    code = state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
   }
-  return 0;
+  signal_watch_shutdown_done();  // a console close/logoff/shutdown handler may be waiting for this
+  return code;
 }
 
 }  // namespace pico_desktop::host::cef
 
-#if !defined(__APPLE__)  // macOS: main_mac.mm (the app) and helper_mac.cpp (its helpers)
+#if !defined(__APPLE__) && !defined(_WIN32)  // macOS: main_mac.mm and helper_mac.cpp; Windows: main_win.cpp
 int main(int argc, char* argv[]) {
   CefRefPtr<CefCommandLine> command_line = CefCommandLine::CreateCommandLine();
   command_line->InitFromArgv(argc, argv);

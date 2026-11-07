@@ -5,13 +5,9 @@
 set -uo pipefail
 host=$1 fixture=$2
 here=$(cd "$(dirname "$0")" && pwd)
+source "$here/lib.sh"
 cli=$here/../../../tooling/cli/dist/index.js
-[[ -f "$fixture/index.html" ]] || { echo "skipped: the fixture isn't built (pnpm --filter @pico-desktop/host-fixture build)"; exit 77; }
-[[ -f "$cli" ]] || { echo "skipped: the CLI isn't built (pnpm build)"; exit 77; }
-# `timeout` (with a fallback where coreutils is missing, as on macOS); macOS needs no X display.
-source "$(dirname "$0")/../../../scripts/lib/timeout.sh"
-if [[ "$(uname)" != Darwin && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-  command -v xvfb-run > /dev/null || { echo "skipped: no display"; exit 77; }
-  exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" "$0" "$@"
-fi
+pd_require_fixture "$fixture"
+[[ -f "$cli" ]] || pd_skip "the CLI isn't built (pnpm build)"
+pd_ensure_display "$0" "$@"
 timeout 90 node "$here/user-input.mjs" "$host" "$fixture" "$cli"
