@@ -116,6 +116,26 @@ function failure({ result, error }: Reply): string | null {
   return error ? error.message : null
 }
 
+const NAMED_KEYS: Record<string, number> = {
+  Backspace: 8, Tab: 9, Enter: 13, Escape: 27, Space: 32, Delete: 46,
+  ...Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`F${i + 1}`, 112 + i])),
+}
+
+/**
+ * A key's Windows virtual key code (what Chromium's key events carry).
+ *
+ * @param key a character or a name
+ * @returns the code
+ */
+function keyCode(key: string): number {
+  const code = key.length === 1 ? key.toUpperCase().charCodeAt(0) : NAMED_KEYS[key]
+  if (code === undefined) {
+    throw new E2eError(`unknown key: ${key}`)
+  }
+
+  return code
+}
+
 const element = (selector: string) => {
   const s = JSON.stringify(selector)
 
@@ -126,6 +146,8 @@ const element = (selector: string) => {
 export class E2eApp {
   /** Everything the host printed so far, line by line; the page's console shows as `console: …`. */
   readonly log: string[] = []
+  /** The host's remote debugging port (its /json lists the windows, DevTools' included). */
+  debuggingPort = 0
   readonly #host: ChildProcessWithoutNullStreams
   readonly #exit: Promise<number>
   #socket: WebSocket | null = null
@@ -153,6 +175,7 @@ export class E2eApp {
    * @param timeoutMs how long the page may take
    */
   async connect(port: number, timeoutMs: number): Promise<void> {
+    this.debuggingPort = port
     const deadline = Date.now() + timeoutMs
     const url = await poll(
       () => (this.#host.exitCode === null ? pageSocketUrl(port) : Promise.reject(new E2eError(this.#didntOpen()))),
@@ -179,7 +202,21 @@ export class E2eApp {
    * @param expression JavaScript
    * @returns its value (JSON-serializable values only)
    */
-  evaluate<T = unknown>(expression: string): Promise<T> {
+  async evaluate<T = unknown>(expression: string): Promise<T> {
+    const params = { expression, returnByValue: true, awaitPromise: true }
+    const result = await this.devtools('Runtime.evaluate', params) as Reply['result']
+
+    return result?.result?.value as T
+  }
+
+  /**
+   * Sends a DevTools protocol command to the page (for what the other methods don't cover).
+   *
+   * @param method e.g. `Page.reload`
+   * @param params its parameters
+   * @returns its result
+   */
+  devtools(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     const socket = this.#socket
     if (!socket) {
       return Promise.reject(new E2eError('not connected'))
@@ -191,14 +228,31 @@ export class E2eApp {
       this.#replies.set(id, reply => {
         const message = failure(reply)
         if (message === null) {
-          resolve(reply.result?.result?.value as T)
+          resolve(reply.result)
         } else {
           reject(new E2eError(message))
         }
       })
-      const params = { expression, returnByValue: true, awaitPromise: true }
-      socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params }))
+      socket.send(JSON.stringify({ id, method, params }))
     })
+  }
+
+  /**
+   * Presses and releases a key, as the keyboard does: the host sees it first (F12 opens DevTools),
+   * then the page.
+   *
+   * @param key a character, or a name: Enter, Escape, Tab, Backspace, F1 … F12
+   */
+  async press(key: string): Promise<void> {
+    const code = keyCode(key)
+    const name = key.length === 1 ? `Key${key.toUpperCase()}` : key
+    const event = { windowsVirtualKeyCode: code, nativeVirtualKeyCode: code, key, code: name }
+    await this.devtools('Input.dispatchKeyEvent', { type: 'rawKeyDown', ...event })
+
+    if (key.length === 1) {
+      await this.devtools('Input.dispatchKeyEvent', { type: 'char', text: key, ...event })
+    }
+    await this.devtools('Input.dispatchKeyEvent', { type: 'keyUp', ...event })
   }
 
   /**
@@ -212,12 +266,19 @@ export class E2eApp {
   }
 
   /**
-   * Clicks the first element `selector` matches.
+   * Clicks the first element `selector` matches with the mouse, at its center (scrolled into
+   * view first): a user gesture, as a real click is (so a link to elsewhere opens in the browser).
    *
    * @param selector a CSS selector
    */
   async click(selector: string): Promise<void> {
-    await this.evaluate(`${element(selector)}.click()`)
+    const { x, y } = await this.evaluate<{ x: number, y: number }>(`(() => { const e = ${element(selector)};
+      e.scrollIntoView({ block: 'center', inline: 'center' }); const r = e.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })()`)
+    const at = { x, y, button: 'left', clickCount: 1 }
+    await this.devtools('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y })
+    await this.devtools('Input.dispatchMouseEvent', { type: 'mousePressed', ...at })
+    await this.devtools('Input.dispatchMouseEvent', { type: 'mouseReleased', ...at })
   }
 
   /**

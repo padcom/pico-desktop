@@ -74,6 +74,6 @@ GPU, utility, zygote) outlives the browser process.
 
 ## Not verified yet
 - Wayland (only X11 so far); the CI job runs under Xvfb.
-- DevTools (`--dev`, F12) and opening external links with a user gesture (`xdg-open`) are
-  implemented but not verified yet: a self-test can't press keys or produce a real user gesture.
-  (Blocking without a gesture *is* tested.)
+- (Verified since: DevTools on F12 under `--dev`, and a clicked external link going to
+  `xdg-open`, by ctest `host.user-input`, which presses keys and clicks over the DevTools
+  protocol. Blocking without a gesture is in the self-test.)

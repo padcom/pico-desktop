@@ -104,6 +104,13 @@ foreach(origin IN ITEMS app https)
   set_tests_properties(host.self-test.${origin} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endforeach()
 
+# Real keys and clicks (tests/user-input.sh, with the CLI's e2e driver, under --dev): F12 opens
+# DevTools and another key doesn't; a clicked link to another site goes to xdg-open (a fake one)
+# and the window stays. Needs a display, the fixture and the built CLI; skipped otherwise.
+add_test(NAME host.user-input
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/user-input.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+set_tests_properties(host.user-input PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+
 # Single instance: a second launch focuses the first and exits 0; --multi-instance runs beside it.
 add_test(NAME host.single-instance
   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/single-instance.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})

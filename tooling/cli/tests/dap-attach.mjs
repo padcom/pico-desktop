@@ -52,9 +52,8 @@ adapter.stdout.on('data', (chunk) => {
 
 /**
  * The first message (already seen or still to come) that `accept` takes.
- *
- * @param accept which message
- * @returns the message
+ * @param {(message: object) => boolean} accept which message
+ * @returns {Promise<object>} the message
  */
 function next(accept) {
   const index = seen.findIndex(accept)
