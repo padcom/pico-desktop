@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import { create } from './create'
@@ -24,7 +24,13 @@ describe('create', () => {
     const { code, out } = run(dir, 'com.example.my-app')
     expect(code, out).toBe(0)
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as Record<string, Record<string, string>>
-    expect(pkg.devDependencies?.['pico-desktop']).toBe(`link:${join(framework, 'tooling/cli')}`)
+    // Relative links, from each package.json that holds one.
+    expect(pkg.devDependencies?.['pico-desktop']).toBe(`link:${relative(dir, join(framework, 'tooling/cli'))}`)
+    const frontendPkg = readFileSync(join(dir, 'apps/frontend/package.json'), 'utf8')
+    const frontend = JSON.parse(frontendPkg) as Record<string, Record<string, string>>
+    const protocol = relative(join(dir, 'apps/frontend'), join(framework, 'packages/protocol'))
+    expect(frontend.dependencies?.['@pico-desktop/protocol']).toBe(`link:${protocol}`)
+    expect(frontend.dependencies?.['@pico-desktop/protocol']).not.toMatch(/^link:\//)
     expect(readFileSync(join(dir, 'pico-desktop.config.ts'), 'utf8')).toContain("id: 'com.example.my-app'")
     expect(readFileSync(join(dir, 'apps/backend/project.json'), 'utf8')).toContain('"name": "my-app/backend"')
     expect(existsSync(join(dir, '.gitignore'))).toBe(true)

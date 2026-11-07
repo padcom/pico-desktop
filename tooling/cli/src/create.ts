@@ -2,7 +2,7 @@
 // generated. Until the packages are published, the app links them from a framework checkout
 // (`--framework`, by default the checkout this CLI runs from).
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
+import { basename, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveConfig } from './config'
 import { generate } from './generate'
@@ -27,21 +27,26 @@ const isFramework = (dir: string) => existsSync(join(dir, 'packages', 'communica
  * @param name the app's directory name
  * @param id the app's ID
  * @param framework the checkout
+ * @param target the new app's directory: links are relative to the package.json that holds them,
+ * so the app keeps working wherever the app and the checkout move together
  * @returns placeholder → value
  */
-export function placeholders(name: string, id: string, framework: string): Record<string, string> {
+export function placeholders(name: string, id: string, framework: string, target: string): Record<string, string> {
   const root = JSON.parse(readFileSync(join(framework, 'package.json'), 'utf8')) as { devDependencies: Record<string, string> }
   const pico = JSON.parse(readFileSync(join(framework, 'packages/communicator-pico/project.json'), 'utf8')) as { version: string }
-  const link = (path: string) => `link:${join(framework, path)}`
+  // The CLI and communicator-pico are linked from the app's package.json, the others from
+  // apps/frontend/package.json.
+  const link = (path: string, from = target) => `link:${relative(from, join(framework, path))}`
+  const frontend = join(target, 'apps', 'frontend')
 
   return {
     name,
     'appId': id,
     'appName': name,
     'dep:cli': link('tooling/cli'),
-    'dep:communicator': link('packages/communicator-ts'),
+    'dep:communicator': link('packages/communicator-ts', frontend),
     'dep:communicator-pico': link('packages/communicator-pico'),
-    'dep:protocol': link('packages/protocol'),
+    'dep:protocol': link('packages/protocol', frontend),
     'version:communicator-pico': pico.version,
     'version:typescript': root.devDependencies.typescript ?? '5.9.3',
     'version:vite': root.devDependencies.vite ?? '8.3.6',
@@ -107,7 +112,7 @@ export function create(options: CreateOptions, io: Output): number {
     return 1
   }
   const id = options.id ?? `com.example.${name}`
-  copyTemplate(TEMPLATE, target, placeholders(name, id, framework!))
+  copyTemplate(TEMPLATE, target, placeholders(name, id, framework!, target))
   generate(resolveConfig(target, { app: { id } }))
   io.out(`Created ${name} (${id}) in ${target}\n\n  cd ${options.dir}\n  pnpm install\n  pnpm dev`)
 
