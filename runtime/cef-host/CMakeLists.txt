@@ -257,7 +257,7 @@ add_test(NAME host.user-input
 set_tests_properties(host.user-input PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 
 # Single instance: a second launch focuses the first and exits 0; --multi-instance runs beside it.
-if(NOT WIN32)  # Windows: the second launch doesn't reach the first yet
+if(TRUE)  # #23: on Windows too
   add_test(NAME host.single-instance
     COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/single-instance.sh ${PD_HOST} ${PD_FIXTURE_DIR})
   set_tests_properties(host.single-instance PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)

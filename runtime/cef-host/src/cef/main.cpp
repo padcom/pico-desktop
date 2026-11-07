@@ -66,8 +66,10 @@ fs::path cache_root(const Options& options, bool& temporary) {
 #endif
   const fs::path app = base / "pico-desktop" / "apps" / options.policy.app_id;
   if (options.multi_instance) {
-    // Each instance its own profile (CEF allows one process per profile), removed on exit.
+    // Each instance its own profile (CEF allows one process per profile), removed on exit, or
+    // where that can't be done (Windows, #23) by the next --multi-instance run.
     temporary = true;
+    remove_ended_instances(app / "instances", process_id(), process_alive);
     return app / "instances" / std::to_string(process_id());
   }
   return app;
@@ -146,10 +148,19 @@ int run_browser(int argc, char** argv) {
   settings.no_sandbox = false;  // never disabled (PROJECT_DESCRIPTION.md §6)
   settings.remote_debugging_port = 0;
   settings.persist_session_cookies = false;
-  settings.log_severity = LOGSEVERITY_WARNING;
   CefString(&settings.root_cache_path) = cache.string();
   CefString(&settings.cache_path) = cache.string();
-  CefString(&settings.log_file) = (cache / "cef.log").string();
+  if (temporary_cache) {
+    // No log file for a temporary profile (FATAL messages still go to stderr). Don't turn it back
+    // on: Chromium keeps the log open until the process exits, without FILE_SHARE_DELETE, so on
+    // Windows the profile directory holding it can't be removed (#23). A sibling file wouldn't
+    // help: it couldn't be removed either, and --multi-instance would leave one per launch. The
+    // log went with the profile at exit anyway, so nothing is lost.
+    settings.log_severity = LOGSEVERITY_DISABLE;
+  } else {
+    settings.log_severity = LOGSEVERITY_WARNING;
+    CefString(&settings.log_file) = (cache / "cef.log").string();
+  }
   if (!CefInitialize(main_args, settings, app, g_sandbox_info)) {
     if (CefGetExitCode() == CEF_RESULT_CODE_NORMAL_EXIT_PROCESS_NOTIFIED) {
       std::printf("pico-desktop-host: %s is already running; its window was brought to the front\n",
@@ -173,9 +184,28 @@ int run_browser(int argc, char** argv) {
   CefShutdown();
 
   const BrowserState& state = browser_state();
+  // A temporary profile (self-test, --multi-instance) goes with the instance. On Windows that
+  // can't fully work: this process holds Chromium's files in it until it ends (#23). So there it's
+  // one pass, and what's left goes with the next --multi-instance run's sweep
+  // (remove_ended_instances), not a failure. Elsewhere a held file is only a subprocess finishing:
+  // retried, then reported.
+#if defined(_WIN32)
   if (temporary_cache) {
-    fs::remove_all(cache, error);
+    remove_temp_dir(cache, std::chrono::milliseconds(0), error);
   }
+#else
+  if (temporary_cache && !remove_temp_dir(cache, std::chrono::seconds(10), error)) {
+    std::fprintf(stderr, "pico-desktop-host: couldn't remove the temporary profile %s: %s\n", cache.string().c_str(),
+                 error.message().c_str());
+    // What's left, so the log says which files were held.
+    std::error_code walk;
+    int listed = 0;
+    for (auto it = fs::recursive_directory_iterator(cache, walk); !walk && it != fs::recursive_directory_iterator() && listed < 20;
+         it.increment(walk), ++listed) {
+      std::fprintf(stderr, "pico-desktop-host:   left: %s\n", it->path().string().c_str());
+    }
+  }
+#endif
   int code = 0;
   if (state.options.mode == Mode::self_test) {
     code = state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
