@@ -14,7 +14,10 @@ const { launchApp } = await import(cli)
 
 const bin = mkdtempSync(join(tmpdir(), 'pd-user-input-'))
 const opened = join(bin, 'opened')
-writeFileSync(join(bin, 'xdg-open'), `#!/bin/sh\nprintf '%s\\n' "$1" >> '${opened}'\n`, { mode: 0o755 })
+// What the host runs for an external link: xdg-open on Linux, open on macOS.
+for (const name of ['xdg-open', 'open']) {
+  writeFileSync(join(bin, name), `#!/bin/sh\nprintf '%s\\n' "$1" >> '${opened}'\n`, { mode: 0o755 })
+}
 process.env.PATH = `${bin}:${process.env.PATH}`
 process.env.PICO_DESKTOP_E2E = JSON.stringify({ host, args: ['--dev', `--app-dir=${fixture}`, '--app-id=pd-user-input-test'] })
 
