@@ -24,6 +24,8 @@
 
 #include <cerrno>
 
+#include "pico_desktop/host/exit_code.hpp"
+
 namespace pico_desktop::host::cef::os {
 
 #if defined(_WIN32)
@@ -34,22 +36,24 @@ int exit_watch(const ipc::ChildProcess&) { return -1; }
 
 void prepare_pipes(const ipc::ChildProcess&) {}
 
-void kill(const ipc::ChildProcess& child) { TerminateProcess(static_cast<HANDLE>(child.handle), 1); }
+void kill(const ipc::ChildProcess& child) {
+  TerminateProcess(static_cast<HANDLE>(child.handle), windows_killed_exit_code);
+}
 
-int reap(const ipc::ChildProcess& child, std::chrono::milliseconds grace) {
+Status reap(const ipc::ChildProcess& child, std::chrono::milliseconds grace) {
   const auto process = static_cast<HANDLE>(child.handle);
   if (WaitForSingleObject(process, static_cast<DWORD>(grace.count())) != WAIT_OBJECT_0) {
-    TerminateProcess(process, 1);
+    TerminateProcess(process, windows_killed_exit_code);
     WaitForSingleObject(process, INFINITE);
   }
   DWORD code = 0;
   const bool ok = GetExitCodeProcess(process, &code) != 0;
   CloseHandle(process);
-  return ok ? static_cast<int>(code & 0x7fffffff) : -1;
+  return ok ? static_cast<Status>(code) : -1;  // all 32 bits: NTSTATUS crash codes have the top one set
 }
 
-std::string describe(int status) {
-  return status < 0 ? "an unknown status" : "exit code " + std::to_string(status);
+std::string describe(Status status) {
+  return status < 0 ? "an unknown status" : describe_windows_exit_code(static_cast<std::uint32_t>(status));
 }
 
 long read_some(int fd, std::byte* data, std::size_t size) {
@@ -93,7 +97,7 @@ void prepare_pipes(const ipc::ChildProcess& child) {
 
 void kill(const ipc::ChildProcess& child) { ::kill(child.pid, SIGKILL); }
 
-int reap(const ipc::ChildProcess& child, std::chrono::milliseconds grace) {
+Status reap(const ipc::ChildProcess& child, std::chrono::milliseconds grace) {
   const auto until = std::chrono::steady_clock::now() + grace;
   int status = 0;
   for (;;) {
@@ -118,10 +122,11 @@ int reap(const ipc::ChildProcess& child, std::chrono::milliseconds grace) {
   return status;
 }
 
-std::string describe(int status) {
-  if (status < 0) {
+std::string describe(Status wide) {
+  if (wide < 0) {
     return "an unknown status";
   }
+  const int status = static_cast<int>(wide);
   if (WIFEXITED(status)) {
     return "exit code " + std::to_string(WEXITSTATUS(status));
   }

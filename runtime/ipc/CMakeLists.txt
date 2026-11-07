@@ -25,6 +25,14 @@ target_link_libraries(pd_ipc_value_test PRIVATE pd_ipc)
 pd_warnings(pd_ipc_value_test)
 add_test(NAME ipc.value COMMAND pd_ipc_value_test)
 
+# spawn_piped's failure paths close what they opened (#7); POSIX (it starves RLIMIT_NOFILE).
+if(NOT WIN32)
+  add_executable(pd_ipc_process_test tests/process_test.cpp)
+  target_link_libraries(pd_ipc_process_test PRIVATE pd_ipc)
+  pd_warnings(pd_ipc_process_test)
+  add_test(NAME ipc.process COMMAND pd_ipc_process_test)
+endif()
+
 # Untrusted bytes through every reader (run it under the `sanitize` preset for memory errors).
 add_executable(pd_ipc_fuzz_test tests/fuzz_test.cpp)
 target_link_libraries(pd_ipc_fuzz_test PRIVATE pd_ipc)

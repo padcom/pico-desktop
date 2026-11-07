@@ -45,9 +45,9 @@ expect() {
 expect "pd-test: done"
 expect " 0 failed"
 expect "pd-host: the backend is ready (epoch 1)"
-# (Windows has no signals: a killed process exits with TerminateProcess's code.)
+# (Windows has no signals: the host kills with its own exit code, which reads "killed".)
 case "$(uname)" in
-  MINGW* | MSYS* | CYGWIN*) expect "pd-host: the backend exited (exit code 1)" ;;
+  MINGW* | MSYS* | CYGWIN*) expect "pd-host: the backend exited (killed)" ;;
   *) expect "pd-host: the backend exited (signal 9)" ;;
 esac
 expect "pd-host: the backend is ready (epoch 2)"
