@@ -184,10 +184,12 @@ int run_browser(int argc, char** argv) {
   if (temporary_cache) {
     fs::remove_all(cache, error);
   }
+  int code = 0;
   if (state.options.mode == Mode::self_test) {
-    return state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
+    code = state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
   }
-  return 0;
+  signal_watch_shutdown_done();  // a console close/logoff/shutdown handler may be waiting for this
+  return code;
 }
 
 }  // namespace pico_desktop::host::cef
