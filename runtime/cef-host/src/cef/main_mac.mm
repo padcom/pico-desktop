@@ -4,6 +4,11 @@
 // loaded at run time.
 #import <Cocoa/Cocoa.h>
 
+// Built like the helpers, with the sandbox (PROJECT_DESCRIPTION.md §6, helper_mac.cpp).
+#if !defined(CEF_USE_SANDBOX)
+#error "CEF_USE_SANDBOX isn't defined: the helpers would run without the sandbox"
+#endif
+
 #include "host.hpp"
 #include "include/cef_application_mac.h"
 #include "include/wrapper/cef_library_loader.h"

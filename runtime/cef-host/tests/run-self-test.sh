@@ -39,11 +39,7 @@ expect() {
 [[ $code -eq 0 ]] || { echo "FAIL: the host exited with $code"; failed=1; }
 expect "pd-test: done"
 expect " 0 failed"
-if [[ "$(uname)" == Darwin ]]; then
-  expect "pd-info: the renderer's sandbox isn't inspected on macOS"
-else
-  expect "pd-test: ok renderer is sandboxed"
-fi
+expect "pd-test: ok renderer is sandboxed"
 expect "pd-host: blocked navigation to https://example.com/ (no user gesture)"
 
 # Nothing may outlive the host (renderers, GPU, zygotes, utilities).
