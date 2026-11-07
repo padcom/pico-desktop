@@ -21,6 +21,10 @@ target_link_libraries(pd_host_router_test PRIVATE pd_host_core)
 pd_warnings(pd_host_router_test)
 add_test(NAME host.router COMMAND pd_host_router_test)
 
+# tests/lib.sh, the helper the end-to-end scripts below source (skips, the display, `timeout`).
+# Needs no CEF or display, so it runs in every preset.
+add_test(NAME host.test-lib COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/lib_test.sh)
+
 if(NOT PD_WITH_CEF)
   # Without CEF: a stub that only identifies itself (so packaging and CI have a binary to run).
   add_executable(pico-desktop-host src/stub_main.cpp)

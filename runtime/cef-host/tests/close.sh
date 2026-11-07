@@ -6,12 +6,10 @@
 # or the builds.
 set -uo pipefail
 host=$1 fixture=$2 hello=$3
+source "$(dirname "$0")/lib.sh"
 [[ -f "$fixture/index.html" && -f "$hello/dist/frontend/index.html" && -x "$hello/dist/backend" ]] \
-  || { echo "skipped: needs the fixture and hello-world (build, backend) built"; exit 77; }
-if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-  command -v xvfb-run > /dev/null || { echo "skipped: no display"; exit 77; }
-  exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" "$0" "$@"
-fi
+  || pd_skip "needs the fixture and hello-world (build, backend) built"
+pd_ensure_display "$0" "$@"
 scratch=$(mktemp -d)
 export XDG_CACHE_HOME=$scratch/cache
 trap 'rm -rf "$scratch"' EXIT

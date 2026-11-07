@@ -5,11 +5,12 @@
 # Usage: no-userns.sh <pico-desktop-host> <fixture dist>. Exit 77 where unshare can't do that.
 set -uo pipefail
 host=$1 fixture=$2
-[[ -f "$fixture/index.html" ]] || { echo "skipped: the fixture isn't built"; exit 77; }
+source "$(dirname "$0")/lib.sh"
+pd_require_fixture "$fixture"
 probe() {
   unshare --user --map-current-user --keep-caps sh -c 'echo 0 > /proc/sys/user/max_user_namespaces' 2> /dev/null
 }
-probe || { echo "skipped: this unshare can't make a namespace without user namespaces"; exit 77; }
+probe || pd_skip "this unshare can't make a namespace without user namespaces"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 XDG_CACHE_HOME=$scratch timeout 60 unshare --user --map-current-user --keep-caps \
