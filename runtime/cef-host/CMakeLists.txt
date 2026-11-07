@@ -8,6 +8,7 @@ add_library(pd_host_core STATIC
   src/core/router.cpp
   src/core/sandbox.cpp
   src/core/sandbox_mac.cpp
+  src/core/sandbox_windows.cpp
   src/core/services.cpp
   src/core/temp_dir.cpp)
 target_include_directories(pd_host_core PUBLIC include)

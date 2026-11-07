@@ -198,6 +198,19 @@ bool mac_renderers_sandboxed(const std::vector<MacProcessSandbox>& processes) {
   return any;
 }
 
+bool windows_renderers_sandboxed(const std::vector<WindowsProcessSandbox>& processes) {
+  bool any = false;
+  for (const auto& p : processes) {
+    if (p.type == "renderer") {
+      any = true;
+      if (p.integrity < 0 || p.integrity >= windows_medium_integrity || !p.in_job) {
+        return false;
+      }
+    }
+  }
+  return any;
+}
+
 bool user_namespaces_available() {
 #if defined(__linux__)
   const pid_t child = ::fork();
