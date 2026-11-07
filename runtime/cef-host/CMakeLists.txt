@@ -34,9 +34,8 @@ if(NOT PD_WITH_CEF)
   return()
 endif()
 
-# The CEF Views host. One executable is both the browser process and every Chromium subprocess
-# (renderer, GPU, utility, zygote) on Linux.
-add_executable(pico-desktop-host
+# The CEF Views host's sources, shared by the executables below.
+set(PD_HOST_SOURCES
   src/cef/app.cpp
   src/cef/bridge.cpp
   src/cef/client.cpp
@@ -48,10 +47,16 @@ add_executable(pico-desktop-host
   src/cef/services.cpp
   src/cef/signals.cpp
   src/cef/window.cpp)
-SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
-add_dependencies(pico-desktop-host libcef_dll_wrapper)
-target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
-target_compile_definitions(pico-desktop-host PRIVATE PD_VERSION="${PROJECT_VERSION}")
+
+if(OS_LINUX)
+  # Linux: one executable is both the browser process and every Chromium subprocess (renderer,
+  # GPU, utility, zygote).
+  add_executable(pico-desktop-host ${PD_HOST_SOURCES})
+  SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
+  add_dependencies(pico-desktop-host libcef_dll_wrapper)
+  target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
+  target_compile_definitions(pico-desktop-host PRIVATE PD_VERSION="${PROJECT_VERSION}")
+endif()
 
 if(OS_LINUX)
   ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
@@ -85,8 +90,60 @@ if(OS_LINUX)
   install(FILES "${CEF_ROOT}/CREDITS.html" DESTINATION licenses RENAME CHROMIUM-CREDITS.html COMPONENT runtime)
   install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION licenses RENAME PICO-DESKTOP-LICENSE.txt
           COMPONENT runtime)
+elseif(OS_MAC)
+  # macOS: an app bundle, pico-desktop-host.app, with the CEF framework and Chromium's helper apps
+  # (one per process kind, as CEF requires) in Contents/Frameworks (CEF's cefsimple layout).
+  add_library(pd_host_cef OBJECT ${PD_HOST_SOURCES})
+  SET_LIBRARY_TARGET_PROPERTIES(pd_host_cef)
+  add_dependencies(pd_host_cef libcef_dll_wrapper)
+  target_link_libraries(pd_host_cef PUBLIC pd_host_core pd_ipc)
+  target_compile_definitions(pd_host_cef PRIVATE PD_VERSION="${PROJECT_VERSION}")
+
+  set(EXECUTABLE_NAME "pico-desktop-host")
+  set(PRODUCT_NAME "pico-desktop-host")
+  set(VERSION_SHORT "${PROJECT_VERSION}")
+  set(PD_APP "$<TARGET_BUNDLE_DIR:pico-desktop-host>")
+  add_executable(pico-desktop-host MACOSX_BUNDLE src/cef/main_mac.mm $<TARGET_OBJECTS:pd_host_cef>)
+  SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
+  add_dependencies(pico-desktop-host libcef_dll_wrapper)
+  target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
+  set_target_properties(pico-desktop-host PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/mac/Info.plist.in)
+  add_custom_command(TARGET pico-desktop-host POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CEF_BINARY_DIR}/Chromium Embedded Framework.framework"
+            "${PD_APP}/Contents/Frameworks/Chromium Embedded Framework.framework"
+    VERBATIM)
+
+  foreach(_suffix_list ${CEF_HELPER_APP_SUFFIXES})
+    string(REPLACE ":" ";" _suffix_list ${_suffix_list})
+    list(GET _suffix_list 0 _name_suffix)
+    list(GET _suffix_list 1 _target_suffix)
+    list(GET _suffix_list 2 _plist_suffix)
+    set(_helper_target "pico-desktop-host_helper${_target_suffix}")
+    set(_helper_output_name "pico-desktop-host Helper${_name_suffix}")
+    # One Info.plist per helper, written here (configure_file would share the variables).
+    set(_helper_info_plist "${CMAKE_CURRENT_BINARY_DIR}/helper-Info${_target_suffix}.plist")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mac/helper-Info.plist.in" _plist_contents)
+    string(REPLACE "\${EXECUTABLE_NAME}" "${_helper_output_name}" _plist_contents ${_plist_contents})
+    string(REPLACE "\${PRODUCT_NAME}" "${_helper_output_name}" _plist_contents ${_plist_contents})
+    string(REPLACE "\${BUNDLE_ID_SUFFIX}" "${_plist_suffix}" _plist_contents ${_plist_contents})
+    string(REPLACE "\${VERSION_SHORT}" "${PROJECT_VERSION}" _plist_contents ${_plist_contents})
+    file(WRITE ${_helper_info_plist} ${_plist_contents})
+
+    add_executable(${_helper_target} MACOSX_BUNDLE src/cef/helper_mac.cpp $<TARGET_OBJECTS:pd_host_cef>)
+    SET_EXECUTABLE_TARGET_PROPERTIES(${_helper_target})
+    add_dependencies(${_helper_target} libcef_dll_wrapper)
+    target_link_libraries(${_helper_target} PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
+    set_target_properties(${_helper_target} PROPERTIES
+      MACOSX_BUNDLE_INFO_PLIST ${_helper_info_plist}
+      OUTPUT_NAME ${_helper_output_name})
+    add_dependencies(pico-desktop-host "${_helper_target}")
+    add_custom_command(TARGET pico-desktop-host POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "$<TARGET_BUNDLE_DIR:${_helper_target}>"
+              "${PD_APP}/Contents/Frameworks/${_helper_output_name}.app"
+      VERBATIM)
+  endforeach()
 else()
-  message(FATAL_ERROR "the CEF host is implemented for Linux first (linux-arm64 is the priority target)")
+  message(FATAL_ERROR "the CEF host is implemented for Linux and macOS (Windows: not yet)")
 endif()
 
 add_test(NAME host.version COMMAND pico-desktop-host --version)

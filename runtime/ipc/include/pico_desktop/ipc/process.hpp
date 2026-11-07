@@ -34,6 +34,11 @@ struct ChildProcess {
 std::optional<ChildProcess> spawn_piped(const std::string& program, const std::vector<std::string>& args,
                                         std::string& error);
 
+#if !defined(_WIN32)
+/// A pipe whose ends are close-on-exec (pipe2 where there is one).
+bool cloexec_pipe(int fds[2]);
+#endif
+
 /// Writes all of `bytes` (retrying short writes and EINTR); false when the peer is gone.
 bool write_all(int fd, std::span<const std::byte> bytes);
 

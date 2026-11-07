@@ -54,6 +54,9 @@ void create_app_window();
 /// Closes the app window the orderly way (what its close button does).
 void close_app_window();
 
+/// The browser process: parses the options, initializes CEF and runs until the app closes.
+int run_browser(int argc, char** argv);
+
 /// Brings the app window to the front (restoring it if minimized): a second launch.
 void focus_app_window();
 

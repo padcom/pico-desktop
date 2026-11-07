@@ -149,6 +149,33 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
+  cef-host-macos:
+    # F6: the CEF host as a macOS app bundle (main app + helper apps), built and self-tested on
+    # Apple Silicon. The CEF archive is checked against the upstream index's SHA-1.
+    name: CEF host, macos-arm64 (build, self-tests)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Cache the pinned CEF
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pico-desktop/cef
+          key: cef-macos-arm64-${{ hashFiles('toolchain.json') }}
+      - name: Fetch, verify and configure CEF
+        run: pnpm cef:configure
+      - name: Build the host (the app bundle and its helpers)
+        run: pnpm cef:build
+      - name: The self-test fixture
+        run: pnpm --filter @pico-desktop/host-fixture... build
+      - name: Self-tests in a real window
+        run: ctest --preset cef -R "host\.(version|refuses-remote-debugging|self-test)"
+
   bundle-smoke:
     # F6's clean-machine smoke: the packaged app on a fresh runner of its target, with only the
     # runtime libraries a desktop has (docs/platform-linux.md) and a display. No build tree, no
