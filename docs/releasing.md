@@ -35,6 +35,9 @@ Create the GitHub release `runtime-v<version>` and attach each target's archive 
 
 ## The packages
 
+Every package is `"private": true` today, so nothing is published by accident, and `pnpm publish`
+skips private packages. The first release removes that flag on purpose: a reviewed change of its own.
+
 ```sh
 pnpm build
 pnpm -r publish --access public --dry-run   # check what each package contains
