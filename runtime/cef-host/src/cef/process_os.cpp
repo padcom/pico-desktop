@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
+#include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #if defined(__APPLE__)
@@ -60,10 +61,36 @@ long read_some(int fd, std::byte* data, std::size_t size) {
   return ::_read(fd, data, static_cast<unsigned>(size));
 }
 
-void cancel_blocking_io(std::thread& thread) {
-  if (thread.joinable()) {
-    CancelSynchronousIo(static_cast<HANDLE>(thread.native_handle()));
+bool interrupt_io(std::thread& thread, InterruptibleIo& io, std::chrono::milliseconds budget) {
+  if (!thread.joinable()) {
+    return io.interrupt([] {}, std::chrono::milliseconds(1), budget);
   }
+  const auto handle = static_cast<HANDLE>(thread.native_handle());
+  return io.interrupt([handle] { CancelSynchronousIo(handle); }, std::chrono::milliseconds(1), budget);
+}
+
+std::size_t bytes_available(int fd) {
+  const auto pipe = reinterpret_cast<HANDLE>(::_get_osfhandle(fd));
+  DWORD available = 0;
+  if (pipe == INVALID_HANDLE_VALUE || !PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) {
+    return 0;
+  }
+  return available;
+}
+
+std::thread watch_exit(const ipc::ChildProcess& child, std::function<void()> on_exit) {
+  HANDLE process = nullptr;
+  if (!DuplicateHandle(GetCurrentProcess(), static_cast<HANDLE>(child.handle), GetCurrentProcess(), &process,
+                       SYNCHRONIZE, FALSE, 0)) {
+    return {};  // then only EOF tells, as before
+  }
+  return std::thread([process, on_exit = std::move(on_exit)] {
+    const bool exited = WaitForSingleObject(process, INFINITE) == WAIT_OBJECT_0;
+    CloseHandle(process);
+    if (exited) {
+      on_exit();
+    }
+  });
 }
 
 void close_fd(int fd) { ::_close(fd); }
@@ -146,7 +173,16 @@ long read_some(int fd, std::byte* data, std::size_t size) {
   }
 }
 
-void cancel_blocking_io(std::thread&) {}
+bool interrupt_io(std::thread&, InterruptibleIo& io, std::chrono::milliseconds budget) {
+  return io.interrupt([] {}, std::chrono::milliseconds(1), budget);
+}
+
+std::size_t bytes_available(int fd) {
+  int available = 0;
+  return ::ioctl(fd, FIONREAD, &available) == 0 && available > 0 ? static_cast<std::size_t>(available) : 0;
+}
+
+std::thread watch_exit(const ipc::ChildProcess&, std::function<void()>) { return {}; }
 
 void close_fd(int fd) { ::close(fd); }
 

@@ -5,6 +5,7 @@
 #include <unistd.h>
 #endif
 
+#include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <utility>
@@ -32,6 +33,15 @@ constexpr std::size_t kMaxQueuedMessages = 1024;
 constexpr std::size_t kMaxQueuedBytes = 16 * 1024 * 1024;
 
 Link* g_link = nullptr;
+
+/// Stops `thread`'s pipe calls (os::interrupt_io); if the cancel hasn't taken after 2 s, says so in
+/// the log and keeps at it (the thread must be out of its call before it can be joined).
+void stop_pipe_io(std::thread& thread, InterruptibleIo& io, const char* what) {
+  if (!os::interrupt_io(thread, io, std::chrono::seconds(2))) {
+    log_line(std::string("pd-host: the backend's ") + what + " is still blocked 2 s after it was cancelled; still trying");
+    os::interrupt_io(thread, io);
+  }
+}
 
 std::string page_key(const std::string& frame_id, int context) { return frame_id + "#" + std::to_string(context); }
 
@@ -156,6 +166,11 @@ void Link::spawn() {
   os::prepare_pipes(*child);
   process_->reader = std::thread(read_loop, process_.get());
   process_->writer = std::thread(write_loop, process_.get());
+  // Windows: the exit stops both, even while something the backend started holds its pipes (#17).
+  process_->watcher = os::watch_exit(*child, [process = process_.get()] {
+    stop_pipe_io(process->reader, process->reader_io, "stdout reader");
+    stop_pipe_io(process->writer, process->writer_io, "stdin writer");
+  });
   log("pd-host: started the backend (pid " + std::to_string(child->pid) + ")");
   router_.backend_started();
 }
@@ -375,8 +390,11 @@ os::Status Link::end_process(std::chrono::milliseconds grace) {
   // Then both threads stop waiting, even if something the backend started still holds its pipes.
   const os::Status status = os::reap(process->child, grace);
 #if defined(_WIN32)
-  os::cancel_blocking_io(process->reader);
-  os::cancel_blocking_io(process->writer);
+  if (process->watcher.joinable()) {
+    process->watcher.join();  // the process is gone, so it has fired
+  }
+  stop_pipe_io(process->reader, process->reader_io, "stdout reader");
+  stop_pipe_io(process->writer, process->writer_io, "stdin writer");
 #else
   if (process->stop[1] >= 0) {
     [[maybe_unused]] const auto written = ::write(process->stop[1], "x", 1);
@@ -419,7 +437,7 @@ int wait_for(int fd, bool out, int pidfd, int stop) {
 }
 
 #else
-/// Windows: the reads and writes block, and ending the process cancels them (os::cancel_blocking_io).
+/// Windows: the reads and writes block; the exit or ending the process interrupts them (os::interrupt_io).
 int wait_for(int, bool, int, int) { return 0; }
 #endif
 
@@ -429,15 +447,8 @@ void Link::read_loop(Process* process) {
   ipc::FrameBuffer frames(kMaxMessage);
   std::vector<std::byte> chunk(64 * 1024);
   const std::uint64_t generation = process->generation;
-  for (;;) {
-    // What the backend wrote before exiting is still read: the pipe comes first.
-    if (wait_for(process->child.from_child, false, process->pidfd, process->stop[0]) != 0) {
-      break;
-    }
-    const long n = os::read_some(process->child.from_child, chunk.data(), chunk.size());
-    if (n <= 0) {
-      break;
-    }
+  // Hands the messages in the `n` bytes read to the UI thread; false once the framing broke.
+  const auto deliver = [&](long n) {
     frames.push(std::span<const std::byte>(chunk.data(), static_cast<std::size_t>(n)));
     while (auto message = frames.next()) {
       CefPostTask(TID_UI, base::BindOnce(&Link::on_backend_message, base::Unretained(g_link), generation,
@@ -446,7 +457,37 @@ void Link::read_loop(Process* process) {
     if (!frames.error().empty()) {
       CefPostTask(TID_UI, base::BindOnce(&Link::log, base::Unretained(g_link),
                                          "pd-host: the backend broke the framing: " + frames.error()));
+      return false;
+    }
+    return true;
+  };
+  for (;;) {
+    // What the backend wrote before exiting is still read: the pipe comes first.
+    if (wait_for(process->child.from_child, false, process->pidfd, process->stop[0]) != 0) {
       break;
+    }
+    if (!process->reader_io.enter()) {
+      break;
+    }
+    const long n = os::read_some(process->child.from_child, chunk.data(), chunk.size());
+    process->reader_io.leave();
+    if (n <= 0 || !deliver(n)) {
+      break;
+    }
+  }
+  // Interrupted (Windows: the process exited or is being ended): what it wrote before is still
+  // read, as POSIX's poll reads the pipe first (#17). Bounded, in case something it started keeps
+  // writing.
+  if (process->reader_io.interrupted() && frames.error().empty()) {
+    for (int i = 0; i < 256; ++i) {
+      const std::size_t available = os::bytes_available(process->child.from_child);
+      if (available == 0) {
+        break;
+      }
+      const long n = os::read_some(process->child.from_child, chunk.data(), std::min(available, chunk.size()));
+      if (n <= 0 || !deliver(n)) {
+        break;
+      }
     }
   }
   CefPostTask(TID_UI, base::BindOnce(&Link::on_backend_exit, base::Unretained(g_link), generation));
@@ -493,7 +534,12 @@ void Link::write_loop(Process* process) {
       process->queued_bytes -= message.size();
     }
     // After a failed write the backend is gone: the rest is dropped (the reader reports the exit).
-    broken = broken || !write_out(process->child.to_child, ipc::frame(message), process->pidfd, process->stop[0]);
+    if (!broken && process->writer_io.enter()) {
+      broken = !write_out(process->child.to_child, ipc::frame(message), process->pidfd, process->stop[0]);
+      process->writer_io.leave();
+    } else {
+      broken = true;  // or interrupted: the process exited or is being ended
+    }
   }
   os::close_fd(process->child.to_child);
 }
