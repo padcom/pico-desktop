@@ -18,7 +18,7 @@
     "$comment": "0.4.2 is released (2026-11-07) and CI uses it. pico-lang main has fixes after it (dap formatters on attach #99, Reader.close #100, #102, #104, #107): docs/toolchain.md."
   },
   "cef": {
-    "status": "pinned for linux-arm64 (verified in F1) and linux-x64 (SHA-1 from the upstream index; built and run in CI on native x64); provisional for the other targets",
+    "status": "pinned for linux-arm64 (verified in F1) and linux-x64 (SHA-256 from CI's first verified download, 2026-11-07: built and all self-tests passed on a native x64 runner); provisional for the other targets",
     "version": "156.0.15+gcf671c0+chromium-156.0.8078.80",
     "chromium": "156.0.8078.80",
     "source": "https://cef-builds.spotifycdn.com/index.json (Spotify Automated Builds, channel stable)",
@@ -31,7 +31,8 @@
       },
       "linux-x64": {
         "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_linux64_minimal.tar.bz2",
-        "sha1": "09235427222e026a4f34399742df27c5d98a4f8a"
+        "sha1": "09235427222e026a4f34399742df27c5d98a4f8a",
+        "sha256": "6873f975bb047316680ea1839980ed5bd4c33c8cd4ce45761c94211856605388"
       },
       "windows-arm64": {
         "file": "cef_binary_156.0.15+gcf671c0+chromium-156.0.8078.80_windowsarm64_minimal.tar.bz2",

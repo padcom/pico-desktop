@@ -49,9 +49,13 @@ try {
   const url = 'https://example.com/pd-user-input?a=1&b=two%20words'
   await app.evaluate(`document.body.insertAdjacentHTML('beforeend',
     '<a id="pd-external" href="${url}" style="display:block;padding:20px">elsewhere</a>')`)
-  await app.click('#pd-external')
-  for (let i = 0; i < 50 && read(opened) === ''; i++) {
-    await sleep(100)
+  // Laid out before the click (a frame), and clicked again if the first one landed too early.
+  await app.evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))')
+  for (let attempt = 0; attempt < 3 && read(opened) === ''; attempt++) {
+    await app.click('#pd-external')
+    for (let i = 0; i < 30 && read(opened) === ''; i++) {
+      await sleep(100)
+    }
   }
   check('a clicked link to another site goes to the system browser, unchanged', read(opened) === `${url}\n`, JSON.stringify(read(opened)))
   check('the window stays on the app', (await app.evaluate('location.origin')) === origin)
