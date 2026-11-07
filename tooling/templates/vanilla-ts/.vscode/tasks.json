@@ -24,6 +24,14 @@
       "command": "pnpm test",
       "group": { "kind": "test", "isDefault": true },
       "problemMatcher": []
+    },
+    {
+      "label": "e2e",
+      "detail": "The end-to-end tests, in the real window with the real backend",
+      "type": "shell",
+      "command": "pnpm e2e",
+      "group": "test",
+      "problemMatcher": []
     }
   ]
 }

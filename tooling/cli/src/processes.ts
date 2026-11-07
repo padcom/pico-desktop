@@ -52,6 +52,8 @@ export interface Passthrough {
   io: Output
   /** Put before each line. */
   prefix: string
+  /** Its environment (this process's by default). */
+  env?: NodeJS.ProcessEnv
 }
 
 /**
@@ -63,10 +65,10 @@ export interface Passthrough {
  * @returns its exit code
  */
 export function passthrough(program: string, args: string[], options: Passthrough): Promise<number> {
-  const { cwd, io, prefix } = options satisfies Passthrough
+  const { cwd, io, prefix, env } = options satisfies Passthrough
 
   return new Promise(resolve => {
-    const child = spawn(program, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(program, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] })
     lines(child.stdout, line => io.out(`${prefix}${line}`))
     lines(child.stderr, line => io.err(`${prefix}${line}`))
     child.on('error', error => {

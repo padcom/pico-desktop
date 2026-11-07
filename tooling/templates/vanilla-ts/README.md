@@ -14,6 +14,7 @@ pnpm install
 pnpm dev        # the window, with HMR for the frontend; Pico edits rebuild and restart the backend
 pnpm ui         # just the frontend, in any browser, against a TypeScript mock backend
 pnpm test       # Vitest and pico test
+pnpm e2e        # end to end: the real window and backend, driven by apps/frontend/e2e/*.e2e.ts
 pnpm generate   # after editing the contract (dev does it on save)
 ```
 

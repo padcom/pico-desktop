@@ -101,6 +101,26 @@ pnpm test
 
 This runs the frontend's Vitest tests (against the mock backend) and the backend's `pico test` (over an in-memory link).
 
+End to end, in the real window with the real backend:
+
+```sh
+pnpm e2e
+```
+
+`pnpm e2e` (`pico-desktop test --e2e`) builds the frontend and the backend, then runs `apps/frontend/e2e/*.e2e.ts` in Vitest under Node, one file at a time. In a test, `launchApp()` (from `pico-desktop`) starts the app, and the page is driven over the DevTools protocol:
+
+```ts
+import { launchApp } from 'pico-desktop'
+
+const app = await launchApp()
+await app.fill('#name', 'end to end')
+await app.click('button[type=submit]')
+expect(await app.waitForText('#message', 'Hello')).toBe('Hello, end to end!')
+expect(await app.close()).toBe(0)  // closed like its window; 0 when the backend exits in time
+```
+
+It has `evaluate(js)`, `text`, `click`, `fill`, `waitFor(js)` and `waitForText`, and `log` has what the host printed (the page's console as `console: …`). The window opens in development mode (remote debugging is never on in production) with its own profile, under the app ID plus `.e2e`. It needs a display; in CI, run it under `xvfb-run`.
+
 ## 6. Build and package
 
 ```sh

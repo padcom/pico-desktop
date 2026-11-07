@@ -7,6 +7,7 @@
     "dev": "pico-desktop dev",
     "ui": "pnpm --filter ./apps/frontend ui",
     "test": "pico-desktop test",
+    "e2e": "pico-desktop test --e2e",
     "generate": "pico-desktop generate"
   },
   "dependencies": {

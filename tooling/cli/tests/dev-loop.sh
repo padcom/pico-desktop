@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The F4 developer loop end to end, on a freshly created app:
-#   create → pnpm install → pnpm test → pnpm dev, then in the same window:
+#   create → pnpm install → pnpm test → pnpm e2e → pnpm dev, then in the same window:
 #   3 backend edits (each rebuilt and restarted: epochs 2, 3, 4, and the page shows each new
 #   answer), a syntax error (reported, the
 #   running backend kept), its fix (epoch 5), frontend edits (CSS hot-updated, a module reloads
@@ -67,6 +67,10 @@ node -e 'const f="package.json",p=JSON.parse(require("fs").readFileSync(f));dele
 pnpm install --prefer-offline > "$scratch/install.log" 2>&1 || { cat "$scratch/install.log"; echo "FAIL: pnpm install"; exit 1; }
 pnpm test > "$scratch/test.log" 2>&1 || { cat "$scratch/test.log"; fail "pnpm test"; }
 (cd apps/frontend && pnpm exec tsc -p .) || fail "the template's frontend doesn't typecheck"
+# The template's end-to-end tests: the real window and backend, driven over DevTools.
+PICO_DESKTOP_HOST=$host pnpm e2e > "$scratch/e2e.log" 2>&1 || { cat "$scratch/e2e.log"; fail "pnpm e2e"; }
+grep -q 'Tests  3 passed' "$scratch/e2e.log" || { cat "$scratch/e2e.log"; fail "pnpm e2e didn't run the template's 3 tests"; }
+grep "Tests  " "$scratch/e2e.log"
 
 mkfifo "$scratch/keys"
 exec 3<> "$scratch/keys"

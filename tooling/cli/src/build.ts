@@ -77,7 +77,13 @@ interface ViteBuild {
   build(options: Record<string, unknown>): Promise<unknown>
 }
 
-async function buildFrontend(config: ResolvedConfig, outDir: string) {
+/**
+ * Builds the frontend for the app's origin (relative URLs).
+ *
+ * @param config the app
+ * @param outDir where it goes (emptied first)
+ */
+export async function buildFrontend(config: ResolvedConfig, outDir: string) {
   const resolved = createRequire(join(config.frontend.root, 'package.json')).resolve('vite')
   const vite = await import(pathToFileURL(resolved).href) as ViteBuild
   await vite.build({ root: config.frontend.root, base: './', logLevel: 'warn', build: { outDir, emptyOutDir: true } })
