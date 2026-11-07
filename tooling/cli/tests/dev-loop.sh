@@ -59,6 +59,9 @@ cd "$scratch" || exit 1
 # A fresh app ID: a host still running elsewhere can't share this run's Chromium profile.
 node "$cli" create demo --id="dev.pico-desktop.demo-$$" > /dev/null || { echo "FAIL: create"; exit 1; }
 cd demo || exit 1
+# The pnpm running is the one packageManager names. pnpm 12 resolves that pin as a config
+# dependency, which needs registry metadata that an offline CI cache doesn't have: drop the pin.
+node -e 'const f="package.json",p=JSON.parse(require("fs").readFileSync(f));delete p.packageManager;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
 pnpm install --offline > "$scratch/install.log" 2>&1 || { cat "$scratch/install.log"; echo "FAIL: pnpm install"; exit 1; }
 pnpm test > "$scratch/test.log" 2>&1 || { cat "$scratch/test.log"; fail "pnpm test"; }
 (cd apps/frontend && pnpm exec tsc -p .) || fail "the template's frontend doesn't typecheck"

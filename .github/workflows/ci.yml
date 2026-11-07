@@ -141,8 +141,7 @@ jobs:
       - name: hello-world backend tests and lint
         if: steps.pico.outputs.available == 'true'
         working-directory: apps/hello-world/backend
-        # Absolute paths: pico-lang #93.
-        run: pico test "$PWD" && pico lint "$PWD"
+        run: pico test . && pico lint .
       - if: steps.pico.outputs.available == 'true'
         uses: actions/setup-node@v4
         with:
@@ -150,7 +149,8 @@ jobs:
       - name: Capability probes
         if: steps.pico.outputs.available == 'true'
         working-directory: probes
+        # The child the process probe talks to is built first.
         run: |
-          pico test
           pico build --release src/stdio_echo.pi -o bin/stdio_echo
+          pico test
           node harness/stdio-harness.mjs

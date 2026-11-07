@@ -61,6 +61,9 @@ fi
 cd "$scratch" || exit 1
 node "$cli" create demo --id="dev.pico-desktop.bundle-$$" > /dev/null || { echo "FAIL: create"; exit 1; }
 cd demo || exit 1
+# The pnpm running is the one packageManager names. pnpm 12 resolves that pin as a config
+# dependency, which needs registry metadata that an offline CI cache doesn't have: drop the pin.
+node -e 'const f="package.json",p=JSON.parse(require("fs").readFileSync(f));delete p.packageManager;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
 pnpm install --offline > "$scratch/install.log" 2>&1 || { cat "$scratch/install.log"; echo "FAIL: install"; exit 1; }
 
 PICO_DESKTOP_RUNTIME=$runtime node "$cli" build > "$scratch/build.log" 2>&1 || { cat "$scratch/build.log"; echo "FAIL: build"; exit 1; }
