@@ -107,6 +107,10 @@ void HostClient::finish_self_test(CefRefPtr<CefBrowser> browser) {
     return;
   }
   // The page passed its checks; now prove the renderer it ran in is sandboxed.
+#if defined(__APPLE__)
+  // (macOS: the helpers run in CEF's Seatbelt sandbox, which can't be inspected from here.)
+  log_line("pd-info: the renderer's sandbox isn't inspected on macOS");
+#else
   const auto processes = inspect_descendants(static_cast<int>(::getpid()));
   for (const auto& p : processes) {
     log_line("pd-sandbox: " + p.type + " pid=" + std::to_string(p.pid) + " seccomp=" +
@@ -119,6 +123,7 @@ void HostClient::finish_self_test(CefRefPtr<CefBrowser> browser) {
     log_line("pd-test: fail renderer is sandboxed");
     ++state.self_test_failed;
   }
+#endif
   state.self_test_done = true;
   log_line("pd-self-test: " + std::to_string(state.self_test_passed) + " passed, " +
            std::to_string(state.self_test_failed) + " failed");

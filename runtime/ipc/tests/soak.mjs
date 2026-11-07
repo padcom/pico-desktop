@@ -4,7 +4,7 @@
 // stay under LIMIT_KB. A runtime that keeps per-message state (pico-lang #97: the event loop's io
 // map kept every read's chunk) grows with N and fails this.
 // Usage: node soak.mjs <echo> [n=600] [size=1048576] [limitKb=153600]
-import { spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
@@ -20,6 +20,10 @@ child.stdout.on('data', (data) => {
     answered?.(decodeEnvelope(message))
   }
 })
+// Linux keeps the peak (VmHWM); elsewhere (macOS) the resident size is sampled after each echo.
+const linux = process.platform === 'linux'
+const residentKb = () => Number(execFileSync('ps', ['-o', 'rss=', '-p', String(child.pid)], { encoding: 'utf8' }).trim())
+let sampled = 0
 const payload = new Uint8Array(Number(size)).fill(7)
 for (let id = 1; id <= Number(n); id++) {
   const reply = new Promise((resolve) => {
@@ -31,8 +35,11 @@ for (let id = 1; id <= Number(n); id++) {
     console.error(`FAIL: request ${id} got ${JSON.stringify({ id: r.id, length: r.p?.length })}`)
     process.exit(1)
   }
+  if (!linux) {
+    sampled = Math.max(sampled, residentKb())
+  }
 }
-const peak = Number(/VmHWM:\s+(\d+)/u.exec(readFileSync(`/proc/${child.pid}/status`, 'utf8'))[1])
+const peak = linux ? Number(/VmHWM:\s+(\d+)/u.exec(readFileSync(`/proc/${child.pid}/status`, 'utf8'))[1]) : sampled
 child.stdin.end()
 console.log(`ipc.soak: ${n} × ${size} B echoed, backend peak ${peak} kB (limit ${limit})`)
 process.exit(peak <= Number(limit) ? 0 : 1)

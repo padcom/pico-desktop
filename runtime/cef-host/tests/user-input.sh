@@ -8,7 +8,9 @@ here=$(cd "$(dirname "$0")" && pwd)
 cli=$here/../../../tooling/cli/dist/index.js
 [[ -f "$fixture/index.html" ]] || { echo "skipped: the fixture isn't built (pnpm --filter @pico-desktop/host-fixture build)"; exit 77; }
 [[ -f "$cli" ]] || { echo "skipped: the CLI isn't built (pnpm build)"; exit 77; }
-if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+# macOS has no `timeout` unless coreutils is installed, and needs no X display.
+command -v timeout > /dev/null || timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
+if [[ "$(uname)" != Darwin && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   command -v xvfb-run > /dev/null || { echo "skipped: no display"; exit 77; }
   exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" "$0" "$@"
 fi

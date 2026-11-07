@@ -140,8 +140,6 @@ bool write_all(int fd, std::span<const std::byte> bytes) {
 
 #else
 
-namespace {
-
 /// A pipe whose ends don't leak into other programs this process starts.
 bool cloexec_pipe(int fds[2]) {
 #if defined(__APPLE__)
@@ -155,8 +153,6 @@ bool cloexec_pipe(int fds[2]) {
   return pipe2(fds, O_CLOEXEC) == 0;
 #endif
 }
-
-}  // namespace
 
 std::optional<ChildProcess> spawn_piped(const std::string& program, const std::vector<std::string>& args,
                                         std::string& error) {

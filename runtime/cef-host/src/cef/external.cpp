@@ -17,23 +17,27 @@ void open_external(const std::string& url) {
     return;
   }
   log_line("pd-host: external open " + url);
-#if defined(__linux__)
-  // xdg-open, without a shell (the URL is an argument, never parsed as a command).
+#if defined(__linux__) || defined(__APPLE__)
+  // xdg-open (macOS: open), without a shell (the URL is an argument, never parsed as a command).
+#if defined(__APPLE__)
+  char program[] = "open";
+#else
   char program[] = "xdg-open";
+#endif
   std::string arg = url;
   char* argv[] = {program, arg.data(), nullptr};
   pid_t pid = 0;
   if (posix_spawnp(&pid, program, nullptr, nullptr, argv, environ) != 0) {
-    log_line("pd-host: couldn't start xdg-open for " + url);
+    log_line(std::string("pd-host: couldn't start ") + program + " for " + url);
     return;
   }
-  // Reap it off the UI thread (xdg-open exits once it has handed the URL over).
+  // Reap it off the UI thread (it exits once it has handed the URL over).
   std::thread([pid] {
     int status = 0;
     waitpid(pid, &status, 0);
   }).detach();
 #else
-#error "open_external is implemented for Linux first"
+#error "open_external is implemented for Linux and macOS"
 #endif
 }
 

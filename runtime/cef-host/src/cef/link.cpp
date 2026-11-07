@@ -2,7 +2,11 @@
 
 #include <fcntl.h>
 #include <poll.h>
+#if defined(__APPLE__)
+#include <sys/event.h>
+#else
 #include <sys/syscall.h>
+#endif
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -37,6 +41,27 @@ Link* g_link = nullptr;
 std::string page_key(const std::string& frame_id, int context) { return frame_id + "#" + std::to_string(context); }
 
 /// Reaps `pid`, waiting up to `grace` and then killing it; the wait status, or -1.
+/// A descriptor that becomes readable when `pid` exits (-1 if there's none): a pidfd on Linux, a
+/// kqueue watching for the exit on macOS.
+int exit_watch(pid_t pid) {
+#if defined(__APPLE__)
+  const int kq = ::kqueue();
+  if (kq < 0) {
+    return -1;
+  }
+  struct kevent change;
+  EV_SET(&change, pid, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, nullptr);
+  if (::kevent(kq, &change, 1, nullptr, 0, nullptr) != 0) {
+    ::close(kq);
+    return -1;
+  }
+  ::fcntl(kq, F_SETFD, FD_CLOEXEC);
+  return kq;
+#else
+  return static_cast<int>(::syscall(SYS_pidfd_open, pid, 0));
+#endif
+}
+
 int reap(pid_t pid, std::chrono::milliseconds grace) {
   const auto until = std::chrono::steady_clock::now() + grace;
   int status = 0;
@@ -186,8 +211,8 @@ void Link::spawn() {
   process_ = std::make_unique<Process>();
   process_->child = *child;
   process_->generation = ++generation_;
-  process_->pidfd = static_cast<int>(::syscall(SYS_pidfd_open, child->pid, 0));
-  if (::pipe2(process_->stop, O_CLOEXEC) != 0) {
+  process_->pidfd = exit_watch(child->pid);
+  if (!ipc::cloexec_pipe(process_->stop)) {
     process_->stop[0] = process_->stop[1] = -1;
   }
   ::fcntl(child->to_child, F_SETFL, ::fcntl(child->to_child, F_GETFL) | O_NONBLOCK);

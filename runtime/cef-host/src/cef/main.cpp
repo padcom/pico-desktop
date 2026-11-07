@@ -154,6 +154,7 @@ int run_browser(int argc, char** argv) {
 
 }  // namespace pico_desktop::host::cef
 
+#if !defined(__APPLE__)  // macOS: main_mac.mm (the app) and helper_mac.cpp (its helpers)
 int main(int argc, char* argv[]) {
   CefRefPtr<CefCommandLine> command_line = CefCommandLine::CreateCommandLine();
   command_line->InitFromArgv(argc, argv);
@@ -165,3 +166,4 @@ int main(int argc, char* argv[]) {
   }
   return pico_desktop::host::cef::run_browser(argc, argv);
 }
+#endif

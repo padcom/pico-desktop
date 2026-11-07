@@ -34,13 +34,11 @@ if(NOT PD_WITH_CEF)
   return()
 endif()
 
-# The CEF Views host. One executable is both the browser process and every Chromium subprocess
-# (renderer, GPU, utility, zygote) on Linux.
-add_executable(pico-desktop-host
+# The CEF Views host's sources, shared by the executables below.
+set(PD_HOST_SOURCES
   src/cef/app.cpp
   src/cef/bridge.cpp
   src/cef/client.cpp
-  src/cef/clipboard.cpp
   src/cef/control.cpp
   src/cef/external.cpp
   src/cef/link.cpp
@@ -49,10 +47,22 @@ add_executable(pico-desktop-host
   src/cef/services.cpp
   src/cef/signals.cpp
   src/cef/window.cpp)
-SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
-add_dependencies(pico-desktop-host libcef_dll_wrapper)
-target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc xcb)
-target_compile_definitions(pico-desktop-host PRIVATE PD_VERSION="${PROJECT_VERSION}")
+# The backend's clipboard: an X11 client on Linux; elsewhere not implemented yet (UNAVAILABLE).
+if(OS_LINUX)
+  list(APPEND PD_HOST_SOURCES src/cef/clipboard.cpp)
+else()
+  list(APPEND PD_HOST_SOURCES src/cef/clipboard_none.cpp)
+endif()
+
+if(OS_LINUX)
+  # Linux: one executable is both the browser process and every Chromium subprocess (renderer,
+  # GPU, utility, zygote).
+  add_executable(pico-desktop-host ${PD_HOST_SOURCES})
+  SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
+  add_dependencies(pico-desktop-host libcef_dll_wrapper)
+  target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc xcb)
+  target_compile_definitions(pico-desktop-host PRIVATE PD_VERSION="${PROJECT_VERSION}")
+endif()
 
 if(OS_LINUX)
   ADD_LOGICAL_TARGET("libcef_lib" "${CEF_LIB_DEBUG}" "${CEF_LIB_RELEASE}")
@@ -86,8 +96,60 @@ if(OS_LINUX)
   install(FILES "${CEF_ROOT}/CREDITS.html" DESTINATION licenses RENAME CHROMIUM-CREDITS.html COMPONENT runtime)
   install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION licenses RENAME PICO-DESKTOP-LICENSE.txt
           COMPONENT runtime)
+elseif(OS_MAC)
+  # macOS: an app bundle, pico-desktop-host.app, with the CEF framework and Chromium's helper apps
+  # (one per process kind, as CEF requires) in Contents/Frameworks (CEF's cefsimple layout).
+  add_library(pd_host_cef OBJECT ${PD_HOST_SOURCES})
+  SET_LIBRARY_TARGET_PROPERTIES(pd_host_cef)
+  add_dependencies(pd_host_cef libcef_dll_wrapper)
+  target_link_libraries(pd_host_cef PUBLIC pd_host_core pd_ipc)
+  target_compile_definitions(pd_host_cef PRIVATE PD_VERSION="${PROJECT_VERSION}")
+
+  set(EXECUTABLE_NAME "pico-desktop-host")
+  set(PRODUCT_NAME "pico-desktop-host")
+  set(VERSION_SHORT "${PROJECT_VERSION}")
+  set(PD_APP "$<TARGET_BUNDLE_DIR:pico-desktop-host>")
+  add_executable(pico-desktop-host MACOSX_BUNDLE src/cef/main_mac.mm $<TARGET_OBJECTS:pd_host_cef>)
+  SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
+  add_dependencies(pico-desktop-host libcef_dll_wrapper)
+  target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
+  set_target_properties(pico-desktop-host PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/mac/Info.plist.in)
+  add_custom_command(TARGET pico-desktop-host POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CEF_BINARY_DIR}/Chromium Embedded Framework.framework"
+            "${PD_APP}/Contents/Frameworks/Chromium Embedded Framework.framework"
+    VERBATIM)
+
+  foreach(_suffix_list ${CEF_HELPER_APP_SUFFIXES})
+    string(REPLACE ":" ";" _suffix_list ${_suffix_list})
+    list(GET _suffix_list 0 _name_suffix)
+    list(GET _suffix_list 1 _target_suffix)
+    list(GET _suffix_list 2 _plist_suffix)
+    set(_helper_target "pico-desktop-host_helper${_target_suffix}")
+    set(_helper_output_name "pico-desktop-host Helper${_name_suffix}")
+    # One Info.plist per helper, written here (configure_file would share the variables).
+    set(_helper_info_plist "${CMAKE_CURRENT_BINARY_DIR}/helper-Info${_target_suffix}.plist")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mac/helper-Info.plist.in" _plist_contents)
+    string(REPLACE "\${EXECUTABLE_NAME}" "${_helper_output_name}" _plist_contents ${_plist_contents})
+    string(REPLACE "\${PRODUCT_NAME}" "${_helper_output_name}" _plist_contents ${_plist_contents})
+    string(REPLACE "\${BUNDLE_ID_SUFFIX}" "${_plist_suffix}" _plist_contents ${_plist_contents})
+    string(REPLACE "\${VERSION_SHORT}" "${PROJECT_VERSION}" _plist_contents ${_plist_contents})
+    file(WRITE ${_helper_info_plist} ${_plist_contents})
+
+    add_executable(${_helper_target} MACOSX_BUNDLE src/cef/helper_mac.cpp $<TARGET_OBJECTS:pd_host_cef>)
+    SET_EXECUTABLE_TARGET_PROPERTIES(${_helper_target})
+    add_dependencies(${_helper_target} libcef_dll_wrapper)
+    target_link_libraries(${_helper_target} PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
+    set_target_properties(${_helper_target} PROPERTIES
+      MACOSX_BUNDLE_INFO_PLIST ${_helper_info_plist}
+      OUTPUT_NAME ${_helper_output_name})
+    add_dependencies(pico-desktop-host "${_helper_target}")
+    add_custom_command(TARGET pico-desktop-host POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "$<TARGET_BUNDLE_DIR:${_helper_target}>"
+              "${PD_APP}/Contents/Frameworks/${_helper_output_name}.app"
+      VERBATIM)
+  endforeach()
 else()
-  message(FATAL_ERROR "the CEF host is implemented for Linux first (linux-arm64 is the priority target)")
+  message(FATAL_ERROR "the CEF host is implemented for Linux and macOS (Windows: not yet)")
 endif()
 
 add_test(NAME host.version COMMAND pico-desktop-host --version)
@@ -109,9 +171,11 @@ endforeach()
 # (Chromium's own X11 clipboard), written by the page and read by the backend, a large text, and
 # NOT_ALLOWED reading without the capability. In its own Xvfb (it replaces the clipboard);
 # skipped without pico, xvfb-run (or PD_TEST_REAL_CLIPBOARD=1), the fixture or the built CLI.
-add_test(NAME host.clipboard
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/clipboard.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
-set_tests_properties(host.clipboard PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180 RUN_SERIAL TRUE)
+if(OS_LINUX)
+  add_test(NAME host.clipboard
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/clipboard.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+  set_tests_properties(host.clipboard PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180 RUN_SERIAL TRUE)
+endif()
 
 # Real keys and clicks (tests/user-input.sh, with the CLI's e2e driver, under --dev): F12 opens
 # DevTools and another key doesn't; a clicked link to another site goes to xdg-open (a fake one)
@@ -133,9 +197,11 @@ add_test(NAME host.close
 set_tests_properties(host.close PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 
 # No user namespaces: the host explains and refuses to start (simulated with unshare, no root).
-add_test(NAME host.no-userns
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/no-userns.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
-set_tests_properties(host.no-userns PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
+if(OS_LINUX)  # Linux only for now
+  add_test(NAME host.no-userns
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/no-userns.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+  set_tests_properties(host.no-userns PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
+endif()
 
 # Hangs (liveness pings) and crash loops (the restart budget). Needs pico for the hang backend.
 add_test(NAME host.hang
@@ -155,17 +221,21 @@ set_tests_properties(hello-world.self-test PROPERTIES SKIP_RETURN_CODE 77 TIMEOU
 # The F4 developer loop on a freshly created app (tooling/cli/tests/dev-loop.sh): create,
 # install, test, then `pnpm dev` with backend edits, a syntax error, frontend and contract edits,
 # and Ctrl+C. Needs pico and the built CLI (`pnpm build`); skipped otherwise.
-add_test(NAME cli.dev-loop
-  COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/dev-loop.sh $<TARGET_FILE:pico-desktop-host>)
-set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+if(OS_LINUX)  # Linux only for now
+  add_test(NAME cli.dev-loop
+    COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/dev-loop.sh $<TARGET_FILE:pico-desktop-host>)
+  set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+endif()
 
 # The Pico debugger on the backend that the host starts (tooling/cli/tests/debug-attach.sh): a
 # DAP client attaches through `pico dap` to the next backend, and `pnpm dev --debug` stops at a
 # breakpoint in its handler, held past the hang timeout, then detaches. Needs pico, lldb-dap and
 # ptrace_scope 0; skipped otherwise.
-add_test(NAME cli.debug-attach
-  COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/debug-attach.sh $<TARGET_FILE:pico-desktop-host>)
-set_tests_properties(cli.debug-attach PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+if(OS_LINUX)  # Linux only for now
+  add_test(NAME cli.debug-attach
+    COMMAND ${PROJECT_SOURCE_DIR}/tooling/cli/tests/debug-attach.sh $<TARGET_FILE:pico-desktop-host>)
+  set_tests_properties(cli.debug-attach PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+endif()
 
 # The F6 bundle on a freshly created app (tooling/cli/tests/bundle.sh): build, run it with a bare
 # environment, SIGTERM, package, verify, unpack and run again, and a tampered runtime refused.

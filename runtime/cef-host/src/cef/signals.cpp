@@ -9,6 +9,7 @@
 #include <thread>
 
 #include "host.hpp"
+#include "pico_desktop/ipc/process.hpp"
 #include "include/base/cef_bind.h"
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
@@ -54,7 +55,7 @@ void watch() {
 }  // namespace
 
 void start_signal_watch() {
-  if (::pipe2(g_pipe, O_CLOEXEC) != 0) {
+  if (!pico_desktop::ipc::cloexec_pipe(g_pipe)) {
     return;
   }
   struct sigaction action {};
