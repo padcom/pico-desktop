@@ -86,11 +86,9 @@ export function devHostArgs(config: ResolvedConfig, url: string, options: DevOpt
   if (options.traceIpc) {
     args.push('--trace-ipc')
   }
-  if (options.debug) {
-    args.push('--liveness=off')
-  }
 
-  return [...args, ...appArgs(config)]
+  // After the app's own flags: the host takes the last --liveness, and debugging turns it off.
+  return [...args, ...appArgs(config), ...(options.debug ? ['--liveness=off'] : [])]
 }
 
 function startHost(host: string, config: ResolvedConfig, url: string, options: DevOptions & { io: Output }) {

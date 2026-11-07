@@ -28,6 +28,12 @@ export interface UserConfig {
   window?: { title?: string, width?: number, height?: number }
   /** How long the backend has to finish when the app closes, in ms (3000). */
   closeGraceMs?: number
+  /**
+   * How the host checks the backend is alive: a ping every `intervalMs` (5000), and a hang after
+   * `timeoutMs` without an answer (15000), which restarts the backend. `false`: no pings, for a
+   * backend that may block its event loop on purpose for long (prefer making it not block).
+   */
+  liveness?: { intervalMs: number, timeoutMs: number } | false
   /** The app's icon for its AppImage (.png or .svg; a plain one otherwise). */
   icon?: string
   frontend?: { root?: string }
@@ -45,6 +51,7 @@ export interface ResolvedConfig {
   capabilities: Capability[]
   window: { title?: string | undefined, width: number, height: number }
   closeGraceMs: number
+  liveness: { intervalMs: number, timeoutMs: number } | false
   icon: string | undefined
   frontend: { root: string }
   backend: { root: string, entry: string }
@@ -102,6 +109,26 @@ function checkedId(user: UserConfig): string {
   return id
 }
 
+/** The host's liveness defaults (docs/protocol.md §7). */
+export const DEFAULT_LIVENESS = { intervalMs: 5000, timeoutMs: 15000 }
+
+/**
+ * The liveness timings, checked as the host checks them.
+ *
+ * @param user the configuration as written
+ * @returns the timings, or false for none
+ */
+function checkedLiveness(user: UserConfig): ResolvedConfig['liveness'] {
+  const l = user.liveness ?? DEFAULT_LIVENESS
+  const valid = (t: { intervalMs: number, timeoutMs: number }) => t.intervalMs >= 100 && t.timeoutMs > t.intervalMs
+  if (l !== false && !valid(l)) {
+    const got = `${l.intervalMs}/${l.timeoutMs}`
+    throw new ConfigError(`liveness: intervalMs must be at least 100 and timeoutMs longer than it (got ${got})`)
+  }
+
+  return l
+}
+
 /**
  * Fills in the defaults and makes every path absolute.
  *
@@ -124,6 +151,7 @@ export function resolveConfig(root: string, user: UserConfig): ResolvedConfig {
     capabilities: checkedCapabilities(user),
     window: { width: 1024, height: 768, ...user.window },
     closeGraceMs: user.closeGraceMs ?? 3000,
+    liveness: checkedLiveness(user),
     icon: optionalPath(root, user.icon),
     frontend: { root: at(frontend.root) },
     backend: { root: at(backend.root), entry: backend.entry },

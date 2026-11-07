@@ -10,6 +10,7 @@ describe('resolveConfig', () => {
       capabilities: [],
       window: { width: 1024, height: 768 },
       closeGraceMs: 3000,
+      liveness: { intervalMs: 5000, timeoutMs: 15000 },
       icon: undefined,
       frontend: { root: '/app/apps/frontend' },
       backend: { root: '/app/apps/backend', entry: 'main.pi' },
@@ -31,6 +32,14 @@ describe('resolveConfig', () => {
 })
 
 describe('resolveConfig checks', () => {
+  it('the liveness timings, as the host does', () => {
+    expect(resolveConfig('/app', { app: { id: 'demo' }, liveness: false }).liveness).toBe(false)
+    const app = { id: 'demo' }
+    const timed = (i: number, t: number) => () => resolveConfig('/app', { app, liveness: { intervalMs: i, timeoutMs: t } })
+    expect(timed(50, 1000)).toThrow(ConfigError)
+    expect(timed(1000, 1000)).toThrow(ConfigError)
+  })
+
   it('the capabilities', () => {
     expect(resolveConfig('/app', { app: { id: 'demo' }, capabilities: ['window', 'window'] }).capabilities).toEqual(['window'])
     // @ts-expect-error -- an unknown capability on purpose
