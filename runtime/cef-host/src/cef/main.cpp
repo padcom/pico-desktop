@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "app.hpp"
+#include "clipboard.hpp"
 #include "control.hpp"
 #include "signals.hpp"
 #include "host.hpp"
@@ -176,6 +177,7 @@ int run_browser(int argc, char** argv) {
   CefRunMessageLoop();
   // The backend got `closing` when the last window closed; give it a moment to finish.
   link().stop(std::chrono::milliseconds(2000));
+  pico_desktop::host::cef::clipboard::shutdown();  // before CEF goes: hands the clipboard's text to a clipboard manager
   CefShutdown();
 
   const BrowserState& state = browser_state();

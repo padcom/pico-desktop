@@ -209,6 +209,9 @@ static void options() {
   CHECK(service_info("host.window.setTitle").known && service_info("host.window.setTitle").needs == Capability::window);
   CHECK(service_info("host.dialog.openFile").needs == Capability::dialogs);
   CHECK(service_info("host.app.quit").known && !service_info("host.app.quit").needs);
+  // The clipboard, like the page's: writing needs nothing, reading the `clipboard` capability.
+  CHECK(service_info("host.clipboard.writeText").known && !service_info("host.clipboard.writeText").needs);
+  CHECK(service_info("host.clipboard.readText").needs == Capability::clipboard);
   CHECK(!service_info("host.fs.delete").known);
   {
     const auto r = parse({"--app-dir=/x", "--window-size=800x600", "--window-title=My App", "--close-grace=500"});

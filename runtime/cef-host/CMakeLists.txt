@@ -48,6 +48,12 @@ set(PD_HOST_SOURCES
   src/cef/services.cpp
   src/cef/signals.cpp
   src/cef/window.cpp)
+# The backend's clipboard: an X11 client on Linux; elsewhere not implemented yet (UNAVAILABLE).
+if(OS_LINUX)
+  list(APPEND PD_HOST_SOURCES src/cef/clipboard.cpp)
+else()
+  list(APPEND PD_HOST_SOURCES src/cef/clipboard_none.cpp)
+endif()
 
 if(OS_LINUX)
   # Linux: one executable is both the browser process and every Chromium subprocess (renderer,
@@ -55,7 +61,7 @@ if(OS_LINUX)
   add_executable(pico-desktop-host ${PD_HOST_SOURCES})
   SET_EXECUTABLE_TARGET_PROPERTIES(pico-desktop-host)
   add_dependencies(pico-desktop-host libcef_dll_wrapper)
-  target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc)
+  target_link_libraries(pico-desktop-host PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} pd_host_core pd_ipc xcb)
   target_compile_definitions(pico-desktop-host PRIVATE PD_VERSION="${PROJECT_VERSION}")
 endif()
 
@@ -197,6 +203,16 @@ foreach(origin IN ITEMS app https)
     COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/run-self-test.sh ${PD_HOST} ${PD_FIXTURE_DIR} ${origin})
   set_tests_properties(host.self-test.${origin} PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endforeach()
+
+# The backend's clipboard (tests/clipboard.sh): written by the backend and read by the page
+# (Chromium's own X11 clipboard), written by the page and read by the backend, a large text, and
+# NOT_ALLOWED reading without the capability. In its own Xvfb (it replaces the clipboard);
+# skipped without pico, xvfb-run (or PD_TEST_REAL_CLIPBOARD=1), the fixture or the built CLI.
+if(OS_LINUX)
+  add_test(NAME host.clipboard
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tests/clipboard.sh $<TARGET_FILE:pico-desktop-host> ${PD_FIXTURE_DIR})
+  set_tests_properties(host.clipboard PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180 RUN_SERIAL TRUE)
+endif()
 
 # Real keys and clicks (tests/user-input.sh, with the CLI's e2e driver, under --dev): F12 opens
 # DevTools and another key doesn't; a clicked link to another site goes to xdg-open (a fake one)

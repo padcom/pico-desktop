@@ -8,7 +8,8 @@
 
 namespace pico_desktop::host {
 
-/// `clipboard` is the page's: reading the clipboard (`navigator.clipboard.readText`). Writing needs nothing.
+/// `clipboard` is reading the clipboard, the page's (`navigator.clipboard.readText`) and the
+/// backend's (`host.clipboard.readText`). Writing needs nothing.
 enum class Capability { window, dialogs, notifications, clipboard };
 
 /// The capability named `name` (`window`, `dialogs`, `notifications`, `clipboard`).

@@ -37,3 +37,17 @@ forever, so `navigator.clipboard.readText()` never settled. The host now answers
 
 Writing the clipboard needs no permission. Native features beyond these stay host services that
 the backend calls.
+
+## Addendum (2026-11-07): the backend's clipboard
+
+`host.clipboard.writeText` and `host.clipboard.readText`, with the page's rule: writing needs no
+capability, reading needs `clipboard`. CEF has no clipboard API, so on Linux the host is an X11
+client of its own (`src/cef/clipboard.cpp`): XCB, on a connection and thread of its own, so it
+shares nothing with Chromium's X11 code (Xlib's process-wide error handler is why it isn't
+Xlib). It owns the CLIPBOARD selection while it holds text and answers other programs' requests
+(UTF8_STRING, TEXT, STRING as Latin-1, TARGETS, TIMESTAMP); reading converts the selection,
+chunked (INCR) transfers included. Text is limited to 1 MiB each way. Under Wayland it's XWayland,
+which keeps both clipboards in sync; without any X server the service is `UNAVAILABLE`.
+
+X11 text lives as long as its owner: when the app quits, the host hands its text to the
+clipboard manager (ICCCM `SAVE_TARGETS`) if the desktop runs one; otherwise it goes with the app.
