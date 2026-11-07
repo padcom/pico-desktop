@@ -27,7 +27,7 @@ pnpm install
 | Option | What it sets | Default |
 |---|---|---|
 | `app` | `id` (reverse-DNS), `name`, `version` | name = id, `0.0.0` |
-| `capabilities` | the host services the backend may call: `window`, `dialogs`, `notifications` | none |
+| `capabilities` | the host services the backend may call: `window`, `dialogs`, `notifications`; and `clipboard`, which lets the page read the clipboard (`navigator.clipboard.readText`; writing needs nothing) | none |
 | `window` | `title` (fixed), `width`, `height` | the page's `<title>`, 1024×768 |
 | `closeGraceMs` | how long the backend has to exit when the app closes | 3000 |
 | `liveness` | `{ intervalMs, timeoutMs }`: how often the host pings the backend, and after how long without an answer it counts as hung and is restarted; `false` turns pings off | 5000/15000 |

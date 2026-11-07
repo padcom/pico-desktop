@@ -16,7 +16,7 @@ export interface ContractConfig {
 }
 
 /** The host's native services the backend may use (docs: packages/communicator-pico/host.pi). */
-export const CAPABILITIES = ['window', 'dialogs', 'notifications'] as const
+export const CAPABILITIES = ['window', 'dialogs', 'notifications', 'clipboard'] as const
 
 export type Capability = typeof CAPABILITIES[number]
 

@@ -11,8 +11,10 @@ class HostClient : public CefClient,
                    public CefKeyboardHandler,
                    public CefLifeSpanHandler,
                    public CefLoadHandler,
-                   public CefRequestHandler {
+                   public CefRequestHandler,
+                   public CefPermissionHandler {
  public:
+  CefRefPtr<CefPermissionHandler> GetPermissionHandler() override { return this; }
   CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
   CefRefPtr<CefKeyboardHandler> GetKeyboardHandler() override { return this; }
   CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
@@ -44,6 +46,10 @@ class HostClient : public CefClient,
   // CefLoadHandler
   void OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, ErrorCode error_code,
                    const CefString& error_text, const CefString& failed_url) override;
+
+  // CefPermissionHandler: every prompt is answered (see permission_granted).
+  bool OnShowPermissionPrompt(CefRefPtr<CefBrowser> browser, uint64_t prompt_id, const CefString& requesting_origin,
+                              uint32_t requested_permissions, CefRefPtr<CefPermissionPromptCallback> callback) override;
 
   // CefRequestHandler
   bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefRequest> request,

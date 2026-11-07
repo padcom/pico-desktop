@@ -13,6 +13,7 @@
 #include "include/views/cef_window.h"
 #include "include/wrapper/cef_helpers.h"
 #include "pico_desktop/host/policy.hpp"
+#include "pico_desktop/host/services.hpp"
 #include "pico_desktop/host/sandbox.hpp"
 
 namespace pico_desktop::host::cef {
@@ -226,6 +227,21 @@ void fail_self_test(CefRefPtr<CefBrowser> browser, const std::string& reason) {
   } else {
     CefQuitMessageLoop();
   }
+}
+
+bool HostClient::OnShowPermissionPrompt(CefRefPtr<CefBrowser> /*browser*/, uint64_t /*prompt_id*/,
+                                        const CefString& requesting_origin, uint32_t requested_permissions,
+                                        CefRefPtr<CefPermissionPromptCallback> callback) {
+  const Options& options = browser_state().options;
+  const bool clipboard_only = requested_permissions == CEF_PERMISSION_TYPE_CLIPBOARD;
+  const bool granted = permission_granted(options.policy, requesting_origin.ToString(), clipboard_only,
+                                          options.capabilities.contains(Capability::clipboard));
+  if (!granted) {
+    log_line("pd-host: denied a permission request from " + requesting_origin.ToString() + " (types " +
+             std::to_string(requested_permissions) + ")");
+  }
+  callback->Continue(granted ? CEF_PERMISSION_RESULT_ACCEPT : CEF_PERMISSION_RESULT_DENY);
+  return true;
 }
 
 }  // namespace pico_desktop::host::cef

@@ -122,6 +122,13 @@ static void policy() {
   CHECK(bridge_allowed(sub, "app://hello/frame.html", false));
   CHECK(!bridge_allowed(sub, "data:text/html,x", false));
 
+  // Permission prompts: only reading the clipboard, only for the app, only when declared.
+  CHECK(permission_granted(p, "app://hello", true, true));
+  CHECK(!permission_granted(p, "app://hello", true, false));
+  CHECK(!permission_granted(p, "app://hello", false, true));
+  CHECK(!permission_granted(p, "https://example.com", true, true));
+  CHECK(!permission_granted(p, "app://hello.evil", true, true));
+
   Policy https = p;
   https.scheme = OriginScheme::https;
   CHECK(trusted_origin(https) == "https://hello.localhost");

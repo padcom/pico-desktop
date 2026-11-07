@@ -26,7 +26,7 @@ constexpr std::array kServices = {
 }  // namespace
 
 std::optional<Capability> parse_capability(std::string_view name) {
-  for (const auto c : {Capability::window, Capability::dialogs, Capability::notifications}) {
+  for (const auto c : {Capability::window, Capability::dialogs, Capability::notifications, Capability::clipboard}) {
     if (name == capability_name(c)) {
       return c;
     }
@@ -42,6 +42,8 @@ const char* capability_name(Capability capability) {
       return "dialogs";
     case Capability::notifications:
       return "notifications";
+    case Capability::clipboard:
+      return "clipboard";
   }
   return "?";
 }

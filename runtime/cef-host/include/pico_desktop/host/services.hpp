@@ -8,9 +8,10 @@
 
 namespace pico_desktop::host {
 
-enum class Capability { window, dialogs, notifications };
+/// `clipboard` is the page's: reading the clipboard (`navigator.clipboard.readText`). Writing needs nothing.
+enum class Capability { window, dialogs, notifications, clipboard };
 
-/// The capability named `name` (`window`, `dialogs`, `notifications`).
+/// The capability named `name` (`window`, `dialogs`, `notifications`, `clipboard`).
 std::optional<Capability> parse_capability(std::string_view name);
 const char* capability_name(Capability capability);
 

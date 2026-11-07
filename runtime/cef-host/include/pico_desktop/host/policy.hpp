@@ -57,6 +57,12 @@ Navigation decide_navigation(const Policy& policy, std::string_view url);
 /// Whether a frame showing `frame_url` gets the native bridge.
 bool bridge_allowed(const Policy& policy, std::string_view frame_url, bool is_main_frame);
 
+/// Whether a page's permission prompt is granted: only reading the clipboard (`clipboard_only`),
+/// only for the trusted origin, and only when the app declared the `clipboard` capability.
+/// Everything else (camera, location, notifications, …) is denied: a desktop app has no
+/// prompt UI, and an unanswered prompt would leave the page's promise pending forever.
+bool permission_granted(const Policy& policy, std::string_view origin, bool clipboard_only, bool clipboard_declared);
+
 /// Whether `id` can be an app ID: a DNS label sequence (`hello`, `com.example.hello`), lowercase.
 bool is_valid_app_id(std::string_view id);
 

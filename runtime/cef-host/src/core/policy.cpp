@@ -80,4 +80,9 @@ bool is_valid_app_id(std::string_view id) {
   return label > 0 && previous != '-';
 }
 
+bool permission_granted(const Policy& policy, std::string_view origin, bool clipboard_only, bool clipboard_declared) {
+  // The prompt's origin has no path: give it one, as a URL on that origin.
+  return clipboard_only && clipboard_declared && is_trusted_url(policy, std::string(origin) + "/");
+}
+
 }  // namespace pico_desktop::host
