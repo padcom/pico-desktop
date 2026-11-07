@@ -176,12 +176,16 @@ bool user_namespaces_available() {
 #endif
 }
 
-bool suid_sandbox_usable(const std::string& helper) {
+bool suid_sandbox_usable([[maybe_unused]] const std::string& helper) {
+#if defined(__linux__)
   struct stat st {};
   if (::stat(helper.c_str(), &st) != 0) {
     return false;
   }
   return st.st_uid == 0 && (st.st_mode & 07777) == 04755;
+#else
+  return false;  // Linux's setuid helper; other systems sandbox differently
+#endif
 }
 
 std::string sandbox_unavailable_message(const std::string& helper) {
