@@ -35,10 +35,14 @@ jobs:
       - run: cmake --build --preset default
       - run: ctest --preset default
       - name: The same under ASan and UBSan (with the fuzz test)
+        timeout-minutes: 15
         run: |
+          # ASan can't map its shadow memory with the runner kernel's 32 random mmap bits (it spins
+          # on DEADLYSIGNAL); 28 is the usual setting for sanitizer runs.
+          sudo sysctl -w vm.mmap_rnd_bits=28
           cmake --preset sanitize
           cmake --build --preset sanitize
-          ctest --preset sanitize
+          ctest --preset sanitize --timeout 120
           build/sanitize/runtime/ipc/pd_ipc_fuzz_test 2000000 "$GITHUB_RUN_NUMBER"
 
   cef-host:
