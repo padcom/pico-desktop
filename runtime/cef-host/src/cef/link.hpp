@@ -22,6 +22,7 @@
 #include "pico_desktop/host/restart.hpp"
 #include "pico_desktop/host/router.hpp"
 #include "pico_desktop/ipc/process.hpp"
+#include "process_os.hpp"
 #include "services.hpp"
 
 namespace pico_desktop::host::cef {
@@ -111,7 +112,7 @@ class Link : public RouterOutput {
   void liveness_tick(std::uint64_t generation);
   /// Ends the current process: closes its stdin, reaps it (killing it after `grace`), joins its
   /// threads. Returns the wait status (-1 if unknown).
-  int end_process(std::chrono::milliseconds grace);
+  os::Status end_process(std::chrono::milliseconds grace);
   static void read_loop(Process* process);
   static void write_loop(Process* process);
 
