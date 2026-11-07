@@ -61,10 +61,12 @@ fi
 cd "$scratch" || exit 1
 node "$cli" create demo --id="dev.pico-desktop.bundle-$$" > /dev/null || { echo "FAIL: create"; exit 1; }
 cd demo || exit 1
-# The pnpm running is the one packageManager names. pnpm 12 resolves that pin as a config
-# dependency, which needs registry metadata that an offline CI cache doesn't have: drop the pin.
+# From the cache when it can, from the registry what's missing: CI's cache has packages but not
+# their metadata, and offline pnpm then skips optional platform packages (rolldown's native
+# binding). The pnpm running is the one packageManager names, and pnpm 12 would resolve that pin
+# as a config dependency: drop the pin.
 node -e 'const f="package.json",p=JSON.parse(require("fs").readFileSync(f));delete p.packageManager;require("fs").writeFileSync(f,JSON.stringify(p,null,2)+"\n")'
-pnpm install --offline > "$scratch/install.log" 2>&1 || { cat "$scratch/install.log"; echo "FAIL: install"; exit 1; }
+pnpm install --prefer-offline > "$scratch/install.log" 2>&1 || { cat "$scratch/install.log"; echo "FAIL: install"; exit 1; }
 
 PICO_DESKTOP_RUNTIME=$runtime node "$cli" build > "$scratch/build.log" 2>&1 || { cat "$scratch/build.log"; echo "FAIL: build"; exit 1; }
 bundle=$(ls -d dist/demo-0.1.0-linux-*/ | head -1)
