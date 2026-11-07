@@ -146,6 +146,37 @@ async function greetsAnew({ c }: Context): Promise<Outcome> {
   return count === 1 || `count ${count}`
 }
 
+/**
+ * Round trips through the whole path (page → host → Pico → host → page): 1000 one after another,
+ * then 1000 at once. Reported as `pd-info` lines (docs/ipc-benchmark.md).
+ *
+ * @param t the context
+ * @returns true once every call came back
+ */
+async function throughput(t: Context): Promise<Outcome> {
+  const { c } = t
+  const times: number[] = []
+  const sequential = async (i: number): Promise<void> => {
+    if (i === 1000) {
+      return
+    }
+    const started = performance.now()
+    await c.request('greeting.hello', { name: `n${i}` })
+    times.push(performance.now() - started)
+    await sequential(i + 1)
+  }
+  await sequential(0)
+  times.sort((a, b) => a - b)
+  const started = performance.now()
+  const all = await Promise.all(Array.from({ length: 1000 }, (_, i) => c.request('greeting.hello', { name: `p${i}` })))
+  const parallelMs = performance.now() - started
+  const p = (q: number) => times[Math.floor(q * (times.length - 1))]!.toFixed(2)
+  console.log(`pd-info: bridge round trip p50 ${p(0.5)} ms, p95 ${p(0.95)} ms, p99 ${p(0.99)} ms (sequential)`)
+  console.log(`pd-info: 1000 concurrent calls in ${parallelMs.toFixed(0)} ms (${Math.round(1000_000 / parallelMs)} calls/s)`)
+
+  return all.length === 1000 || `${all.length} answers`
+}
+
 const CHECKS: [string, Check][] = [
   ['the backend becomes ready', ready],
   ['a click greets through Pico; Pico\'s event updates the count', clickToGreet],
@@ -158,6 +189,7 @@ const CHECKS: [string, Check][] = [
   ['the host refuses a service the app didn\'t declare (dialogs)',
     ({ c }) => expectCode(c.request('files.pick', null), 'NOT_ALLOWED')],
   ['a managed subscription ticks', subscribes],
+  ['2000 round trips through the bridge (measured)', throughput],
   ['a backend crash fails the pending call with DISCONNECTED; the window stays', crash],
   ['the backend restarts in the same window (epoch 2)', restarts],
   ['the subscription resumes by itself, once, from a fresh publisher', resumes],

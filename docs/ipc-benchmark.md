@@ -33,6 +33,8 @@ The machine is Debian 13 (Linux 6.12, arm64 VM, 12 cores). The Pico compiler is 
 
 Backend CPU for the whole run fell from 6.3 s to 2.4 s, and its peak RSS from ~410 MB to **50 MB**. The pipelined numbers aren't limited by the backend's bookkeeping any more. The cause is described under "What the benchmark found in Pico" below.
 
+**The whole path** (page → renderer → browser process → Pico → back, through CEF's process messages), measured by hello-world's self-test (`pd-info` lines): sequential round trips p50 **0.20 ms**, p95 0.40 ms, p99 0.70 ms; 1000 concurrent calls take 44 ms (**~23k calls/s**). End to end, the bridge is the limit, not the Pico link (144k msg/s); that's ample for a UI.
+
 | failure | observed (pipes) |
 |---|---|
 | backend killed (SIGKILL) with a request pending | EOF on the pipe after **0.07–0.14 ms** |
