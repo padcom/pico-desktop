@@ -25,9 +25,17 @@ kept=$(sed -n 's/^pico-desktop-host: the self-test failed; its CEF log is kept: 
 if [[ -n "$kept" ]]; then
   case "$(uname)" in MINGW* | MSYS* | CYGWIN*) kept=$(cygpath -u "$kept") ;; esac
   [[ -f "$kept" ]] || fail "the kept CEF log isn't there ($kept)"
-  # The kept profile is this test's to remove (on Windows the host still holds files in it only
-  # while it runs; it has exited by now).
-  rm -rf -- "$(dirname "$kept")"
+  # The kept profile is this test's to remove (the host has exited, so nothing holds it), but only
+  # if the path is unmistakably a self-test profile: absolute, and named as cache_root names them
+  # (POSIX: .../pd-host-self-test-XXXXXX; Windows: .../pico-desktop/self-test/<pid>). Anything
+  # else is reported and left alone, never removed.
+  profile=$(dirname "$kept")
+  if [[ "$profile" == /* && ( "$(basename "$profile")" == pd-host-self-test-* ||
+        "$profile" =~ /pico-desktop/self-test/[0-9]+$ ) && "$(basename "$kept")" == cef.log ]]; then
+    rm -rf -- "$profile"
+  else
+    fail "the kept CEF log isn't in a self-test profile ($kept); not removing anything"
+  fi
 fi
 if [[ $failed -ne 0 ]]; then
   echo "---- host output ----"

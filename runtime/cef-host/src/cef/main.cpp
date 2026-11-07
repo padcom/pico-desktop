@@ -207,8 +207,9 @@ int run_browser(int argc, char** argv) {
   if (self_test) {
     code = state.self_test_done && state.self_test_failed == 0 && state.self_test_passed > 0 ? 0 : 1;
   }
-  // A failed self-test keeps its profile, and with it CEF's log: often the only clue on CI.
-  const bool keep = self_test && code != 0;
+  // A failed self-test keeps its profile, and with it CEF's log: often the only clue on CI. (The
+  // profile path is never empty here: run_browser stops early when it couldn't make one.)
+  const bool keep = self_test && code != 0 && !cache.empty();
   if (keep) {
     std::fprintf(stderr, "pico-desktop-host: the self-test failed; its CEF log is kept: %s\n",
                  (cache / "cef.log").string().c_str());
