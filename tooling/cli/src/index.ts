@@ -4,6 +4,7 @@ import pkg from '../package.json' with { type: 'json' }
 import { ConfigError, type ResolvedConfig, loadConfig } from './config'
 import { create } from './create'
 import { dev } from './dev'
+import { doctor } from './doctor'
 import { generate } from './generate'
 import type { Output } from './io'
 import { build } from './build'
@@ -15,7 +16,7 @@ export { CAPABILITIES, type Capability, type ContractConfig, type UserConfig, de
 export type { Output } from './io'
 
 /** The product commands. */
-export const COMMANDS = ['create', 'dev', 'generate', 'test', 'build', 'package'] as const
+export const COMMANDS = ['create', 'dev', 'generate', 'test', 'build', 'package', 'doctor'] as const
 
 export type Command = typeof COMMANDS[number]
 
@@ -29,7 +30,8 @@ Commands:
   generate   the contracts → TypeScript and Pico
   test       Vitest and pico test
   build      a portable bundle for this machine (dist/<name>-<version>-<target>/)
-  package    that bundle as dist/<name>-<version>-<target>.tar.gz (+ .sha256)
+  package    that bundle as dist/<name>-<version>-<target>.tar.gz (+ .sha256), and an AppDir
+  doctor     checks what development and builds need
 
 Options:
   -h, --help     Show this help
@@ -77,6 +79,7 @@ const handlers: Record<string, Handler> = {
     return dev(await loadConfig(process.cwd()), io, { traceIpc: values['trace-ipc'] })
   },
   'generate': inApp(generateCommand),
+  'doctor': inApp(doctor),
   'test': inApp(test),
   'build': inApp(build),
   'package': inApp(packageApp),

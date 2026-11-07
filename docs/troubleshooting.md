@@ -1,5 +1,7 @@
 # Troubleshooting
 
+Start with `pnpm exec pico-desktop doctor` in your app. It checks what development and builds need, and prints the fix for each problem.
+
 | What you see | Why | What to do |
 |---|---|---|
 | `Chromium's sandbox can't start here: this system doesn't let unprivileged processes create user namespaces…` | The renderer sandbox needs user namespaces (or a setuid-root helper), and the host never runs without it | Ubuntu 23.10+: `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`, or an AppArmor profile granting `userns`. Debian and others: `kernel.unprivileged_userns_clone=1` and a nonzero `user.max_user_namespaces`. Or make `runtime/chrome-sandbox` root-owned with mode 4755. See [platform-linux.md](platform-linux.md) |

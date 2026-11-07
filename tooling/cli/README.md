@@ -17,6 +17,7 @@ pnpm exec pico-desktop build | package
 | `test` | regenerates the contracts, then runs the frontend's Vitest and `pico test` on the backend |
 | `build` | a portable bundle for this machine: `dist/<name>-<version>-<target>/` with the launcher, `manifest.json`, `sbom.cdx.json`, `app/`, `backend/` and the checked `runtime/` (from `runtime` in the config, `$PICO_DESKTOP_RUNTIME` (a directory, an archive or a URL) or the checkout's staged one) |
 | `package` | the bundle as a `.tar.gz` with a `.sha256`; on Linux also an AppDir, and the AppImage when `appimagetool` is available |
+| `doctor` | checks Node, the Pico compiler, the host for `dev`, a runtime for `build` and the sandbox's user namespaces, and says what to do about each problem |
 
 What `dev` does after starting:
 - **A Pico edit** (a debounced change to `*.pi` or `project.json`) rebuilds the backend into a temporary file. Only a successful build replaces the backend; then the host gets `restart-backend`: the backend receives `closing`, starts again with a new epoch, and the window stays.
