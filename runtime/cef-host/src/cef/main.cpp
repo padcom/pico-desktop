@@ -149,9 +149,11 @@ int run_browser(int argc, char** argv) {
   CefString(&settings.root_cache_path) = cache.string();
   CefString(&settings.cache_path) = cache.string();
   if (temporary_cache) {
-    // A temporary profile is removed at exit, its log with it, so there's nothing to keep; and on
-    // Windows the log, which stays open until the process ends, kept it from being removed at
-    // all (#23). No file then (FATAL messages still go to stderr).
+    // No log file for a temporary profile (FATAL messages still go to stderr). Don't turn it back
+    // on: Chromium keeps the log open until the process exits, without FILE_SHARE_DELETE, so on
+    // Windows the profile directory holding it can't be removed (#23). A sibling file wouldn't
+    // help: it couldn't be removed either, and --multi-instance would leave one per launch. The
+    // log went with the profile at exit anyway, so nothing is lost.
     settings.log_severity = LOGSEVERITY_DISABLE;
   } else {
     settings.log_severity = LOGSEVERITY_WARNING;
