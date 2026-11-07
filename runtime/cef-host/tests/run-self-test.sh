@@ -27,11 +27,10 @@ expect() {
 [[ $code -eq 0 ]] || { echo "FAIL: the host exited with $code"; failed=1; }
 expect "pd-test: done"
 expect " 0 failed"
-if [[ "$(uname)" != Linux ]]; then
-  expect "pd-info: the renderer's sandbox isn't inspected on this system (only on Linux)"
-else
-  expect "pd-test: ok renderer is sandboxed"
-fi
+case "$(uname)" in
+  MINGW* | MSYS* | CYGWIN*) expect "pd-info: the renderer's sandbox isn't inspected on this system (only on Linux and macOS)" ;;
+  *) expect "pd-test: ok renderer is sandboxed" ;;
+esac
 expect "pd-host: blocked navigation to https://example.com/ (no user gesture)"
 
 # Nothing may outlive the host (renderers, GPU, zygotes, utilities).

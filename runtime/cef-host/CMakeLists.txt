@@ -7,10 +7,14 @@ add_library(pd_host_core STATIC
   src/core/policy.cpp
   src/core/router.cpp
   src/core/sandbox.cpp
+  src/core/sandbox_mac.cpp
   src/core/services.cpp
   src/core/temp_dir.cpp)
 target_include_directories(pd_host_core PUBLIC include)
 target_link_libraries(pd_host_core PUBLIC pd_ipc)
+if(APPLE)
+  target_link_libraries(pd_host_core PRIVATE sandbox)  # sandbox_check (src/core/sandbox_mac.cpp)
+endif()
 pd_warnings(pd_host_core)
 
 add_executable(pd_host_core_test tests/core_test.cpp)
