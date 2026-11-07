@@ -44,7 +44,9 @@ long read_some(int fd, std::byte* data, std::size_t size);
 /// more, and the one it's in is cancelled, however late it blocks (Windows: CancelSynchronousIo,
 /// repeated until the thread is out, #16). POSIX waits wake on the stop pipe instead; there it only
 /// marks `io`. Never touches a descriptor, which may be closed by then.
-void interrupt_io(std::thread& thread, InterruptibleIo& io);
+/// False if the thread is still in its call after `budget` (the cancel isn't taking).
+bool interrupt_io(std::thread& thread, InterruptibleIo& io,
+                  std::chrono::milliseconds budget = std::chrono::milliseconds::max());
 
 /// How many bytes can be read from `fd` now without blocking (0 if unknown).
 std::size_t bytes_available(int fd);

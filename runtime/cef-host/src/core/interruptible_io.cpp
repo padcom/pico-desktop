@@ -19,12 +19,19 @@ bool InterruptibleIo::enter() {
 
 void InterruptibleIo::leave() { in_call_.store(false); }
 
-void InterruptibleIo::interrupt(const std::function<void()>& cancel, std::chrono::milliseconds every) {
+bool InterruptibleIo::interrupt(const std::function<void()>& cancel, std::chrono::milliseconds every,
+                                std::chrono::milliseconds budget) {
   interrupted_.store(true);
+  const auto start = std::chrono::steady_clock::now();
   while (in_call_.load()) {
+    // (In milliseconds: the default budget, milliseconds::max(), overflows as nanoseconds.)
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start) >= budget) {
+      return false;
+    }
     cancel();
     std::this_thread::sleep_for(every);
   }
+  return true;
 }
 
 }  // namespace pico_desktop::host

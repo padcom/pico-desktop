@@ -19,9 +19,11 @@ class InterruptibleIo {
 
   /// Another thread: no blocking call starts from now on, and `cancel` (which cancels the I/O
   /// thread's current call) is repeated, `every` apart, until the I/O thread has left any call it
-  /// entered. Returns once that's so. Safe to call more than once and from several threads.
-  void interrupt(const std::function<void()>& cancel,
-                 std::chrono::milliseconds every = std::chrono::milliseconds(1));
+  /// entered: true then. False if that hasn't happened within `budget` (the cancel isn't taking;
+  /// the thread may still be in its call). Safe to call more than once and from several threads.
+  bool interrupt(const std::function<void()>& cancel,
+                 std::chrono::milliseconds every = std::chrono::milliseconds(1),
+                 std::chrono::milliseconds budget = std::chrono::milliseconds::max());
 
  private:
   std::atomic<bool> interrupted_{false};

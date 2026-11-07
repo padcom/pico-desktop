@@ -61,13 +61,12 @@ long read_some(int fd, std::byte* data, std::size_t size) {
   return ::_read(fd, data, static_cast<unsigned>(size));
 }
 
-void interrupt_io(std::thread& thread, InterruptibleIo& io) {
+bool interrupt_io(std::thread& thread, InterruptibleIo& io, std::chrono::milliseconds budget) {
   if (!thread.joinable()) {
-    io.interrupt([] {});
-    return;
+    return io.interrupt([] {}, std::chrono::milliseconds(1), budget);
   }
   const auto handle = static_cast<HANDLE>(thread.native_handle());
-  io.interrupt([handle] { CancelSynchronousIo(handle); });
+  return io.interrupt([handle] { CancelSynchronousIo(handle); }, std::chrono::milliseconds(1), budget);
 }
 
 std::size_t bytes_available(int fd) {
@@ -174,7 +173,9 @@ long read_some(int fd, std::byte* data, std::size_t size) {
   }
 }
 
-void interrupt_io(std::thread&, InterruptibleIo& io) { io.interrupt([] {}); }
+bool interrupt_io(std::thread&, InterruptibleIo& io, std::chrono::milliseconds budget) {
+  return io.interrupt([] {}, std::chrono::milliseconds(1), budget);
+}
 
 std::size_t bytes_available(int fd) {
   int available = 0;

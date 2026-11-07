@@ -34,6 +34,15 @@ constexpr std::size_t kMaxQueuedBytes = 16 * 1024 * 1024;
 
 Link* g_link = nullptr;
 
+/// Stops `thread`'s pipe calls (os::interrupt_io); if the cancel hasn't taken after 2 s, says so in
+/// the log and keeps at it (the thread must be out of its call before it can be joined).
+void stop_pipe_io(std::thread& thread, InterruptibleIo& io, const char* what) {
+  if (!os::interrupt_io(thread, io, std::chrono::seconds(2))) {
+    log_line(std::string("pd-host: the backend's ") + what + " is still blocked 2 s after it was cancelled; still trying");
+    os::interrupt_io(thread, io);
+  }
+}
+
 std::string page_key(const std::string& frame_id, int context) { return frame_id + "#" + std::to_string(context); }
 
 /// Reaps `pid`, waiting up to `grace` and then killing it; the wait status, or -1.
@@ -159,8 +168,8 @@ void Link::spawn() {
   process_->writer = std::thread(write_loop, process_.get());
   // Windows: the exit stops both, even while something the backend started holds its pipes (#17).
   process_->watcher = os::watch_exit(*child, [process = process_.get()] {
-    os::interrupt_io(process->reader, process->reader_io);
-    os::interrupt_io(process->writer, process->writer_io);
+    stop_pipe_io(process->reader, process->reader_io, "stdout reader");
+    stop_pipe_io(process->writer, process->writer_io, "stdin writer");
   });
   log("pd-host: started the backend (pid " + std::to_string(child->pid) + ")");
   router_.backend_started();
@@ -384,8 +393,8 @@ os::Status Link::end_process(std::chrono::milliseconds grace) {
   if (process->watcher.joinable()) {
     process->watcher.join();  // the process is gone, so it has fired
   }
-  os::interrupt_io(process->reader, process->reader_io);
-  os::interrupt_io(process->writer, process->writer_io);
+  stop_pipe_io(process->reader, process->reader_io, "stdout reader");
+  stop_pipe_io(process->writer, process->writer_io, "stdin writer");
 #else
   if (process->stop[1] >= 0) {
     [[maybe_unused]] const auto written = ::write(process->stop[1], "x", 1);

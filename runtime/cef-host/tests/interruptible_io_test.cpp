@@ -126,6 +126,18 @@ int main() {
   check(stops(0ms, false), "a thread blocked in a read is stopped");
   check(stops(100ms, true), "a thread interrupted between calls is stopped (#16)");
 
+  // A cancel that never takes: interrupt() gives up after its budget and says so; once the
+  // thread is out of its call, it succeeds.
+  {
+    InterruptibleIo stuck;
+    check(stuck.enter(), "a call starts");
+    const auto start = std::chrono::steady_clock::now();
+    check(!stuck.interrupt([] {}, 1ms, 50ms), "false when the cancel doesn't take within the budget");
+    check(std::chrono::steady_clock::now() - start < 2s, "within about the budget");
+    stuck.leave();
+    check(stuck.interrupt([] {}, 1ms, 50ms), "true once the thread is out of its call");
+  }
+
   InterruptibleIo io;
   io.interrupt([] {});
   check(io.interrupted(), "interrupted() says so");
