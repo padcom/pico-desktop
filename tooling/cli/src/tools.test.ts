@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isBackendSource, worthShowing } from './dev'
-import { compareVersions } from './tools'
+import { compareVersions, picoVersionIn } from './tools'
 
 describe('compareVersions', () => {
   it('orders x.y.z versions numerically', () => {
@@ -26,5 +26,12 @@ describe('worthShowing', () => {
       + 'GetVSyncParametersIfAvailable() failed for 1 times!'
     expect(worthShowing(vsync)).toBe(false)
     expect(worthShowing('pd-host: the backend is ready (epoch 1)')).toBe(true)
+  })
+})
+
+describe('picoVersionIn', () => {
+  it('reads the Pico compiler\'s version, not nano\'s', () => {
+    expect(picoVersionIn('pico 0.4.1\n')).toBe('0.4.1')
+    expect(picoVersionIn(' GNU nano, version 8.4.1\n')).toBeUndefined()
   })
 })

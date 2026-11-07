@@ -35,14 +35,24 @@ function warningFor(version: string): string | null {
 }
 
 /**
+ * The version in `pico --version`'s output: the Pico compiler says `pico x.y.z` (Debian's `pico`
+ * is nano).
+ *
+ * @param output what it printed
+ * @returns the version, if it's the Pico compiler
+ */
+export function picoVersionIn(output: string): string | undefined {
+  return /^pico (?<version>\d+\.\d+\.\d+)/mu.exec(output)?.groups?.version
+}
+
+/**
  * Finds pico on the PATH.
  *
  * @returns its version (and a warning if it's old), or null if there's none
  */
 export async function findPico(): Promise<Pico | null> {
   const { code, output } = await capture('pico', ['--version'], process.cwd())
-  // The Pico compiler says `pico x.y.z`; Debian's `pico` is nano.
-  const version = code === 0 ? /^pico (?<version>\d+\.\d+\.\d+)/mu.exec(output)?.groups?.version : undefined
+  const version = code === 0 ? picoVersionIn(output) : undefined
 
   return version === undefined ? null : { version, warning: warningFor(version) }
 }
