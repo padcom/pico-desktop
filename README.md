@@ -59,6 +59,14 @@ build/cef/runtime/cef-host/pico-desktop-host --help
 - hello-world end to end;
 - the CLI's dev loop and its bundle.
 
+## Related projects
+
+These are independent projects: Pico Desktop doesn't depend on them.
+
+- [pico-mavlink](https://github.com/padcom/pico-mavlink): MAVLink 1 and 2 for Pico.
+- [pico-serialport](https://github.com/padcom/pico-serialport): serial ports for Pico.
+- The Drone Configurator, a MAVLink configuration dashboard built with Pico Desktop on both of them. It's the reference application (`../drone-configurator` next to this checkout).
+
 ## License
 
 MIT for Pico Desktop's own code (see [LICENSE](LICENSE)); third-party components keep their

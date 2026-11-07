@@ -36,6 +36,11 @@ local branch, `local/integration`, which is never pushed: pico-lang `main` plus 
   **Debug the backend** needs it.
 - PR #103 (a subclass's fields after `instanceof` narrowing panicked the compiler, #102): only
   backends that narrow class hierarchies need it (pico-mavlink's decoded messages do).
+- PR #105 (a field named `target` was taken for the build constant inside async methods, #104):
+  pico-mavlink works around it with `this.target`.
+
+pico-lang `main` also has `Reader.close()` (#100), which cancels a waiting read. padcom/serialport
+uses it, so serial ports need a pico newer than 0.4.2 to close cleanly while a read is waiting.
 
 Newer Pico is stricter than 0.4.1 in two ways the code handles: `TextDecoder`'s constructor
 `throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI's Pico job turns
