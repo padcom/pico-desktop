@@ -3,9 +3,10 @@
 ```sh
 pico-desktop create my-app [--id com.example.my-app] [--framework <checkout>]
 cd my-app && pnpm install
-pnpm dev        # pico-desktop dev
+pnpm dev        # pico-desktop dev [--trace-ipc]
 pnpm test       # pico-desktop test
 pnpm generate   # pico-desktop generate
+pnpm exec pico-desktop build | package
 ```
 
 | Command | What it does |
@@ -14,7 +15,8 @@ pnpm generate   # pico-desktop generate
 | `generate` | turns every contract (CDDL) into the frontend's TypeScript (types, validators, `Services`, `validate`) and the backend's Pico (structs, decoders, encoders). It writes only the files that changed |
 | `dev` | starts the app's Vite dev server (HMR), builds the Pico backend and starts the host with `--dev --control=stdin` (see the next section) |
 | `test` | regenerates the contracts, then runs the frontend's Vitest and `pico test` on the backend |
-| `build`, `package` | F6 |
+| `build` | a portable bundle for this machine: `dist/<name>-<version>-<target>/` with the launcher, `manifest.json`, `sbom.cdx.json`, `app/`, `backend/` and the checked `runtime/` (from `runtime` in the config, `$PICO_DESKTOP_RUNTIME` (a directory, an archive or a URL) or the checkout's staged one) |
+| `package` | the bundle as a `.tar.gz` with a `.sha256`; on Linux also an AppDir, and the AppImage when `appimagetool` is available |
 
 What `dev` does after starting:
 - **A Pico edit** (a debounced change to `*.pi` or `project.json`) rebuilds the backend into a temporary file. Only a successful build replaces the backend; then the host gets `restart-backend`: the backend receives `closing`, starts again with a new epoch, and the window stays.
