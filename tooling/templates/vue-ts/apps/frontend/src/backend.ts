@@ -21,12 +21,25 @@ export function useBackend(transport: Transport) {
     }
   }
 
+  // Register the cleanup now: Vue has no active scope after an `await`. If the subscription
+  // resolves after the scope is gone, it is dropped at once.
+  let disposed = false
+  let subscription: { unsubscribe(): void } | undefined
+  onScopeDispose(() => {
+    disposed = true
+    subscription?.unsubscribe()
+  })
+
   void (async () => {
     try {
-      const subscription = await communicator.subscribe('clock.ticks', { intervalMs: 1000 }, ({ n }) => {
+      const subscribed = await communicator.subscribe('clock.ticks', { intervalMs: 1000 }, ({ n }) => {
         tick.value = n
       })
-      onScopeDispose(() => subscription.unsubscribe())
+      if (disposed) {
+        subscribed.unsubscribe()
+      } else {
+        subscription = subscribed
+      }
     } catch (error) {
       message.value = `the clock: ${String(error)}`
     }

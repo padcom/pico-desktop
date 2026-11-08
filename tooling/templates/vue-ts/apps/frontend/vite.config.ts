@@ -5,7 +5,10 @@ import { defineConfig } from 'vitest/config'
 // - the runtime-only Vue build (no template compiler, so no `new Function`/eval) with the SFC
 //   templates compiled at build time by @vitejs/plugin-vue;
 // - the CSS extracted to a file and linked from index.html (no <style> injected at run time);
-// - the Vue feature flags set here, so the bundler build doesn't warn about them.
+// - the Vue feature flags set here, so the bundler build doesn't warn about them. NOTE:
+//   __VUE_OPTIONS_API__ is false in dev, tests and production alike, so components must use
+//   <script setup> or the Composition API: `data`, `methods`, `computed` options are ignored
+//   without an error. Set it to 'true' here if you need the Options API.
 // `pnpm dev` loads Vite's own origin, which has no host CSP, so Vite's injected styles and HMR
 // work there; the production policy isn't weakened for it (see docs/tutorial.md).
 export default defineConfig({

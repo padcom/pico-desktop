@@ -50,7 +50,7 @@ A window opens:
 
 ### Using Vue
 
-`create my-app --template vue-ts` scaffolds the same app with a Vue 3 + TypeScript frontend: `App.vue` and a `useBackend()` composable (`src/backend.ts`) over the generated contract and the Communicator. Tests are Vitest with `@vue/test-utils`, `pnpm typecheck` runs `vue-tsc` over the templates, and `pnpm e2e` also checks that the page logged no CSP violation. Everything else in this tutorial applies unchanged.
+`create my-app --template vue-ts` scaffolds the same app with a Vue 3 + TypeScript frontend: `App.vue` and a `useBackend()` composable (`src/backend.ts`) over the generated contract and the Communicator. Tests are Vitest with `@vue/test-utils`, `pnpm typecheck` runs `vue-tsc` over the templates, and `pnpm e2e` also checks that the page logged no CSP violation. The rest of this tutorial applies unchanged, except that the Vue template has no `.vscode` folder yet (no **Debug the backend** configuration). It also turns the Vue Options API off (`__VUE_OPTIONS_API__` is `false` in dev, tests and production), so write components with `<script setup>`.
 
 The production page runs under `script-src 'self'; style-src 'self'`, so the template builds for it:
 - the **runtime-only** Vue build, with the SFC templates compiled at build time by `@vitejs/plugin-vue`: no `eval` or `new Function`;

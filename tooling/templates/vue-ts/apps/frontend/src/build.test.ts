@@ -32,6 +32,12 @@ describe('the production build', () => {
     expect(existsSync(join(out, 'assets'))).toBe(true)
   })
 
+  it('hoists no inline style attribute into the JavaScript', () => {
+    // Static markup with style="…" compiles to an HTML string that is parsed at run time, which
+    // `style-src 'self'` blocks. (Bind a class instead.)
+    expect(js).not.toMatch(/\sstyle\s*=\s*\\?["']/u)
+  })
+
   it('has no eval or new Function', () => {
     expect(js).not.toMatch(/\beval\s*\(/u)
     expect(js).not.toMatch(/new Function\s*\(/u)
