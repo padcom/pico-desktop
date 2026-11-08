@@ -5,7 +5,8 @@ import { type Transport, memoryTransportPair } from '@pico-desktop/communicator'
 import { type Envelope, decodeEnvelope, encodeEnvelope } from '@pico-desktop/protocol'
 
 type Outgoing = Omit<Envelope, 'v'>
-type Answer = (e: Envelope, send: (e: Outgoing) => void) => void
+type Send = (e: Outgoing) => void
+type Answer = (e: Envelope, send: Send) => void
 
 const clocks = new Map<number, ReturnType<typeof setInterval>>()
 
@@ -23,26 +24,34 @@ const answers: Record<string, Answer> = {
   },
 }
 
-function receive(e: Envelope, send: (e: Outgoing) => void) {
-  if (e.k === 'lifecycle' && e.n === 'hello') {
-    send({ k: 'lifecycle', n: 'ready', e: 1 })
-  } else if (e.k === 'unsubscribe') {
-    clearInterval(clocks.get(e.s!))
-  } else if (e.k === 'request' || e.k === 'subscribe') {
-    const answer = answers[e.n!]
-    if (answer) {
-      answer(e, send)
-    } else {
-      send({ k: 'error', id: e.id!, err: { code: 'UNKNOWN_METHOD', message: `the mock has no ${e.n}` } })
-    }
+const answerCall: Answer = (e, send) => {
+  const answer = answers[e.n!]
+  if (answer) {
+    answer(e, send)
+  } else {
+    send({ k: 'error', id: e.id!, err: { code: 'UNKNOWN_METHOD', message: `the mock has no ${e.n}` } })
   }
 }
 
-/** The app's end of a link to the mock backend. */
+const handlers: Record<string, Answer | undefined> = {
+  lifecycle: (e, send) => e.n === 'hello' && send({ k: 'lifecycle', n: 'ready', e: 1 }),
+  unsubscribe: e => clearInterval(clocks.get(e.s!)),
+  request: answerCall,
+  subscribe: answerCall,
+}
+
+/**
+ * The app's end of a link to the mock backend.
+ *
+ * @returns the transport the app talks to
+ */
 export function mockBackend(): Transport {
   const [app, backend] = memoryTransportPair()
-  const send = (e: Outgoing) => backend.send(encodeEnvelope(e))
-  backend.connect(bytes => receive(decodeEnvelope(bytes), send))
+  const send: Send = e => backend.send(encodeEnvelope(e))
+  backend.connect(bytes => {
+    const e = decodeEnvelope(bytes)
+    handlers[e.k]?.(e, send)
+  })
 
   return app
 }

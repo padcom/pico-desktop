@@ -4,6 +4,16 @@
 import { type E2eApp, launchApp } from 'pico-desktop'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
+/**
+ * The host's log lines that report a CSP violation in the page.
+ *
+ * @param app the running app
+ * @returns the offending lines
+ */
+function cspViolations(app: E2eApp) {
+  return app.log.filter(line => /Content Security Policy|Refused to|violates the following/iu.test(line))
+}
+
 describe('the app', () => {
   let app: E2eApp
 
@@ -23,6 +33,7 @@ describe('the app', () => {
   it('greets through the Pico backend', async () => {
     await app.fill('#name', 'end to end')
     await app.click('button[type=submit]')
+
     expect(await app.waitForText('#message', 'Hello')).toBe('Hello, end to end!')
   })
 
@@ -32,7 +43,6 @@ describe('the app', () => {
 
   it('breaks no part of the production CSP', () => {
     // The host logs the page's console; a blocked script, style or eval is an error there.
-    const violations = app.log.filter(line => /Content Security Policy|Refused to|violates the following/iu.test(line))
-    expect(violations).toEqual([])
+    expect(cspViolations(app)).toEqual([])
   })
 })

@@ -1,15 +1,3 @@
-<script setup lang="ts">
-import type { Transport } from '@pico-desktop/communicator'
-import { computed, ref } from 'vue'
-import { useBackend } from './backend'
-
-const props = defineProps<{ transport: Transport; mock?: boolean }>()
-
-const { state, message, tick, greet } = useBackend(props.transport)
-const name = ref('Pico')
-const shownState = computed(() => (props.mock ? `${state.value} (mock backend)` : state.value))
-</script>
-
 <template>
   <main>
     <h1>{{appName}}</h1>
@@ -21,3 +9,15 @@ const shownState = computed(() => (props.mock ? `${state.value} (mock backend)` 
     <p id="message">{{ message }}</p>
   </main>
 </template>
+
+<script setup lang="ts">
+import type { Transport } from '@pico-desktop/communicator'
+import { computed, ref } from 'vue'
+import { useBackend } from './backend'
+
+const props = defineProps<{ transport: Transport, mock?: boolean }>()
+
+const { state, message, tick, greet } = useBackend(() => props.transport)
+const name = ref('Pico')
+const shownState = computed(() => (props.mock ? `${state.value} (mock backend)` : state.value))
+</script>
