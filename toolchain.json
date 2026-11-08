@@ -12,8 +12,8 @@
     "developedWith": "g++ 14.2.0 (Debian 14.2.0-19)"
   },
   "pico": {
-    "minimum": "0.4.2",
-    "releasedPin": "0.4.2",
+    "minimum": "0.4.3-rc.2",
+    "releasedPin": "0.4.3-rc.2",
     "localBuild": "~/projects/padcom/pico/pico-lang (clone of padcom/pico-lang), branch local/integration (never pushed): pico-lang main, which has every fix the framework's PRs needed",
     "$comment": "0.4.2 is released (2026-11-07) and CI uses it. pico-lang main has fixes after it (dap formatters on attach #99, Reader.close #100, #102, #104, #107): docs/toolchain.md."
   },
