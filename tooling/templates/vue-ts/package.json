@@ -9,6 +9,7 @@
     "test": "pico-desktop test",
     "e2e": "pico-desktop test --e2e",
     "typecheck": "pnpm --filter ./apps/frontend typecheck",
+    "lint": "pnpm --filter ./apps/frontend lint",
     "generate": "pico-desktop generate"
   },
   "dependencies": {

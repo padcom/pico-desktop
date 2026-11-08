@@ -62,6 +62,15 @@ describe('create --template vue-ts', () => {
     expect(existsSync(join(dir, '.gitignore'))).toBe(true)
   })
 
+  it('brings the ESLint rules of padcom/vue-template', () => {
+    const text = readFileSync(join(dir, 'apps/frontend/package.json'), 'utf8')
+    const frontend = JSON.parse(text) as Record<string, Record<string, string>>
+    expect(frontend.devDependencies?.['@padcom/eslint-config-vue']).toBeDefined()
+    expect(frontend.devDependencies?.eslint).toMatch(/^\d/u)
+    expect(frontend.scripts?.lint).toBe('eslint .')
+    expect(existsSync(join(dir, 'apps/frontend/eslint.config.mjs'))).toBe(true)
+  })
+
   it('refuses a template that doesn\'t exist', () => {
     expect(run(join(scratch, 'other'), undefined, 'react').out).toContain('isn\'t a template')
   })

@@ -7,7 +7,8 @@
     "build": "vite build",
     "ui": "vite",
     "test": "vitest run",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@pico-desktop/communicator": "{{dep:communicator}}",
@@ -15,8 +16,10 @@
     "vue": "3.5.45"
   },
   "devDependencies": {
+    "@padcom/eslint-config-vue": "0.21.2",
     "@vitejs/plugin-vue": "6.0.10",
     "@vue/test-utils": "2.5.1",
+    "eslint": "{{version:eslint}}",
     "jsdom": "31.0.0",
     "typescript": "{{version:typescript}}",
     "vite": "{{version:vite}}",

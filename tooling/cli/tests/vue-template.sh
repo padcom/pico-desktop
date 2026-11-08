@@ -27,6 +27,7 @@ cd demo || exit 1
 # pin as a config dependency.
 node -e 'const f="package.json",p=JSON.parse(require("fs").readFileSync(f));delete p.packageManager;require("fs").writeFileSync(f,JSON.stringify(p,null,2))'
 pnpm install --prefer-offline > "$scratch/install.log" 2>&1 || { cat "$scratch/install.log"; echo "FAIL: pnpm install"; exit 1; }
+pnpm lint > "$scratch/lint.log" 2>&1 || { cat "$scratch/lint.log"; echo "FAIL: pnpm lint"; exit 1; }
 pnpm test > "$scratch/test.log" 2>&1 || { cat "$scratch/test.log"; echo "FAIL: pnpm test"; exit 1; }
 pnpm typecheck > "$scratch/typecheck.log" 2>&1 || { cat "$scratch/typecheck.log"; echo "FAIL: pnpm typecheck"; exit 1; }
 pnpm e2e > "$scratch/e2e.log" 2>&1 || { cat "$scratch/e2e.log"; echo "FAIL: pnpm e2e"; exit 1; }

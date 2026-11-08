@@ -38,6 +38,18 @@ export function linkTo(from: string, to: string, relativePath: typeof relative =
 }
 
 /**
+ * The framework's own versions of the tools the templates use, with fallbacks.
+ *
+ * @param dev the framework's devDependencies
+ * @returns `version:<tool>` → version
+ */
+function toolVersions(dev: Record<string, string>): Record<string, string> {
+  const versions = { eslint: '10.14.0', typescript: '5.9.3', vite: '8.3.6', vitest: '5.1.0' }
+
+  return Object.fromEntries(Object.entries(versions).map(([tool, fallback]) => [`version:${tool}`, dev[tool] ?? fallback]))
+}
+
+/**
  * The template's placeholders for an app linked to a framework checkout.
  *
  * @param name the app's directory name
@@ -64,9 +76,7 @@ export function placeholders(name: string, id: string, framework: string, target
     'dep:communicator-pico': link('packages/communicator-pico'),
     'dep:protocol': link('packages/protocol', frontend),
     'version:communicator-pico': pico.version,
-    'version:typescript': root.devDependencies.typescript ?? '5.9.3',
-    'version:vite': root.devDependencies.vite ?? '8.3.6',
-    'version:vitest': root.devDependencies.vitest ?? '5.1.0',
+    ...toolVersions(root.devDependencies),
   }
 }
 
