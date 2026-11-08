@@ -320,6 +320,14 @@ if(OS_LINUX)  # Linux only for now
   set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
 endif()
 
+# The Vue template (tooling/cli/tests/vue-template.sh): create --template vue-ts, test, typecheck,
+# and `pnpm e2e` in a real window with no CSP violations. Needs pico and the built CLI; skipped otherwise.
+if(OS_LINUX)  # Linux only for now
+  add_test(NAME cli.vue-template
+    COMMAND ${PD_SH} ${PROJECT_SOURCE_DIR}/tooling/cli/tests/vue-template.sh ${PD_HOST})
+  set_tests_properties(cli.vue-template PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 400 RUN_SERIAL TRUE)
+endif()
+
 # `pnpm e2e` on a freshly created app, finding the host the way an app does, on every system
 # (tooling/cli/tests/e2e.sh). Needs pico and the built CLI; skipped otherwise.
 add_test(NAME cli.e2e

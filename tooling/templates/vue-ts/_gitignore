@@ -1,0 +1,5 @@
+node_modules/
+dist/
+dist-csp-test/
+.pico-desktop/
+project.lock

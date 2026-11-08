@@ -1,0 +1,8 @@
+{
+  "name": "{{name}}/backend",
+  "version": "0.1.0",
+  "entry": "main.pi",
+  "dependencies": {
+    "pico-desktop/communicator": "{{version:communicator-pico}}"
+  }
+}

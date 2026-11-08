@@ -27,7 +27,7 @@ type Handler = (args: string[], io: Output) => Promise<number>
 const usage = `Usage: pico-desktop <command> [options]
 
 Commands:
-  create <dir> [--id <app-id>] [--framework <checkout>]   a new app
+  create <dir> [--id <app-id>] [--template vanilla-ts|vue-ts] [--framework <checkout>]   a new app
   dev [--trace-ipc] [--debug]   the app with HMR; Pico edits rebuild and restart the backend in the same window
              (--debug: for a debugger attached to the backend; see the template's launch.json)
   generate   the contracts → TypeScript and Pico
@@ -53,15 +53,19 @@ const generateCommand: AppCommand = (config, io) => {
 
 const createCommand: Handler = (args, io) => {
   const { positionals, values } = parseArgs({
-    args, allowPositionals: true, options: { id: { type: 'string' }, framework: { type: 'string' } },
+    args,
+    allowPositionals: true,
+    options: { id: { type: 'string' }, framework: { type: 'string' }, template: { type: 'string' } },
   })
   if (positionals.length !== 1) {
-    io.err('Usage: pico-desktop create <dir> [--id <app-id>] [--framework <checkout>]')
+    io.err('Usage: pico-desktop create <dir> [--id <app-id>] [--template vanilla-ts|vue-ts]\n  [--framework <checkout>]')
 
     return Promise.resolve(1)
   }
 
-  return Promise.resolve(create({ dir: positionals[0]!, id: values.id, framework: values.framework }, io))
+  const { id, framework, template } = values
+
+  return Promise.resolve(create({ dir: positionals[0]!, id, framework, template }, io))
 }
 
 const say = (text: string): Handler => (_args, io) => {

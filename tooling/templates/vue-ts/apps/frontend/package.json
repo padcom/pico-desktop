@@ -1,0 +1,26 @@
+{
+  "name": "{{name}}-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "ui": "vite",
+    "test": "vitest run",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@pico-desktop/communicator": "{{dep:communicator}}",
+    "@pico-desktop/protocol": "{{dep:protocol}}",
+    "vue": "3.5.45"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.10",
+    "@vue/test-utils": "2.5.1",
+    "jsdom": "31.0.0",
+    "typescript": "{{version:typescript}}",
+    "vite": "{{version:vite}}",
+    "vitest": "{{version:vitest}}",
+    "vue-tsc": "3.3.14"
+  }
+}

@@ -1,4 +1,4 @@
-// `pico-desktop create <dir>`: a new app from the vanilla-ts template, its contract already
+// `pico-desktop create <dir>`: a new app from a template (vanilla-ts, or vue-ts), its contract already
 // generated. Until the packages are published, the app links them from a framework checkout
 // (`--framework`, by default the checkout this CLI runs from).
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
@@ -8,13 +8,16 @@ import { resolveConfig } from './config'
 import { generate } from './generate'
 import type { Output } from './io'
 
-const TEMPLATE = fileURLToPath(new URL(/* @vite-ignore */ '../../templates/vanilla-ts', import.meta.url))
+export const TEMPLATES = ['vanilla-ts', 'vue-ts'] as const
+const templateDir = (name: string) => fileURLToPath(new URL(/* @vite-ignore */ `../../templates/${name}`, import.meta.url))
 const CHECKOUT = fileURLToPath(new URL(/* @vite-ignore */ '../../..', import.meta.url))
 
 export interface CreateOptions {
   dir: string
   id?: string | undefined
   framework?: string | undefined
+  /** One of TEMPLATES; vanilla-ts by default. */
+  template?: string | undefined
 }
 
 const NAME = /^[a-z0-9][a-z0-9-]*$/u
@@ -89,10 +92,11 @@ export function copyTemplate(from: string, to: string, values: Record<string, st
   }
 }
 
-function problemWith(target: string, name: string, framework: string | null): string | null {
+function problemWith(target: string, name: string, framework: string | null, template: string): string | null {
   const problems: [boolean, string][] = [
     [existsSync(target) && readdirSync(target).length > 0, `${target} isn't empty`],
     [!NAME.test(name), `'${name}' isn't a valid app name: use lowercase letters, digits and '-'`],
+    [!(TEMPLATES as readonly string[]).includes(template), `'${template}' isn't a template: use ${TEMPLATES.join(' or ')}`],
     [framework === null, 'the framework packages aren\'t published yet: pass --framework=<a pico-desktop checkout>'],
   ]
 
@@ -118,14 +122,15 @@ export function create(options: CreateOptions, io: Output): number {
   const target = resolve(options.dir)
   const name = basename(target)
   const framework = frameworkFor(options)
-  const problem = problemWith(target, name, framework)
+  const template = options.template ?? 'vanilla-ts'
+  const problem = problemWith(target, name, framework, template)
   if (problem !== null) {
     io.err(`pico-desktop create: ${problem}`)
 
     return 1
   }
   const id = options.id ?? `com.example.${name}`
-  copyTemplate(TEMPLATE, target, placeholders(name, id, framework!, target))
+  copyTemplate(templateDir(template), target, placeholders(name, id, framework!, target))
   generate(resolveConfig(target, { app: { id } }))
   io.out(`Created ${name} (${id}) in ${target}\n\n  cd ${options.dir}\n  pnpm install\n  pnpm dev`)
 

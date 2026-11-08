@@ -48,6 +48,19 @@ A window opens:
 
 `pnpm dev --trace-ipc` logs every message's envelope (never its payload), and F12 opens DevTools. To debug the backend, start VS Code's **Debug the backend** first (the template's `.vscode/launch.json`), then run `pnpm dev --debug`. The debugger attaches when the backend starts, and `--debug` turns off the host's liveness pings, so a backend paused at a breakpoint isn't killed as hung. `pnpm ui` runs the frontend alone in any browser, against the mock backend.
 
+### Using Vue
+
+`create my-app --template vue-ts` scaffolds the same app with a Vue 3 + TypeScript frontend: `App.vue` and a `useBackend()` composable (`src/backend.ts`) over the generated contract and the Communicator. Tests are Vitest with `@vue/test-utils`, `pnpm typecheck` runs `vue-tsc` over the templates, and `pnpm e2e` also checks that the page logged no CSP violation. Everything else in this tutorial applies unchanged.
+
+The production page runs under `script-src 'self'; style-src 'self'`, so the template builds for it:
+- the **runtime-only** Vue build, with the SFC templates compiled at build time by `@vitejs/plugin-vue`: no `eval` or `new Function`;
+- CSS **extracted** to a file and linked from `index.html`; use `<style scoped>` freely, but never write `style="…"` attributes or `setAttribute('style', …)` (bind a class, or use the `style` property's CSSOM, which the policy allows);
+- no inline `<script>` or `<style>`, and the Vue feature flags set in `vite.config.ts`.
+
+`src/build.test.ts` builds the frontend and fails if any of that regresses.
+
+`pnpm dev` is different on purpose: the window loads Vite's own origin, which the host sends no CSP for, so Vite's injected `<style>` tags and HMR (an inline client script and a WebSocket) work as usual. The production policy isn't loosened for it; it applies to the built app (`pnpm build`, `pnpm e2e`).
+
 ## 3. Add a method
 
 Add a method to the contract:
