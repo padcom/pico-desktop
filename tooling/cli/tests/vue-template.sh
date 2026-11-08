@@ -13,7 +13,7 @@ pico --version 2> /dev/null | grep -q '^pico [0-9]' || { echo "skipped: no Pico 
 [[ -f "$framework/tooling/cli/dist/index.js" ]] || { echo "skipped: the CLI isn't built (pnpm build)"; exit 77; }
 if [[ "$(uname)" == Linux && -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   command -v xvfb-run > /dev/null || { echo "skipped: no display"; exit 77; }
-  exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" "$0" "$@"
+  exec xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" bash "$0" "$@"
 fi
 
 scratch=$(mktemp -d)

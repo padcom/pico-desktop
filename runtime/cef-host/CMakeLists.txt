@@ -324,7 +324,7 @@ endif()
 # and `pnpm e2e` in a real window with no CSP violations. Needs pico and the built CLI; skipped otherwise.
 if(OS_LINUX)  # Linux only for now
   add_test(NAME cli.vue-template
-    COMMAND ${PD_SH} ${PROJECT_SOURCE_DIR}/tooling/cli/tests/vue-template.sh ${PD_HOST})
+    COMMAND bash ${PROJECT_SOURCE_DIR}/tooling/cli/tests/vue-template.sh ${PD_HOST})
   set_tests_properties(cli.vue-template PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 400 RUN_SERIAL TRUE)
 endif()
 
