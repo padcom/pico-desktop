@@ -61,14 +61,26 @@ function hasE2eTests(dir: string): boolean {
 }
 
 /**
+ * The backend `test --e2e` builds.
+ *
+ * @param out where it's built
+ * @param platform the operating system
+ * @returns its path
+ */
+function e2eBackend(out: string, platform: NodeJS.Platform): string {
+  return join(out, platform === 'win32' ? 'backend.exe' : 'backend')
+}
+
+/**
  * The host's arguments for the app that `test --e2e` built (before `launchApp` adds its own).
  *
  * @param config the app
  * @param out where the frontend and backend were built
+ * @param platform the operating system
  * @returns the arguments
  */
-export function e2eHostArgs(config: ResolvedConfig, out: string): string[] {
-  const app = [`--app-dir=${join(out, 'app')}`, `--app-id=${config.app.id}.e2e`, `--backend=${join(out, 'backend')}`]
+export function e2eHostArgs(config: ResolvedConfig, out: string, platform: NodeJS.Platform = process.platform): string[] {
+  const app = [`--app-dir=${join(out, 'app')}`, `--app-id=${config.app.id}.e2e`, `--backend=${e2eBackend(out, platform)}`]
 
   return ['--dev', ...app, ...appArgs(config)]
 }
@@ -99,7 +111,7 @@ export async function testE2e(config: ResolvedConfig, io: Output): Promise<numbe
   io.out('e2e │ building the frontend and the backend')
   await buildFrontend(config, join(out, 'app'))
 
-  if (!(await buildBackend(config, join(out, 'backend'), io))) {
+  if (!(await buildBackend(config, e2eBackend(out, process.platform), io))) {
     return 1
   }
   const vitestConfig = join(out, 'vitest.config.mjs')

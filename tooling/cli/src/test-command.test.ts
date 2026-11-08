@@ -19,6 +19,12 @@ describe('test --e2e', () => {
     expect(args).toContain('--capabilities=dialogs')
   })
 
+  it('names the backend as Windows needs', () => {
+    const config = resolveConfig('/app', { app: { id: 'com.example.x' } })
+    expect(e2eHostArgs(config, '/out', 'win32')).toContain(`--backend=${join('/out', 'backend.exe')}`)
+    expect(e2eHostArgs(config, '/out', 'linux')).toContain(`--backend=${join('/out', 'backend')}`)
+  })
+
   it('finds only *.e2e files, one file at a time, under Node', () => {
     expect(E2E_VITEST_CONFIG).toContain('\'e2e/**/*.e2e.?(c|m)[jt]s\'')
     expect(E2E_VITEST_CONFIG).toContain('fileParallelism: false')

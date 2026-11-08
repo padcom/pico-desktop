@@ -1,12 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { isBackendSource, worthShowing } from './dev'
-import { compareVersions, picoVersionIn } from './tools'
+import { compareVersions, frameworkHosts, picoVersionIn } from './tools'
 
 describe('compareVersions', () => {
   it('orders x.y.z versions numerically', () => {
     expect(compareVersions('0.4.1', '0.4.2')).toBeLessThan(0)
     expect(compareVersions('0.10.0', '0.4.2')).toBeGreaterThan(0)
     expect(compareVersions('1.0.0', '1.0.0')).toBe(0)
+  })
+})
+
+describe('frameworkHosts', () => {
+  it('knows where each system\'s build puts the host', () => {
+    expect(frameworkHosts('linux')).toEqual([expect.stringMatching(/cef-host\/pico-desktop-host$/u)])
+    expect(frameworkHosts('darwin')).toEqual([
+      expect.stringMatching(/cef-host\/pico-desktop-host\.app\/Contents\/MacOS\/pico-desktop-host$/u),
+    ])
+    expect(frameworkHosts('win32')).toEqual([
+      expect.stringMatching(/cef-host\/Release\/pico-desktop-host\.exe$/u),
+      expect.stringMatching(/cef-host\/pico-desktop-host\.exe$/u),
+    ])
   })
 })
 

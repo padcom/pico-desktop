@@ -57,10 +57,23 @@ export async function findPico(): Promise<Pico | null> {
   return version === undefined ? null : { version, warning: warningFor(version) }
 }
 
-/** The host from the framework's own build (when the CLI runs from the framework's sources). */
-const FRAMEWORK_HOST = fileURLToPath(
-  new URL(/* @vite-ignore */ '../../../build/cef/runtime/cef-host/pico-desktop-host', import.meta.url),
-)
+const HOST_FILES: Partial<Record<NodeJS.Platform, string[]>> = {
+  darwin: ['pico-desktop-host.app/Contents/MacOS/pico-desktop-host'],
+  // Visual Studio's generator puts it in the configuration's directory.
+  win32: ['Release/pico-desktop-host.exe', 'pico-desktop-host.exe'],
+}
+
+/**
+ * Where the framework's own build puts the host (when the CLI runs from the framework's sources).
+ *
+ * @param platform the operating system
+ * @returns the places it can be
+ */
+export function frameworkHosts(platform: NodeJS.Platform = process.platform): string[] {
+  const dir = new URL(/* @vite-ignore */ '../../../build/cef/runtime/cef-host/', import.meta.url)
+
+  return (HOST_FILES[platform] ?? ['pico-desktop-host']).map(file => fileURLToPath(new URL(file, dir)))
+}
 
 /**
  * The host executable: the config's `host`, $PICO_DESKTOP_HOST, or the framework's build.
@@ -70,7 +83,7 @@ const FRAMEWORK_HOST = fileURLToPath(
  * @returns its path, or null if none exists
  */
 export function findHost(config: ResolvedConfig, env: NodeJS.ProcessEnv = process.env): string | null {
-  const candidates = [config.host, env.PICO_DESKTOP_HOST, FRAMEWORK_HOST]
+  const candidates = [config.host, env.PICO_DESKTOP_HOST, ...frameworkHosts()]
 
   return candidates.find((p): p is string => p !== undefined && p !== '' && existsSync(p)) ?? null
 }
