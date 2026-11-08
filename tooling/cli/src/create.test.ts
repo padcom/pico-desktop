@@ -1,9 +1,9 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, relative } from 'node:path'
+import { join, relative, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
-import { create } from './create'
+import { create, linkTo } from './create'
 import type { Output } from './io'
 
 const framework = fileURLToPath(new URL('../../..', import.meta.url))
@@ -41,5 +41,17 @@ describe('create', () => {
   it('refuses a directory that isn\'t empty, and bad names', () => {
     expect(run(join(scratch, 'my-app')).code).toBe(1)
     expect(run(join(scratch, 'My App')).out).toContain('isn\'t a valid app name')
+  })
+})
+
+describe('linkTo', () => {
+  it('uses forward slashes, for JSON and pnpm', () => {
+    expect(linkTo('C:\\work\\app', 'C:\\work\\fw\\packages\\x', win32.relative)).toBe('link:../fw/packages/x')
+  })
+
+  it('stays valid JSON when the two are on different drives', () => {
+    const link = linkTo('C:\\tmp\\app', 'D:\\fw\\packages\\x', win32.relative)
+    expect(link).toBe('link:D:/fw/packages/x')
+    expect(() => JSON.parse(`"${link}"`)).not.toThrow()
   })
 })

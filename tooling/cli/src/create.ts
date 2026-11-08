@@ -22,6 +22,19 @@ const NAME = /^[a-z0-9][a-z0-9-]*$/u
 const isFramework = (dir: string) => existsSync(join(dir, 'packages', 'communicator-pico', 'project.json'))
 
 /**
+ * A pnpm `link:` to `to` from the package in `from`. Always forward slashes: it's written into
+ * JSON, where a Windows path's backslashes are invalid escapes, and pnpm takes them everywhere.
+ *
+ * @param from the directory of the package.json holding the link
+ * @param to what it links to
+ * @param relativePath how to get from one to the other (for tests of another system's paths)
+ * @returns the dependency's specifier
+ */
+export function linkTo(from: string, to: string, relativePath: typeof relative = relative): string {
+  return `link:${relativePath(from, to).replaceAll('\\', '/')}`
+}
+
+/**
  * The template's placeholders for an app linked to a framework checkout.
  *
  * @param name the app's directory name
@@ -36,7 +49,7 @@ export function placeholders(name: string, id: string, framework: string, target
   const pico = JSON.parse(readFileSync(join(framework, 'packages/communicator-pico/project.json'), 'utf8')) as { version: string }
   // The CLI and communicator-pico are linked from the app's package.json, the others from
   // apps/frontend/package.json.
-  const link = (path: string, from = target) => `link:${relative(from, join(framework, path))}`
+  const link = (path: string, from = target) => linkTo(from, join(framework, path))
   const frontend = join(target, 'apps', 'frontend')
 
   return {
