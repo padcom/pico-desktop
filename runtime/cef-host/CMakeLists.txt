@@ -320,6 +320,12 @@ if(OS_LINUX)  # Linux only for now
   set_tests_properties(cli.dev-loop PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
 endif()
 
+# `pnpm e2e` on a freshly created app, finding the host the way an app does, on every system
+# (tooling/cli/tests/e2e.sh). Needs pico and the built CLI; skipped otherwise.
+add_test(NAME cli.e2e
+  COMMAND ${PD_SH} ${PROJECT_SOURCE_DIR}/tooling/cli/tests/e2e.sh ${PD_HOST})
+set_tests_properties(cli.e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300 RUN_SERIAL TRUE)
+
 # The Pico debugger on the backend that the host starts (tooling/cli/tests/debug-attach.sh): a
 # DAP client attaches through `pico dap` to the next backend, and `pnpm dev --debug` stops at a
 # breakpoint in its handler, held past the hang timeout, then detaches. Needs pico, lldb-dap and
