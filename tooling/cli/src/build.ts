@@ -91,9 +91,9 @@ export async function buildFrontend(config: ResolvedConfig, outDir: string) {
 
 /**
  * The release build's arguments, with the bundle's target named. A portable backend needs the
- * architecture's baseline CPU; pico 0.4.2 compiles a host build (even with --target naming the
- * host) for this machine's CPU, so it can die with SIGILL on another machine (pico-lang #117,
- * fixed by PR #120; until a release has it, linux-x64 bundles aren't portable).
+ * architecture's baseline CPU, which pico ≥ 0.4.3 builds for. 0.4.2 compiled a host build (even
+ * with --target naming the host) for this machine's CPU, so it could die with SIGILL on another
+ * machine (pico-lang #117, fixed by PR #120).
  *
  * @param entry the backend's entry file
  * @param out the executable

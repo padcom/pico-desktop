@@ -4,7 +4,7 @@ You'll scaffold an app, run it with live reload, add a method to its contract, i
 
 **You need:**
 - Node.js and pnpm (versions in [`toolchain.json`](../toolchain.json));
-- `pico` ≥ 0.4.2 on your `PATH`. Until 0.4.2 is released, use a pico-lang build; see [toolchain.md](toolchain.md);
+- `pico` ≥ 0.4.3 on your `PATH` (a pico-lang release; see [toolchain.md](toolchain.md));
 - the Pico Desktop host. Until the packages are published, use a checkout of this repository after `pnpm install && pnpm build && pnpm cef`.
 
 ## 1. Create

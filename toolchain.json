@@ -12,10 +12,10 @@
     "developedWith": "g++ 14.2.0 (Debian 14.2.0-19)"
   },
   "pico": {
-    "minimum": "0.4.2",
-    "releasedPin": "0.4.2",
+    "minimum": "0.4.3",
+    "releasedPin": "0.4.3",
     "localBuild": "~/projects/padcom/pico/pico-lang (clone of padcom/pico-lang), branch local/integration (never pushed): pico-lang main, which has every fix the framework's PRs needed",
-    "$comment": "0.4.2 is released (2026-11-07) and CI uses it. pico-lang main has fixes after it (dap formatters on attach #99, Reader.close #100, #102, #104, #107): docs/toolchain.md."
+    "$comment": "0.4.3 is released (2026-11-08) and CI uses it. It has every pico-lang fix the framework needed, including backends built for the architecture's baseline CPU (#117, PR #120): docs/toolchain.md."
   },
   "cef": {
     "status": "pinned for linux-arm64 (verified in F1) and linux-x64 (SHA-256 from CI's first verified download, 2026-11-07: built and all self-tests passed on a native x64 runner); provisional for the other targets",

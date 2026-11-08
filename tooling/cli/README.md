@@ -41,4 +41,4 @@ export default defineConfig({
 })
 ```
 
-`dev` needs `pico` on the `PATH`. Below 0.4.2 it warns: a pico-lang build with the fixes works. It also needs the host: `host` in the config, `$PICO_DESKTOP_HOST`, or a framework checkout's `build/cef`.
+`dev` needs `pico` on the `PATH`. Below 0.4.3 it warns: a pico-lang build with the fixes works. It also needs the host: `host` in the config, `$PICO_DESKTOP_HOST`, or a framework checkout's `build/cef`.

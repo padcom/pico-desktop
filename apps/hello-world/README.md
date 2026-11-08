@@ -27,7 +27,7 @@ The F3 vertical slice: a Vite + TypeScript frontend and a compiled Pico backend.
 
 ## Run it
 
-Run these from this directory. They need the CEF host built (`pnpm cef` at the root) and pico ≥ 0.4.2 on the `PATH`; until 0.4.2 is released, use a pico-lang build.
+Run these from this directory. They need the CEF host built (`pnpm cef` at the root) and pico ≥ 0.4.3 on the `PATH`.
 
 ```sh
 pnpm generate     # after changing contracts/hello.cddl

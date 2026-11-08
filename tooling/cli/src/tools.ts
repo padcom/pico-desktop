@@ -5,7 +5,7 @@ import type { ResolvedConfig } from './config'
 import { capture } from './processes'
 
 /** The oldest pico the framework works with (pico-lang #82: stdout reaches a pipe at once). */
-export const MINIMUM_PICO = '0.4.2'
+export const MINIMUM_PICO = '0.4.3'
 
 /**
  * Compares two `x.y.z` versions.
