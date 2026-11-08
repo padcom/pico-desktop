@@ -11,7 +11,7 @@ Nothing here is automated yet: there's no release workflow. The steps are manual
 
 1. `main` is green in CI: JS, native, CEF host and Pico jobs.
 2. Locally, on each target being released: `pnpm check`, then `pnpm cef`. The latter builds the host, stages the runtime and runs the 19 host ctests, including `hello-world.self-test`, `cli.dev-loop` and `cli.bundle`.
-3. The Pico version the framework needs is released: `toolchain.json`'s `pico.minimum` (0.4.2), and it's what `runtime.json` records.
+3. The Pico version the framework needs is released: `toolchain.json`'s `pico.minimum` (0.4.3), and it's what `runtime.json` records.
 4. For 1.0 only: the six-target smoke matrix (PLAN.md, F7). Until then, releases are 0.x and linux-arm64 is the target that's checked.
 
 ## Versions

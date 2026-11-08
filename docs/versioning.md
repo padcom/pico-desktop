@@ -16,7 +16,7 @@ Each app records the exact combination it was built with in its bundle's `manife
 - **A runtime serves one protocol range.** `build` refuses a runtime whose protocol isn't the one the CLI's apps speak.
 - **The packages move together.** One version for the CLI, the TypeScript and Pico Communicators, the protocol package and the schema tooling: an app depends on matching ones.
 - **Contracts are the app's.** Changing an app's own contract is between its frontend and backend, which are built together. Generated code is regenerated, never edited.
-- **Pico:** `runtime.json` names the oldest compiler the framework works with (0.4.2). The CLI warns about older ones.
+- **Pico:** `runtime.json` names the oldest compiler the framework works with (0.4.3). The CLI warns about older ones.
 
 ## Before 1.0
 

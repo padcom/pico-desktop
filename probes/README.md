@@ -2,7 +2,7 @@
 
 Executable evidence for `../docs/pico-capabilities.md`. Audited on **pico 0.4.0**
 (`padcom/ppl` @ `b5a9a05`). They now need a compiler with the pico-lang #82 fix (stdout flush):
-0.4.2, or a local build of pico-lang `main` (`75fc4aa` or later).
+0.4.2 or later (CI uses `toolchain.json`'s pin, 0.4.3).
 
 ```sh
 pico test                                            # language, process, net, ffi probes

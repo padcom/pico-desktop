@@ -33,8 +33,8 @@ small, matching `Communicator` libraries over CBOR.
 ## Development
 
 Prerequisites (versions in [`toolchain.json`](toolchain.json)): Node.js from `.nvmrc`, pnpm,
-CMake ≥ 3.28, a C++20 compiler, and Pico ≥ 0.4.2 (until it's released, a local
-[pico-lang](https://github.com/padcom/pico-lang) build; see [docs/toolchain.md](docs/toolchain.md)).
+CMake ≥ 3.28, a C++20 compiler, and Pico ≥ 0.4.3 (a
+[pico-lang](https://github.com/padcom/pico-lang) release; see [docs/toolchain.md](docs/toolchain.md)).
 
 ```sh
 nvm install                # Node from .nvmrc

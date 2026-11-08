@@ -14,42 +14,43 @@ commit, saying why.
 | ESLint, Vite, Vitest | 10.14.0, 8.3.6, 5.1.0 | `package.json` | pnpm; style from `@padcom/eslint-config-typescript` |
 | CMake | ≥ 3.28 (developed with 4.4.5) | `CMakeLists.txt`, `CMakePresets.json` | Kitware's `cmake-4.4.5-linux-aarch64.tar.gz` in `~/.local/opt`, SHA-256 checked against `cmake-4.4.5-SHA-256.txt` from the GitHub release |
 | C++ compiler | C++20 (developed with g++ 14.2.0) | `CMakeLists.txt` | distribution package |
-| Pico | ≥ 0.4.2 | `toolchain.json` | see below |
+| Pico | ≥ 0.4.3 | `toolchain.json` | see below |
 
 ### Pico
 
-**Pico 0.4.2** (released 2026-11-07) has every fix the framework needs:
+**Pico 0.4.3** (released 2026-11-08) has every fix the framework needs:
 - stdout flushed to a pipe (#82) and bulk byte copies (#84);
 - finalizers and buffer memory (#90, PR #91), and workspace imports from relative paths
   (#93, PR #94);
 - buffers freed in long synchronous code (#95, PR #96), and `Map` keeping only live entries
   (#97, PR #98). `ipc.soak` needs those two: without them the backend peaks at 560 MB, over the
-  test's 150 MB limit.
+  test's 150 MB limit;
+- release backends built for the architecture's baseline CPU, not the build machine's (#117,
+  PR #120). With 0.4.2 a linux-x64 bundle could die with SIGILL (signal 4) on another CPU, so
+  CI's linux-x64 "Packaged app on a clean machine" job wasn't required; now it is;
+- `pico dap` loads pico's formatters when it attaches too (#99, PR #101), so **Debug the
+  backend** (`pnpm dev --debug`) shows strings and arrays as values. ctest `cli.debug-attach`
+  checks attaching: a breakpoint in the backend that the host starts, a variable read, the
+  backend held past the hang timeout, and a detach. CI skips it (no lldb-dap there);
+- `Reader.close()` (#100) cancels a waiting read: padcom/serialport needs it to close a port
+  while a read waits;
+- a subclass's fields after `instanceof` narrowing no longer panic the compiler (#102, PR #103):
+  pico-mavlink's decoded messages need it;
+- a field named `target` is the field in async methods, not the build constant (#104, PR #105):
+  pico-mavlink uses plain `target` again;
+- `pico doc` follows an `index.pi`'s re-exports (#107, PR #108).
 
 The absolute-path workaround for #93 is gone: the CLI and hello-world pass relative paths again.
 
-Fixes merged on pico-lang `main` after 0.4.2, which the next release will have. Until then,
-develop with the compiler built from the `pico-lang` clone next to this repository, first on
-`PATH`: `export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`.
-- `pico dap` loads pico's formatters when it attaches too (#99, PR #101), so **Debug the
-  backend** (`pnpm dev --debug`) shows strings and arrays as values. 0.4.2 attaches as well, but
-  shows them as lldb's `0x… "…"`. ctest `cli.debug-attach` checks attaching: a breakpoint in the
-  backend that the host starts, a variable read, the backend held past the hang timeout, and a
-  detach. CI skips it (no lldb-dap there).
-- `Reader.close()` (#100) cancels a waiting read: padcom/serialport needs it to close a port
-  while a read waits.
-- A subclass's fields after `instanceof` narrowing no longer panic the compiler (#102, PR #103):
-  pico-mavlink's decoded messages need it.
-- A field named `target` is the field in async methods, not the build constant (#104, PR #105):
-  pico-mavlink uses plain `target` again.
-- `pico doc` follows an `index.pi`'s re-exports (#107, PR #108).
+To try pico-lang changes before a release, put a compiler built from the `pico-lang` clone next
+to this repository first on `PATH`: `export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`.
 
 Newer Pico is stricter than 0.4.1 in two ways the code handles: `TextDecoder`'s constructor
-`throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI uses the 0.4.2
+`throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI uses the 0.4.3
 release (see `.github/workflows/ci.yml`): its Pico job, and the CEF job's `cli.dev-loop` and
 `cli.bundle`, run with it. Release archives are
 named `pico-<version>-<host>.tar.gz|zip` (linux-arm64, linux-x64, macos-arm64, windows-arm64,
-windows-x64; no macos-x64, #86).
+windows-x64, and macos-x64 since 0.4.3).
 
 ## Native runtime inputs
 
