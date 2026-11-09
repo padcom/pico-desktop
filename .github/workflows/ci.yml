@@ -140,6 +140,9 @@ jobs:
         env:
           PD_BUNDLE_OUT: ${{ runner.temp }}/bundle  # cli.bundle keeps its package for bundle-smoke
         run: pnpm cef
+      - name: Which renderer drew WebGL and the canvas in the self-test (docs/graphics.md)
+        shell: bash
+        run: ctest --preset cef -R host.self-test.app -V | grep -E 'graphics:|pd-info: (webgl|canvas2d)' || true
       - name: Keep the packaged app (cli.bundle's) for the clean-machine smoke test
         if: steps.pico.outputs.available == 'true'
         uses: actions/upload-artifact@v4
@@ -189,6 +192,8 @@ jobs:
           pnpm --filter @pico-desktop/hello-world backend
       - name: The host's tests in a real window
         run: ctest --preset cef --output-on-failure
+      - name: Which renderer drew WebGL and the canvas in the self-test (docs/graphics.md)
+        run: ctest --preset cef -R host.self-test.app -V | grep -E 'graphics:|pd-info: (webgl|canvas2d)' || true
 
   cef-host-windows:
     # F6: the CEF host on Windows x64: pico-desktop-host.dll run by CEF's console bootstrap
@@ -241,6 +246,8 @@ jobs:
           pnpm --filter @pico-desktop/hello-world backend
       - name: The host's tests in a real window
         run: ctest --preset cef --output-on-failure
+      - name: Which renderer drew WebGL and the canvas in the self-test (docs/graphics.md)
+        run: ctest --preset cef -R host.self-test.app -V | grep -E 'graphics:|pd-info: (webgl|canvas2d)' || true
 
   bundle-smoke:
     # F6's clean-machine smoke: the packaged app on a fresh runner of its target, with only the
