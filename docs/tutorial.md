@@ -160,7 +160,7 @@ expect(await app.waitForText('#message', 'Hello')).toBe('Hello, end to end!')
 expect(await app.close()).toBe(0)  // closed like its window; 0 when the backend exits in time
 ```
 
-It has `evaluate(js)`, `text`, `click` (a real mouse click, so a user gesture), `fill`, `press(key)` (through the host's key handling first, as the keyboard's are), `waitFor(js)`, `waitForText` and `devtools(method, params)` for any other DevTools protocol command; `log` has what the host printed (the page's console as `console: …`). The window opens in development mode (remote debugging is never on in production) with its own profile, under the app ID plus `.e2e`. It needs a display; in CI, run it under `xvfb-run`.
+It has `evaluate(js)`, `text`, `click` (a real mouse click, so a user gesture), `fill`, `press(key)` (through the host's key handling first, as the keyboard's are), `waitFor(js)`, `waitForText`, `screenshot(path)` (a PNG of the window's page, the folders made) and `devtools(method, params)` for any other DevTools protocol command; `log` has what the host printed (the page's console as `console: …`). The window opens in development mode (remote debugging is never on in production) with its own profile, under the app ID plus `.e2e`. It needs a display; in CI, run it under `xvfb-run`.
 
 ## 6. Build and package
 

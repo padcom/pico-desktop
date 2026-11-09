@@ -2,7 +2,9 @@
 // frontend and the compiled backend, the page driven over the DevTools protocol. A test calls
 // `launchApp()`, which starts the app that `test --e2e` built, and `close()` when it's done.
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
+import { dirname } from 'node:path'
 import { lines } from './processes'
 
 /** What `test --e2e` hands its tests (in `PICO_DESKTOP_E2E`, as JSON). */
@@ -290,6 +292,20 @@ export class E2eApp {
   async fill(selector: string, value: string): Promise<void> {
     await this.evaluate(`(() => { const e = ${element(selector)}; e.value = ${JSON.stringify(value)};
       e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })) })()`)
+  }
+
+  /**
+   * A picture of the page as the window shows it now, saved as a PNG (DevTools' `Page.captureScreenshot`).
+   *
+   * @param path where to write it; the folders on the way are made
+   */
+  async screenshot(path: string): Promise<void> {
+    const shot = await this.devtools('Page.captureScreenshot', { format: 'png' }) as { data?: string }
+    if (typeof shot.data !== 'string') {
+      throw new E2eError('the page gave no screenshot')
+    }
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, Buffer.from(shot.data, 'base64'))
   }
 
   /**
