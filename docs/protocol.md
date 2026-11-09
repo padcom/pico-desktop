@@ -130,6 +130,39 @@ dropped, and the next delivered event says how many with `d`. The payload keeps 
 backend restart, the frontend Communicator re-subscribes managed subscriptions once the
 backend is `ready` again. Missed events are never replayed.
 
+### Binary payloads
+
+A contract's `bstr` is a CBOR byte string and nothing else: a `Uint8Array` in the page and in Pico, never
+base64 or an array of numbers, and the generated validators refuse text where bytes belong. On the
+wire it costs a head of 1, 2, 3 or 5 bytes (below 24, 256, 65 536 bytes, or more) plus the bytes
+themselves. Both codecs copy in bulk, not per byte. A payload from Pico to the page is copied about
+five times (into the frame, out of the pipe, into the process message to the renderer, into the page's
+`ArrayBuffer`, out of the CBOR item): for a 30 KB map tile that is noise; for megabytes, count it.
+
+Proof, all in CI: `cbor.test.ts` and `cbor.test.pi` (sizes up to 1 MiB, exact wire sizes), the
+hello-world backend's `data.echo` tests, and hello-world's self-test in a real window, which sends
+0, 1, 30 000 and 1 048 576 bytes through page, host and Pico and back and compares content, count and
+a sum Pico computed itself (the `pd-info` lines also give the round-trip times).
+
+### Backpressure
+
+Nothing in the path may grow without bound when a reader is slow. Backend → page, hop by hop:
+
+| Hop | Bound | When it is exceeded |
+|---|---|---|
+| the backend's subscription (`Sink`) | 256 undelivered events per subscription | the oldest are dropped; the next event carries `d`, how many |
+| the pipe between backend and host | the OS pipe (64 KiB) | the backend's write waits, so its events queue in the `Sink` (above) |
+| the host's queue to the page | **none yet** | **a page that is busy (long JavaScript, a hidden tab) lets the host's and the renderer's memory grow as fast as the backend publishes.** Tracked in #50: a bounded queue with acknowledgements, dropping events (never responses) and counting them in `d` |
+| the host's queue to the backend (page → backend) | 1024 messages or 16 MiB | new requests and subscriptions from pages get `BUSY`, their events are dropped; answers to the backend's own requests always go through |
+
+Responses and errors are never dropped by a bound: only events are. A request waiting for an answer
+has the caller's timeout instead.
+
+What an app should do: send **state** as events (the latest value wins, so a dropped one costs
+nothing), not a log that must be complete; let the page **ask** for bulk data (a tile, a file) with a
+request, which a slow page does not issue and so does not pile up; keep one event under 1 MiB; and
+read `d` where completeness matters.
+
 ## 7. Lifecycle and handshake
 
 The first message each side sends on a link is `lifecycle` `hello` with `p` =

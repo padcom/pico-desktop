@@ -2,7 +2,8 @@
 ; The backend answers greeting.hello and greeting.ask and publishes clock.ticks; the frontend
 ; answers ui.confirm (the backend asks it from greeting.ask); the backend emits greeting.greeted
 ; after each greeting. window.retitle and files.pick use the host's native services from Pico (the
-; app declares only the `window` capability, so files.pick is refused with NOT_ALLOWED).
+; app declares only the `window` capability, so files.pick is refused with NOT_ALLOWED). data.echo
+; sends bytes back, with their length and sum.
 services = {
   "greeting.hello": ["method", hello-request, greeting],
   "greeting.ask": ["method", hello-request, greeting],
@@ -11,6 +12,7 @@ services = {
   "clock.ticks": ["subscription", clock-params, tick],
   "window.retitle": ["method", window-title, window-title],
   "files.pick": ["method", null, picked],
+  "data.echo": ["method", bytes-message, bytes-echo],
 }
 
 hello-request = { name: tstr }
@@ -30,3 +32,10 @@ tick = { n: uint .size 4 }
 window-title = { title: tstr }
 
 picked = { paths: [* tstr] }
+
+; Bytes travel as a CBOR byte string (bstr): a Uint8Array in the page, a Uint8Array in Pico, never text.
+; The backend answers with the same bytes, how many it received and their sum modulo 2^32 (computed
+; in Pico), so a test proves what arrived byte for byte (docs/protocol.md, "Binary payloads").
+bytes-message = { data: bstr }
+
+bytes-echo = { data: bstr, length: uint .size 4, sum: uint .size 4 }

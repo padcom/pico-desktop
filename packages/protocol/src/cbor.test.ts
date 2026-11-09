@@ -57,6 +57,18 @@ describe('CBOR decoding details', () => {
     expect(Object.keys(decoded)).toEqual(['__proto__'])
   })
 
+  it.each([
+    [0, 1], [1, 1], [23, 1], [24, 2], [255, 2], [256, 3], [30_000, 3], [65_535, 3], [65_536, 5], [1_048_576, 5],
+  ])('carries %i bytes as a byte string of %i header bytes and the bytes themselves, nothing else', (n, head) => {
+    const bytes = Uint8Array.from({ length: n }, (_, i) => i % 256)
+    const encoded = encode(bytes)
+    expect(encoded.length).toBe(head + n)
+    expect(encoded.subarray(head)).toEqual(bytes)
+    const decoded = decode(encoded) as Uint8Array
+    expect(decoded).toBeInstanceOf(Uint8Array)
+    expect(decoded).toEqual(bytes)
+  })
+
   it('decodes a byte string as an independent copy', () => {
     const input = hex.decode('43010203')
     const out = decode(input) as Uint8Array

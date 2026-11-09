@@ -3,16 +3,19 @@
 // closures, so handlers are named async functions sharing the module's state.
 import { Cbor, Communicator, CommunicatorError, Host, RequestContext, Sink, Transport } from "pico-desktop/communicator"
 import {
+  BytesEcho,
   ConfirmRequest,
   Greeted,
   Greeting,
   Picked,
   Tick,
   WindowTitle,
+  decodeBytesMessage,
   decodeClockParams,
   decodeConfirmResponse,
   decodeHelloRequest,
   decodeWindowTitle,
+  encodeBytesEcho,
   encodeConfirmRequest,
   encodeGreeted,
   encodeGreeting,
@@ -39,6 +42,7 @@ export function createBackend(transport: Transport): Communicator {
   c.handle("greeting.ask", ask)
   c.handle("window.retitle", retitle)
   c.handle("files.pick", pick)
+  c.handle("data.echo", echoBytes)
   c.publish("clock.ticks", ticks)
   c
 }
@@ -97,6 +101,17 @@ async function retitle(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> thr
 /// Opens the host's file dialog: the app doesn't declare `dialogs`, so the host refuses it.
 async function pick(_payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {
   encodePicked(Picked { paths: await host().openFile() })
+}
+
+/// Gives the bytes back, with how many there were and their sum modulo 2^32, counted here in Pico:
+/// proof of what arrived, byte for byte (a byte string is bytes in Pico, not text).
+async function echoBytes(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {
+  const request = decodeBytesMessage(payload ?? Cbor.Null, "$")
+  let sum: int = 0
+  for (let i = 0; i < request.data.length; i++) {
+    sum += request.data.get(i) as int
+  }
+  encodeBytesEcho(BytesEcho { data: request.data, length: request.data.length as u32, sum: (sum % 4294967296) as u32 })
 }
 
 /// A tick every `intervalMs` (default 1 s) until the subscriber unsubscribes.
