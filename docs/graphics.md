@@ -62,9 +62,10 @@ read the `fps` lines of a run on the hardware you care about.
 
 Honest account of the state when this was written:
 
-- **Measured on a real host: not yet, by the author.** The development machine (linux-arm64, no GPU,
-  no CEF host build) cannot run `pico-desktop-host`; the code was typechecked, linted and the fixture
-  built there, and nothing more.
+- **Not measured on the author's machine.** The development machine (linux-arm64, no GPU, no CEF host
+  build) cannot run `pico-desktop-host`; the code was typechecked, linted and the fixture built there,
+  and nothing more. **Every number in this document is from a CI run on a hosted runner**, never from
+  a machine with a real GPU.
 - **Where it runs:** CI, in the jobs "CEF host, linux-x64" and "CEF host, linux-arm64" (a native runner
   each, under Xvfb, so software rendering), in the ctest `host.self-test.app` and `host.self-test.https`
   (once per origin, so twice per job). It also runs in the macOS and Windows jobs, where it only reports.
@@ -89,16 +90,38 @@ own any more. The map could not have worked in CI (or in a VM or container) like
 The host now passes `--enable-unsafe-swiftshader` on Linux (`HostApp::OnBeforeCommandLineProcessing`),
 which allows that fallback. The name says "unsafe" because SwiftShader runs shader code on the CPU for
 whatever page asks; here only the app's own content runs, under a CSP, and the host refuses navigation
-elsewhere (ADR-0003, [security-model.md](security-model.md)). The numbers with the flag follow
-(see "With the flag", below, once a run has produced them).
+elsewhere (ADR-0003, [security-model.md](security-model.md)). The numbers with the flag, and for macOS
+and Windows, follow.
 
-macOS and Windows: the self-test ran and passed there, but ctest prints a passing test's output
-only when asked to, so no renderer or frame rate was recorded for them. Read it with
-`ctest --preset cef -R host.self-test -V` on a machine of the kind you care about.
+(ctest prints a passing test's output only when asked to, so each CEF host job re-runs the app-origin
+self-test once with `-V` and prints the `graphics:` lines; that is where these numbers come from.
+On your own machine: `ctest --preset cef -R host.self-test.app -V`.)
 
-### With the flag
+### With the flag, and on the other systems
 
-_Not yet measured: the run that has `--enable-unsafe-swiftshader` is the next one._
+CI run 42547109238 (the `graphics:` line of each CEF host job; the self-test with the app origin; one
+run each, so read the frame rates as the order of magnitude, not as precise figures):
+
+| | renderer | software? | WebGL, 20 000 moving points | 2D canvas, 300 moving circles |
+|---|---|---|---|---|
+| linux-x64, Xvfb, no GPU | WebGL 2 on ANGLE over Vulkan, **SwiftShader** (Subzero) | yes | 57.1 fps (59 frames, the slowest 67 ms) | 60.0 fps (slowest 17 ms) |
+| linux-arm64, Xvfb, no GPU | WebGL 2 on ANGLE over Vulkan, **SwiftShader** (LLVM 10) | yes | 56.1 fps (58 frames, the slowest 83 ms) | 60.0 fps (slowest 17 ms) |
+| macos-arm64, hosted runner | WebGL 2 on ANGLE over **Metal** ("Apple Paravirtual device") | no | 57.1 fps (the slowest 50 ms) | 60.0 fps (slowest 19 ms) |
+| windows-x64, hosted runner | WebGL 2 on ANGLE over Direct3D 11, **Microsoft Basic Render Driver** (WARP) | yes | 63.0 fps (the slowest 31 ms) | 64.0 fps (slowest 16 ms) |
+| windows-arm64, hosted runner | the same | yes | 61.2 fps (the slowest 59 ms) | 64.0 fps (slowest 16 ms) |
+
+What this says:
+
+- **With the flag, WebGL 2 works on both Linux targets without a GPU**, and it is the CPU doing it
+  (`webgl.software=true`). The maximum texture size is 8192 everywhere.
+- **The average is near 60 fps for this load, but the frames are not even**: the slowest frame in a
+  second was 67 and 83 ms on Linux software rendering (four or five missed frames in a row), 31 to 59 ms on Windows
+  WARP, 50 ms on the macOS runner. A map that redraws all of 20 000 points per frame is at the edge of
+  what a CPU renderer does smoothly; a heavier scene will drop well below 60 on a machine with no GPU.
+- **The 2D canvas is at 60 fps everywhere**, with 16 to 19 ms frames, for the instrument-like load.
+- **The CI runners are not real GPUs** (software on Linux and Windows, a paravirtual GPU on macOS). A
+  real GPU can only be better; none was measured. Read the `graphics:` line on a developer machine.
+- Only the app origin was recorded; the https origin runs the same page and passes the same checks.
 
 ## What this means for the map
 
