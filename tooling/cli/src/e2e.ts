@@ -2,7 +2,9 @@
 // frontend and the compiled backend, the page driven over the DevTools protocol. A test calls
 // `launchApp()`, which starts the app that `test --e2e` built, and `close()` when it's done.
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
+import { dirname } from 'node:path'
 import { lines } from './processes'
 
 /** What `test --e2e` hands its tests (in `PICO_DESKTOP_E2E`, as JSON). */
@@ -53,6 +55,62 @@ async function poll<T>(attempt: () => Promise<T | undefined>, deadline: number, 
   await sleep(POLL_MS)
 
   return poll(attempt, deadline, timedOut)
+}
+
+/** The first bytes of every PNG. */
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+/**
+ * What `pending` gives, or an error if it takes longer than `ms`.
+ *
+ * @param pending the thing waited for
+ * @param ms how long to wait
+ * @param timedOut the error then
+ * @returns what `pending` gave
+ */
+async function within<T>(pending: Promise<T>, ms: number, timedOut: () => Error): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(timedOut()), ms)
+  })
+
+  try {
+    return await Promise.race([pending, deadline])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * The picture in a `Page.captureScreenshot` reply.
+ *
+ * @param shot the reply
+ * @returns the bytes of the PNG
+ * @throws {E2eError} if the reply holds no PNG
+ */
+function pngOf(shot: { data?: unknown } | undefined): Buffer {
+  const picture = typeof shot?.data === 'string' ? Buffer.from(shot.data, 'base64') : Buffer.alloc(0)
+  if (!picture.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+    throw new E2eError(`the page gave no PNG (${picture.length} bytes)`)
+  }
+
+  return picture
+}
+
+/**
+ * Writes a file, making its folders.
+ *
+ * @param path where
+ * @param picture what
+ * @throws {E2eError} naming the path, if it cannot be written
+ */
+async function saveTo(path: string, picture: Buffer): Promise<void> {
+  try {
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, picture)
+  } catch (error) {
+    throw new E2eError(`cannot save the screenshot to ${path}: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 function freePort(): Promise<number> {
@@ -290,6 +348,19 @@ export class E2eApp {
   async fill(selector: string, value: string): Promise<void> {
     await this.evaluate(`(() => { const e = ${element(selector)}; e.value = ${JSON.stringify(value)};
       e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })) })()`)
+  }
+
+  /**
+   * A picture of the page as the window shows it now, saved as a PNG (DevTools' `Page.captureScreenshot`).
+   *
+   * @param path where to write it; the folders on the way are made
+   * @param timeoutMs how long the page may take to give the picture (default 10 s)
+   * @throws {E2eError} if the page gives no PNG in time, or the file cannot be written
+   */
+  async screenshot(path: string, timeoutMs = 10_000): Promise<void> {
+    const asked = this.devtools('Page.captureScreenshot', { format: 'png' }) as Promise<{ data?: unknown } | undefined>
+    const shot = await within(asked, timeoutMs, () => new E2eError(`the page gave no screenshot in ${timeoutMs} ms`))
+    await saveTo(path, pngOf(shot))
   }
 
   /**

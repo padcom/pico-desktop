@@ -3,7 +3,8 @@
 // the mouse's do (a click is a user gesture). Driven with the CLI's e2e driver, under --dev.
 //   - F12 opens DevTools (and another key doesn't);
 //   - clicking a link to another site hands it to the system browser (a fake xdg-open records
-//     it), and the window stays on the app.
+//     it), and the window stays on the app;
+//   - the driver's screenshot(path) gives a PNG of the real window.
 // Usage: node user-input.mjs <pico-desktop-host> <fixture dist dir> <the CLI's dist/index.js>
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -75,6 +76,11 @@ try {
     check('a clicked link to another site goes to the system browser, unchanged', read(opened) === `${url}\n`, JSON.stringify(read(opened)))
   }
   check('the window stays on the app', (await app.evaluate('location.origin')) === origin)
+  // The e2e driver's screenshot(path), against the real window: no fake proves DevTools' own reply.
+  const shot = join(bin, 'shots', 'window.png')
+  await app.screenshot(shot)
+  const png = readFileSync(shot)
+  check('a screenshot of the window is a PNG with a picture in it', png.length > 1000 && png.subarray(1, 4).toString() === 'PNG', `${png.length} bytes`)
   check('the host logs it', app.log.some(l => l.includes(`pd-host: external open ${url}`)), app.log.filter(l => l.includes('pd-host')).join(' | '))
 }
 catch (error) {
