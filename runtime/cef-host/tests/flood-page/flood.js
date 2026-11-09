@@ -80,7 +80,7 @@ window.picoDesktop.onmessage = (buffer) => {
   }
   const m = parse(buffer)
   if (m[1] === KIND_LIFECYCLE && m[3] === 'ready') {
-    window.picoDesktop.send(subscribe)
+    window.picoDesktop.send(subscribe.buffer)
   } else if (m[1] === KIND_RESPONSE && m[2] === 1) {
     console.log('flood: subscribed; not reading for 2 s')
     setTimeout(block, 0)
@@ -91,4 +91,4 @@ window.picoDesktop.onmessage = (buffer) => {
   }
 }
 
-window.picoDesktop.send(hello)
+window.picoDesktop.send(hello.buffer)

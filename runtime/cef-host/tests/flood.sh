@@ -9,7 +9,7 @@ host=$1
 here=$(cd "$(dirname "$0")" && pwd)
 source "$here/lib.sh"
 pd_require_pico
-pd_ensure_display "$0" "$@"
+pd_ensure_display bash "$0" "$@"  # (re-run through bash: the script has no executable bit)
 scratch=$(mktemp -d)
 export XDG_CACHE_HOME=$scratch/cache
 trap 'rm -rf "$scratch"' EXIT
