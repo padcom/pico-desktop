@@ -30,7 +30,8 @@ pnpm cef              # configure (preset `cef`), build, build the fixture, ctes
 install has them; the AppImage (F7) has to bundle or require them explicitly.
 
 Rendering without a GPU works through the bundled SwiftShader (`libvk_swiftshader.so`). In a VM
-Chromium logs `GetVSyncParametersIfAvailable() failed`; that's harmless.
+Chromium logs `GetVSyncParametersIfAvailable() failed`; that's harmless. What WebGL and canvas do
+with and without a GPU, and how the self-test reports the renderer, is in [graphics.md](graphics.md).
 
 ## The sandbox
 
