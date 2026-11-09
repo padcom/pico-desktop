@@ -7,10 +7,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace pico_desktop::host {
@@ -49,6 +51,12 @@ class Router {
   void from_session(std::uint64_t session, std::uint64_t window, std::span<const std::byte> message);
   /// The page behind `session` went away (navigation, reload, crash, window closed).
   void end_session(std::uint64_t session);
+  /// The page behind `session` has handled `count` more of the messages sent to it. A page that is
+  /// `kMaxUnacked` messages or `kMaxUnackedBytes` behind gets no new events (they are dropped and
+  /// counted in `d`, docs/protocol.md §6); responses, errors and lifecycle messages always go through.
+  void session_ack(std::uint64_t session, std::uint64_t count);
+  static constexpr std::size_t kMaxUnacked = 256;
+  static constexpr std::size_t kMaxUnackedBytes = 8 * 1024 * 1024;
 
   /// A new backend process is starting: its epoch begins and the host says hello to it (it's
   /// ready after its own hello).
@@ -100,6 +108,10 @@ class Router {
   /// The sessions a backend message without a known target goes to (one, or every current one).
   std::vector<std::uint64_t> targets(std::optional<std::uint64_t> window) const;
   void deliver(std::uint64_t session, std::span<const std::byte> message);
+  /// An event for `session`, subscription `s` (0: none): dropped when the page is too far behind.
+  void deliver_event(std::uint64_t session, std::span<const std::byte> message, std::uint64_t s);
+  /// Hands `message` to the page and counts it as unacknowledged.
+  void send(std::uint64_t session, Bytes message);
   void refuse_session(std::uint64_t session, std::uint64_t id, const char* code, const std::string& message);
   bool is_current(std::uint64_t session) const;
 
@@ -113,6 +125,12 @@ class Router {
   std::map<std::uint64_t, UiRequest> ui_requests_;         // host ID → a session's request
   std::map<std::uint64_t, std::uint64_t> backend_requests_;  // backend ID → the session asked
   std::map<std::uint64_t, std::uint64_t> subscriptions_;     // publisher's s → subscriber session
+  struct Backlog {
+    std::deque<std::size_t> sizes;  // the sizes of the messages sent and not yet acknowledged, oldest first
+    std::size_t bytes = 0;          // their sum
+  };
+  std::map<std::uint64_t, Backlog> unacked_;                 // session → what it has not acknowledged
+  std::map<std::pair<std::uint64_t, std::uint64_t>, std::uint64_t> dropped_;  // (session, s) → events dropped
 };
 
 }  // namespace pico_desktop::host

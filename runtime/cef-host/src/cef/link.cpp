@@ -89,6 +89,13 @@ void Link::from_page(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, i
   router_.from_session(it->second, static_cast<std::uint64_t>(browser->GetIdentifier()), message);
 }
 
+void Link::page_acked(const std::string& frame_id, int context, std::uint64_t count) {
+  const auto it = session_of_.find(page_key(frame_id, context));
+  if (it != session_of_.end()) {
+    router_.session_ack(it->second, count);
+  }
+}
+
 void Link::page_closed(const std::string& frame_id, int context) {
   const auto it = session_of_.find(page_key(frame_id, context));
   if (it == session_of_.end()) {
@@ -117,10 +124,12 @@ void Link::to_session(std::uint64_t session, Bytes message) {
   const auto it = pages_.find(session);
   CefRefPtr<CefBrowser> browser = browser_state().browser;
   if (it == pages_.end() || !browser || browser->GetIdentifier() != it->second.browser_id) {
+    router_.session_ack(session, 1);  // never sent, so never acknowledged
     return;
   }
   CefRefPtr<CefFrame> frame = browser->GetFrameByIdentifier(it->second.frame_id);
   if (!frame || !frame->IsValid()) {
+    router_.session_ack(session, 1);  // never sent, so never acknowledged
     return;
   }
   trace("host → page   ", message);
