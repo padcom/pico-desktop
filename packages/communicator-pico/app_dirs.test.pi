@@ -65,6 +65,8 @@ function takesOnlyHostAppIds(): void throws Error {
     expect(isValidAppId(bad)).toBe(false)
   }
   expect(failure("../../etc", ["HOME", "/h"])!.kind).toBe("InvalidAppId")
+  expect(failure("", ["HOME", "/h"])!.kind).toBe("InvalidAppId")
+  expect(failure("a/b", ["HOME", "/h"])!.kind).toBe("InvalidAppId")
 }
 
 // ---- creating the directories (the process environment is changed and put back)
@@ -111,6 +113,28 @@ async function failsWhenTheParentIsAFile(): Promise<void> throws Error {
   await remove(root, true)
 }
 
+async function failsWhenTheCacheParentIsAFile(): Promise<void> throws Error {
+  // The same for the cache: the data directory is fine, a file is where the cache home should be.
+  const root = scratchDir()
+  await mkdir(root, true)
+  const blocker = join(root, "blocker")
+  await writeText(blocker, "not a directory")
+  env.set("XDG_DATA_HOME", join(root, "data"))
+  env.set("XDG_CACHE_HOME", blocker)
+  let err: AppDirError? = null
+  try {
+    await appDirs("com.example.app")
+  } catch (e: AppDirError) {
+    err = e
+  }
+  expect(err != null).toBe(true)
+  expect(err!.kind).toBe("NotWritable")
+  expect(err!.path).toBe(join(blocker, "pico-desktop", "apps", "com.example.app", "backend"))
+  expect(err!.message).toContain("XDG_CACHE_HOME")
+  expect(err!.message).toContain(blocker)
+  await remove(root, true)
+}
+
 async function failsWhenTheDirectoryIsReadOnly(): Promise<void> throws Error {
   const root = scratchDir()
   const locked = join(root, "locked")
@@ -145,5 +169,6 @@ describe("where the directories are", () => {
 describe("creating them", () => {
   it("creates both on first use and keeps their content", createsOnFirstUse)
   it("fails with NotWritable, naming the directory and the variable, when a file is in the way", failsWhenTheParentIsAFile)
+  it("fails with NotWritable, naming XDG_CACHE_HOME, when a file is in the way of the cache", failsWhenTheCacheParentIsAFile)
   it("fails with NotWritable on a read-only directory", failsWhenTheDirectoryIsReadOnly)
 })
