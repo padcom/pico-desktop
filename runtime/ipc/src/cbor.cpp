@@ -465,6 +465,13 @@ std::optional<std::vector<std::byte>> raw_field(std::span<const std::byte> envel
   return std::vector<std::byte>(value->begin(), value->end());
 }
 
+std::optional<std::uint64_t> read_uint_field(std::span<const std::byte> envelope, std::uint64_t key) {
+  ReadResult result;
+  const auto entries = envelope_entries(envelope, result);
+  const auto value = entries ? field(envelope, *entries, key) : std::nullopt;
+  return value ? read_uint(*value) : std::nullopt;
+}
+
 std::vector<std::byte> with_field(std::span<const std::byte> envelope, std::uint64_t key,
                                   std::optional<std::uint64_t> value) {
   ReadResult result;

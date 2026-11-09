@@ -324,6 +324,171 @@ void subscriptions() {
   CHECK(out.backend.size() == 1 && has_code(out.backend[0], "UNKNOWN_METHOD"));
 }
 
+// A page that doesn't acknowledge what it was sent gets at most kMaxUnacked messages; the events
+// beyond are dropped and counted, never the responses (docs/protocol.md §7).
+void slow_page() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.session_ack(1, 1000);  // the lifecycle messages of connecting
+  router.session_ack(2, 1000);
+  router.from_session(1, 10, call(Kind::subscribe, 5, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend[0]).id, 10, 3));  // 1 in flight
+  out.clear();
+
+  const std::size_t room = Router::kMaxUnacked - 1;
+  for (std::size_t i = 0; i < room + 10; ++i) {
+    router.from_backend(event("clock", 10, 3));
+  }
+  CHECK(out.sessions.size() == room);
+  for (const auto& [session, message] : out.sessions) {
+    CHECK(session == 1 && !ipc::read_uint_field(message, ipc::kKeyDropped));
+  }
+  CHECK(out.lines.size() == 1);  // said once, not for every event
+  out.clear();
+
+  // Another page is not held back by it.
+  router.from_session(2, 20, call(Kind::subscribe, 1, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend[0]).id, 20, 4));
+  router.from_backend(event("clock", 20, 4));
+  CHECK(out.sessions.size() == 2 && out.sessions[1].first == 2);
+  out.clear();
+
+  // Responses and errors always go through, even to a page that is behind.
+  router.from_session(1, 10, call(Kind::request, 6, "greeting.hello"));
+  router.from_backend(answer(Kind::response, *header(out.backend.back()).id, 10));
+  CHECK(out.sessions.size() == 1 && header(out.sessions[0].second).kind == Kind::response);
+  out.clear();
+  router.from_backend(event("clock", 10, 3));
+  CHECK(out.sessions.empty());  // still behind
+
+  // It catches up: the next event says how many were dropped before it, once.
+  router.session_ack(1, Router::kMaxUnacked);
+  router.from_backend(event("clock", 10, 3));
+  CHECK(out.sessions.size() == 1);
+  CHECK(ipc::read_uint_field(out.sessions[0].second, ipc::kKeyDropped) == 11u);  // 10 beyond the room, and 1 while it was still behind
+  router.from_backend(event("clock", 10, 3));
+  CHECK(out.sessions.size() == 2 && !ipc::read_uint_field(out.sessions[1].second, ipc::kKeyDropped));
+
+  // An acknowledgement for a page that is gone, or more than was sent, is harmless.
+  router.end_session(1);
+  router.session_ack(1, 5);
+  router.session_ack(2, 100000);
+  router.from_backend(event("clock", 20, 4));
+  CHECK(out.sessions.back().first == 2);
+}
+
+// Events of two subscriptions are counted apart; a backend's own `d` is kept and added to.
+void drops_per_subscription() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.session_ack(1, 1000);
+  for (std::uint64_t id = 1; id <= 2; ++id) {
+    router.from_session(1, 10, call(Kind::subscribe, id, "clock"));
+    router.from_backend(answer(Kind::response, *header(out.backend[id - 1]).id, 10, id + 2));
+  }
+  router.session_ack(1, 1000);
+  out.clear();
+  for (std::size_t i = 0; i < Router::kMaxUnacked; ++i) {
+    router.from_backend(event("clock", 10, 3));
+  }
+  router.from_backend(event("clock", 10, 4));  // subscription 4: dropped once
+  router.from_backend(event("clock", 10, 4));  // and twice
+  router.session_ack(1, Router::kMaxUnacked);
+  out.clear();
+  router.from_backend(event("clock", 10, 3));
+  CHECK(out.sessions.size() == 1 && !ipc::read_uint_field(out.sessions[0].second, ipc::kKeyDropped));
+  router.from_backend(event("clock", 10, 4));
+  CHECK(out.sessions.size() == 2 && ipc::read_uint_field(out.sessions[1].second, ipc::kKeyDropped) == 2u);
+}
+
+// An event with a payload of `size` bytes of text (and the backend's own `d`, when it has one).
+Bytes big_event(std::uint64_t s, std::size_t size, std::optional<std::uint64_t> d = std::nullopt) {
+  ipc::Writer w;
+  w.map(5 + (d ? 1 : 0)).uint(0).uint(1).uint(1).uint(3).uint(3).text("clock").uint(4).text(std::string(size, 'x'));
+  w.uint(8).uint(s);
+  if (d) {
+    w.uint(9).uint(*d);
+  }
+  return w.take();
+}
+
+// What the backend already counted as dropped on an event the host then drops is not lost.
+void backend_drops_are_kept() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.session_ack(1, 1000);
+  router.from_session(1, 10, call(Kind::subscribe, 5, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend[0]).id, 10, 3));
+  router.session_ack(1, 1000);
+  for (std::size_t i = 0; i < Router::kMaxUnacked; ++i) {
+    router.from_backend(event("clock", 10, 3));
+  }
+  out.clear();
+  router.from_backend(big_event(3, 1, 3));  // dropped here, after the backend dropped 3 before it
+  CHECK(out.sessions.empty());
+  router.session_ack(1, Router::kMaxUnacked);
+  router.from_backend(event("clock", 10, 3));
+  CHECK(out.sessions.size() == 1 && ipc::read_uint_field(out.sessions[0].second, ipc::kKeyDropped) == 4u);
+  // And an event that arrives with its own d, once the page is caught up, keeps it.
+  router.from_backend(big_event(3, 1, 2));
+  CHECK(out.sessions.size() == 2 && ipc::read_uint_field(out.sessions[1].second, ipc::kKeyDropped) == 2u);
+}
+
+// A few big messages are as much of a backlog as many small ones: 8 MiB, not 256 x 4 MiB.
+void byte_bound() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.session_ack(1, 1000);
+  router.from_session(1, 10, call(Kind::subscribe, 5, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend[0]).id, 10, 3));
+  router.session_ack(1, 1000);
+  out.clear();
+  const std::size_t tile = 3 * 1024 * 1024;
+  for (int i = 0; i < 5; ++i) {
+    router.from_backend(big_event(3, tile));
+  }
+  CHECK(out.sessions.size() == 3);  // 3, 6 and 9 MiB are sent: the fourth finds 9 MiB >= 8 MiB
+  CHECK(!ipc::read_uint_field(out.sessions[2].second, ipc::kKeyDropped));
+  // Acknowledging frees the room (by the sizes of the oldest messages), and the next says what it missed.
+  router.session_ack(1, 3);
+  router.from_backend(big_event(3, 100));
+  CHECK(out.sessions.size() == 4 && ipc::read_uint_field(out.sessions[3].second, ipc::kKeyDropped) == 2u);
+  // A response goes through however big the backlog is.
+  router.from_backend(big_event(3, tile));
+  router.from_backend(big_event(3, tile));
+  router.from_backend(big_event(3, tile));
+  out.clear();
+  router.from_session(1, 10, call(Kind::request, 7, "greeting.hello"));
+  router.from_backend(answer(Kind::response, *header(out.backend.back()).id, 10));
+  CHECK(out.sessions.size() == 1 && header(out.sessions[0].second).kind == Kind::response);
+}
+
+// What was counted for a subscription that ends is forgotten with it.
+void ended_subscription_forgets_drops() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.session_ack(1, 1000);
+  router.from_session(1, 10, call(Kind::subscribe, 5, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend[0]).id, 10, 3));
+  router.session_ack(1, 1000);
+  for (std::size_t i = 0; i < Router::kMaxUnacked + 5; ++i) {
+    router.from_backend(event("clock", 10, 3));
+  }
+  router.from_session(1, 10, control(Kind::unsubscribe, std::nullopt, 3));
+  router.session_ack(1, 1000);
+  // The same number again, for a new subscription: it starts from nothing.
+  router.from_session(1, 10, call(Kind::subscribe, 6, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend.back()).id, 10, 3));
+  out.clear();
+  router.from_backend(event("clock", 10, 3));
+  CHECK(out.sessions.size() == 1 && !ipc::read_uint_field(out.sessions[0].second, ipc::kKeyDropped));
+}
+
 void restart() {
   Fake out;
   Router router(out);
@@ -463,6 +628,11 @@ int main() {
   backend_answers();
   events();
   subscriptions();
+  slow_page();
+  drops_per_subscription();
+  backend_drops_are_kept();
+  byte_bound();
+  ended_subscription_forgets_drops();
   restart();
   refusals();
   echo();

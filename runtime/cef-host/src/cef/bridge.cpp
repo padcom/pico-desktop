@@ -3,7 +3,11 @@
 #include <vector>
 
 #include "host.hpp"
+#include "include/base/cef_bind.h"
+#include "include/base/cef_callback.h"
 #include "include/cef_command_line.h"
+#include "include/cef_task.h"
+#include "include/wrapper/cef_closure_task.h"
 #include "include/cef_process_message.h"
 #include "include/cef_values.h"
 
@@ -108,20 +112,42 @@ bool RendererBridge::on_reply(CefRefPtr<CefFrame> frame, CefRefPtr<CefProcessMes
     return true;
   }
   CefRefPtr<CefV8Context> context = it->second.context;
-  if (!context->Enter()) {
-    return true;
+  const std::int32_t id = it->first;
+  if (context->Enter()) {
+    CefRefPtr<CefV8Value> bridge = context->GetGlobal()->GetValue("picoDesktop");
+    CefRefPtr<CefV8Value> handler = bridge ? bridge->GetValue("onmessage") : nullptr;
+    if (handler && handler->IsFunction()) {
+      std::vector<std::byte> data(bytes->GetSize());
+      bytes->GetData(data.data(), data.size(), 0);
+      CefV8ValueList call_args{CefV8Value::CreateArrayBufferWithCopy(data.data(), data.size()),
+                               CefV8Value::CreateInt(static_cast<std::int32_t>(contexts_.size()))};
+      handler->ExecuteFunction(bridge, call_args);
+    }
+    context->Exit();
   }
-  CefRefPtr<CefV8Value> bridge = context->GetGlobal()->GetValue("picoDesktop");
-  CefRefPtr<CefV8Value> handler = bridge ? bridge->GetValue("onmessage") : nullptr;
-  if (handler && handler->IsFunction()) {
-    std::vector<std::byte> data(bytes->GetSize());
-    bytes->GetData(data.data(), data.size(), 0);
-    CefV8ValueList call_args{CefV8Value::CreateArrayBufferWithCopy(data.data(), data.size()),
-                             CefV8Value::CreateInt(static_cast<std::int32_t>(contexts_.size()))};
-    handler->ExecuteFunction(bridge, call_args);
-  }
-  context->Exit();
+  note_handled(frame, id);  // handled, or nobody was listening: either way it is off the host's books
   return true;
+}
+
+void RendererBridge::note_handled(CefRefPtr<CefFrame> frame, std::int32_t id) {
+  Unacked& entry = unacked_[id];
+  entry.frame = frame;
+  ++entry.count;
+  if (!ack_scheduled_) {
+    ack_scheduled_ = true;
+    CefPostTask(TID_RENDERER, base::BindOnce(&RendererBridge::send_acks, base::Unretained(this)));
+  }
+}
+
+void RendererBridge::send_acks() {
+  ack_scheduled_ = false;
+  for (const auto& [id, entry] : unacked_) {
+    CefRefPtr<CefProcessMessage> ack = CefProcessMessage::Create(kBridgeAck);
+    ack->GetArgumentList()->SetInt(0, id);
+    ack->GetArgumentList()->SetInt(1, entry.count);
+    entry.frame->SendProcessMessage(PID_BROWSER, ack);
+  }
+  unacked_.clear();
 }
 
 }  // namespace pico_desktop::host::cef

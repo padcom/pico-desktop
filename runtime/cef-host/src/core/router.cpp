@@ -127,7 +127,7 @@ void Router::session_hello(std::uint64_t session, std::uint64_t window) {
   current_[window] = session;
   session_window_[session] = window;
   if (ready_) {
-    out_.to_session(session, lifecycle("ready", epoch_));
+    send(session, lifecycle("ready", epoch_));
   }
 }
 
@@ -161,7 +161,7 @@ void Router::answer_here(std::uint64_t session, std::uint64_t ui_id, std::option
   if (payload) {
     w.uint(4).raw(*payload);
   }
-  out_.to_session(session, w.take());
+  send(session, w.take());
 }
 
 void Router::session_answer(std::uint64_t session, std::uint64_t window, std::span<const std::byte> message,
@@ -188,6 +188,7 @@ void Router::session_unsubscribe(std::uint64_t session, std::uint64_t window, st
   const auto it = subscriptions_.find(s);
   if (it != subscriptions_.end() && it->second == session) {
     subscriptions_.erase(it);
+    dropped_.erase(std::make_pair(session, s));
     out_.to_backend(ipc::with_window(message, window));
   }
 }
@@ -222,6 +223,8 @@ void Router::end_session(std::uint64_t session) {
     current_.erase(it);
   }
   session_window_.erase(session);
+  unacked_.erase(session);
+  std::erase_if(dropped_, [session](const auto& entry) { return entry.first.first == session; });
 }
 
 // ----------------------------------------------------------------------------------- backend
@@ -251,7 +254,7 @@ void Router::from_backend(std::span<const std::byte> message) {
       } else if (h.name == std::string("hello") && !ready_) {
         ready_ = true;
         for (const auto& [window, session] : current_) {
-          out_.to_session(session, lifecycle("ready", epoch_));
+          send(session, lifecycle("ready", epoch_));
         }
       }
       break;
@@ -310,12 +313,56 @@ void Router::backend_event(std::span<const std::byte> message, std::optional<std
                            std::optional<std::uint64_t> window) {
   if (s) {
     if (const auto it = subscriptions_.find(*s); it != subscriptions_.end()) {
-      deliver(it->second, message);
+      deliver_event(it->second, message, *s);
     }
     return;
   }
   for (const auto session : targets(window)) {
-    deliver(session, message);
+    deliver_event(session, message, 0);
+  }
+}
+
+void Router::deliver_event(std::uint64_t session, std::span<const std::byte> message, std::uint64_t s) {
+  if (!is_current(session)) {
+    return;
+  }
+  const auto key = std::make_pair(session, s);
+  const Backlog& backlog = unacked_[session];
+  if (backlog.sizes.size() >= kMaxUnacked || backlog.bytes >= kMaxUnackedBytes) {
+    // The page isn't keeping up: this new event is dropped, and the next one that gets through says
+    // so. What the backend had already counted on this event (its own `d`) is not lost with it.
+    std::uint64_t& count = dropped_[key];
+    if (count == 0) {
+      out_.log("pd-host: a page isn't keeping up with its events; dropping new ones until it does");
+    }
+    count += 1 + ipc::read_uint_field(message, ipc::kKeyDropped).value_or(0);
+    return;
+  }
+  Bytes event = ipc::without_window(message);
+  if (const auto it = dropped_.find(key); it != dropped_.end()) {
+    const std::uint64_t before = ipc::read_uint_field(event, ipc::kKeyDropped).value_or(0);
+    event = ipc::with_field(event, ipc::kKeyDropped, before + it->second);
+    dropped_.erase(it);
+  }
+  send(session, std::move(event));
+}
+
+void Router::send(std::uint64_t session, Bytes message) {
+  Backlog& backlog = unacked_[session];
+  backlog.sizes.push_back(message.size());
+  backlog.bytes += message.size();
+  out_.to_session(session, std::move(message));
+}
+
+void Router::session_ack(std::uint64_t session, std::uint64_t count) {
+  const auto it = unacked_.find(session);
+  if (it == unacked_.end()) {
+    return;
+  }
+  Backlog& backlog = it->second;
+  for (std::uint64_t i = 0; i < count && !backlog.sizes.empty(); ++i) {
+    backlog.bytes -= backlog.sizes.front();
+    backlog.sizes.pop_front();
   }
 }
 
@@ -324,6 +371,7 @@ void Router::backend_ended_subscription(std::span<const std::byte> message, std:
   if (it != subscriptions_.end()) {
     const auto session = it->second;
     subscriptions_.erase(it);
+    dropped_.erase(std::make_pair(session, s));
     deliver(session, message);
   }
 }
@@ -339,15 +387,16 @@ void Router::backend_stopped() {
   ready_ = false;
   for (const auto& [id, request] : ui_requests_) {
     if (is_current(request.session)) {
-      out_.to_session(request.session,
+      send(request.session,
                       error(request.ui_id, "DISCONNECTED", "the backend stopped", std::nullopt));
     }
   }
   ui_requests_.clear();
   backend_requests_.clear();
   subscriptions_.clear();
+  dropped_.clear();  // their subscriptions are gone
   for (const auto& [window, session] : current_) {
-    out_.to_session(session, lifecycle("disconnected", std::nullopt));
+    send(session, lifecycle("disconnected", std::nullopt));
   }
 }
 
@@ -356,7 +405,7 @@ void Router::closing() {
     out_.to_backend(lifecycle("closing", std::nullopt));
   }
   for (const auto& [window, session] : current_) {
-    out_.to_session(session, lifecycle("closing", std::nullopt));
+    send(session, lifecycle("closing", std::nullopt));
   }
 }
 
@@ -389,7 +438,7 @@ void Router::backend_closing() { out_.to_backend(lifecycle("closing", std::nullo
 
 void Router::announce(const char* name) {
   for (const auto& [window, session] : current_) {
-    out_.to_session(session, lifecycle(name, std::nullopt));
+    send(session, lifecycle(name, std::nullopt));
   }
 }
 
@@ -411,12 +460,12 @@ std::vector<std::uint64_t> Router::targets(std::optional<std::uint64_t> window) 
 
 void Router::deliver(std::uint64_t session, std::span<const std::byte> message) {
   if (is_current(session)) {
-    out_.to_session(session, ipc::without_window(message));
+    send(session, ipc::without_window(message));
   }
 }
 
 void Router::refuse_session(std::uint64_t session, std::uint64_t id, const char* code, const std::string& message) {
-  out_.to_session(session, error(id, code, message, std::nullopt));
+  send(session, error(id, code, message, std::nullopt));
 }
 
 bool Router::is_current(std::uint64_t session) const {

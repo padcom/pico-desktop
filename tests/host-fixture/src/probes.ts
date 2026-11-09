@@ -2,7 +2,7 @@
 // Reported as `pd-info:` lines: evidence for the comparison, never test failures.
 type Probe = readonly [name: string, probe: () => string | Promise<string>]
 
-const info = (name: string, value: string) => console.log(`pd-info: ${name}=${value}`)
+export const info = (name: string, value: string) => console.log(`pd-info: ${name}=${value}`)
 
 async function attempt([name, probe]: Probe) {
   try {

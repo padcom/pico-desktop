@@ -38,6 +38,8 @@ class Link : public RouterOutput {
   /// A message from the bridge context `context` of `frame`.
   void from_page(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, int context,
                  std::span<const std::byte> message);
+  /// The page in that bridge context has handled `count` more of the messages sent to it.
+  void page_acked(const std::string& frame_id, int context, std::uint64_t count);
   /// That bridge context was released (navigation, reload, frame gone).
   void page_closed(const std::string& frame_id, int context);
   /// Every page of `browser` is gone (its renderer ended, or the browser closed).

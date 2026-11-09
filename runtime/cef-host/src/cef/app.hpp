@@ -17,6 +17,7 @@ class HostApp : public CefApp, public CefBrowserProcessHandler, public CefRender
   CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
   CefRefPtr<CefRenderProcessHandler> GetRenderProcessHandler() override { return this; }
   void OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) override;
+  void OnBeforeCommandLineProcessing(const CefString& process_type, CefRefPtr<CefCommandLine> command_line) override;
 
   // Browser process.
   void OnContextInitialized() override;
