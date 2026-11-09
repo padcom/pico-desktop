@@ -107,7 +107,25 @@ int exit_watch(const ipc::ChildProcess& child) {
   }
   struct kevent change;
   EV_SET(&change, child.pid, EVFILT_PROC, EV_ADD | EV_ONESHOT, NOTE_EXIT, 0, nullptr);
-  if (::kevent(kq, &change, 1, nullptr, 0, nullptr) != 0) {
+  const bool registered = ::kevent(kq, &change, 1, nullptr, 0, nullptr) == 0;
+  // A child that exited before the registration (a backend that ends at once) either fails it or
+  // never delivers NOTE_EXIT, and then only the pipes' EOF would tell: not when something it started
+  // holds them (host.hang's stray backend, flaky on macOS). So look, after registering: an exit from
+  // here on is delivered. A closed pipe's read end stands for "already exited": it polls readable.
+  siginfo_t info{};
+  const bool gone = ::waitid(P_PID, static_cast<id_t>(child.pid), &info, WEXITED | WNOHANG | WNOWAIT) == 0 &&
+                    info.si_pid == child.pid;
+  if (gone) {
+    ::close(kq);
+    int ends[2];
+    if (::pipe(ends) != 0) {
+      return -1;
+    }
+    ::close(ends[1]);
+    ::fcntl(ends[0], F_SETFD, FD_CLOEXEC);
+    return ends[0];
+  }
+  if (!registered) {
     ::close(kq);
     return -1;
   }
