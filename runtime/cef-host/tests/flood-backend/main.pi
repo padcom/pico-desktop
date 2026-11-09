@@ -1,0 +1,21 @@
+// A test backend that publishes the topic "flood": a counter (1, 2, 3, …) every millisecond or so
+// until the subscriber leaves (tests/flood.sh: a page that stops reading for two seconds).
+import { Cbor, Communicator, Sink, StdioTransport } from "../../../../packages/communicator-pico/index"
+
+class Counter {
+  public n: int = 0
+  public timer: int = 0
+}
+
+function flood(_params: Cbor?, sink: Sink): void throws Error {
+  const counter = new Counter()
+  counter.timer = setInterval(() => {
+    counter.n += 1
+    sink.next(Cbor.Uint(counter.n as u64))
+  }, 1)
+  sink.onClose = () => clearInterval(counter.timer)
+}
+
+const communicator = new Communicator(new StdioTransport())
+communicator.publish("flood", flood)
+await communicator.run()

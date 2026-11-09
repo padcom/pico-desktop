@@ -61,6 +61,10 @@ std::optional<std::vector<std::byte>> raw_field(std::span<const std::byte> envel
 /// Envelope keys the host rewrites when routing.
 inline constexpr std::uint64_t kKeyId = 2;
 inline constexpr std::uint64_t kKeyWindow = 6;
+inline constexpr std::uint64_t kKeyDropped = 9;
+
+/// The value of uint-keyed field `key` of an envelope, if it has one and it is an unsigned integer.
+std::optional<std::uint64_t> read_uint_field(std::span<const std::byte> envelope, std::uint64_t key);
 
 /// `envelope` with uint field `key` set to `value` (replacing it, or added at the end), or removed
 /// when `value` is empty. Empty on an invalid envelope.

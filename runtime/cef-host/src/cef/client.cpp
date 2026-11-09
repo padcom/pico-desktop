@@ -39,11 +39,17 @@ bool HostClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefRefP
                                           CefProcessId source_process, CefRefPtr<CefProcessMessage> message) {
   CEF_REQUIRE_UI_THREAD();
   const std::string name = message->GetName().ToString();
-  if (source_process != PID_RENDERER || (name != kBridgeSend && name != kBridgeClosed)) {
+  if (source_process != PID_RENDERER || (name != kBridgeSend && name != kBridgeClosed && name != kBridgeAck)) {
     return false;
   }
   CefRefPtr<CefListValue> in = message->GetArgumentList();
   if (!frame || in->GetType(0) != VTYPE_INT) {
+    return true;
+  }
+  if (name == kBridgeAck) {
+    if (in->GetType(1) == VTYPE_INT && in->GetInt(1) > 0) {
+      link().page_acked(frame->GetIdentifier().ToString(), in->GetInt(0), static_cast<std::uint64_t>(in->GetInt(1)));
+    }
     return true;
   }
   if (name == kBridgeClosed) {

@@ -122,6 +122,12 @@ static void header_and_window() {
   const auto no_id = ipc::with_field(request, ipc::kKeyId, std::nullopt);
   check(ipc::check_profile(no_id) == std::nullopt && !ipc::read_envelope(no_id), "with_field removes a field (a request then needs its id)");
 
+  check(ipc::read_uint_field(renumbered, ipc::kKeyId) == 1000u, "read_uint_field reads an unsigned field");
+  check(!ipc::read_uint_field(request, ipc::kKeyDropped), "read_uint_field: absent when the envelope has no such field");
+  check(!ipc::read_uint_field(request, 3), "read_uint_field: absent when the field is text");
+  check(ipc::read_uint_field(ipc::with_field(request, ipc::kKeyDropped, 70000), ipc::kKeyDropped) == 70000u,
+        "read_uint_field reads a four-byte value");
+
   // Large values and lengths use the right head forms.
   const auto big = ipc::Writer().uint(1000000000000ull).take();
   check(ipc::to_hex(big) == "1b000000e8d4a51000", "uint head forms");

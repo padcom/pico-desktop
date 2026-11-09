@@ -16,6 +16,7 @@ namespace pico_desktop::host::cef {
 inline constexpr const char* kBridgeSend = "pd.send";      // renderer → browser: [context id, bytes]
 inline constexpr const char* kBridgeReply = "pd.reply";    // browser → renderer: [context id, bytes]
 inline constexpr const char* kBridgeClosed = "pd.closed";  // renderer → browser: [context id]
+inline constexpr const char* kBridgeAck = "pd.ack";        // renderer → browser: [context id, replies handled]
 
 /// The largest message either side of the bridge accepts (docs/protocol.md §2).
 inline constexpr std::size_t kMaxBridgeMessage = 4 * 1024 * 1024;

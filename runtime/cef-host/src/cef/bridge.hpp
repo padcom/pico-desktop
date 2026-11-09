@@ -30,10 +30,21 @@ class RendererBridge {
     CefRefPtr<CefV8Context> context;
     CefString frame_id;
   };
+  struct Unacked {
+    CefRefPtr<CefFrame> frame;
+    std::int32_t count = 0;
+  };
+
+  /// The page's script has handled a reply for context `id`: the host hears about it (`kBridgeAck`)
+  /// once the renderer's thread is free again, so a page stuck in a long script acknowledges nothing.
+  void note_handled(CefRefPtr<CefFrame> frame, std::int32_t id);
+  void send_acks();
 
   Policy policy_;
   std::int32_t next_id_ = 1;
   std::map<std::int32_t, Live> contexts_;
+  std::map<std::int32_t, Unacked> unacked_;
+  bool ack_scheduled_ = false;
 };
 
 }  // namespace pico_desktop::host::cef

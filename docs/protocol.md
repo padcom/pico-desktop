@@ -161,7 +161,7 @@ Nothing in the path may grow without bound when a reader is slow. Backend → pa
 |---|---|---|
 | the backend's subscription (`Sink`) | 256 undelivered events per subscription | **new** events are dropped and counted; the next one delivered carries `d`, how many |
 | the pipe between backend and host | the OS pipe (64 KiB) | the backend's write waits, so its events queue in the `Sink` (above) |
-| the host's queue to the page | **none yet** | **a page that is busy (long JavaScript, a hidden tab) lets the host's and the renderer's memory grow as fast as the backend publishes.** Tracked in #50: a bounded queue with acknowledgements, dropping events (never responses) and counting them in `d` |
+| the host's queue to the page | 256 messages the page has not yet acknowledged, per page | **new** events are dropped (never responses, errors or lifecycle messages) and counted per subscription; the next event delivered carries `d`, the backend's own count plus the host's. The renderer acknowledges the messages it has handled once its thread is free, so a page stuck in long JavaScript acknowledges nothing and stops being sent events (`tests/flood.sh`) |
 | the host's queue to the backend (page → backend) | 1024 messages or 16 MiB | new requests and subscriptions from pages get `BUSY`, their events are dropped; answers to the backend's own requests always go through |
 
 Responses and errors are never dropped by a bound: only events are. A request waiting for an answer

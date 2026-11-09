@@ -298,6 +298,12 @@ if(NOT WIN32)  # Windows: its crashing and stray backends are shell scripts
     COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/hang.sh ${PD_HOST} ${PD_FIXTURE_DIR})
   set_tests_properties(host.hang PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endif()
+# A page that stops reading gets a bounded backlog, and is told what it missed (#50). Needs pico.
+if(NOT WIN32)
+  add_test(NAME host.flood
+    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/flood.sh ${PD_HOST})
+  set_tests_properties(host.flood PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+endif()
 if(NOT WIN32)  # Windows: notifications aren't implemented on Windows yet
   add_test(NAME host.services
     COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/services.sh ${PD_HOST} ${PD_FIXTURE_DIR})
