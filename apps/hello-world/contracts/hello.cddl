@@ -3,7 +3,7 @@
 ; answers ui.confirm (the backend asks it from greeting.ask); the backend emits greeting.greeted
 ; after each greeting. window.retitle and files.pick use the host's native services from Pico (the
 ; app declares only the `window` capability, so files.pick is refused with NOT_ALLOWED). data.echo
-; sends bytes back, with their length and sum.
+; sends bytes back, with their length and sum. bench.events publishes a timed load of events.
 services = {
   "greeting.hello": ["method", hello-request, greeting],
   "greeting.ask": ["method", hello-request, greeting],
@@ -13,6 +13,7 @@ services = {
   "window.retitle": ["method", window-title, window-title],
   "files.pick": ["method", null, picked],
   "data.echo": ["method", bytes-message, bytes-echo],
+  "bench.events": ["subscription", bench-params, bench-event],
 }
 
 hello-request = { name: tstr }
@@ -39,3 +40,10 @@ picked = { paths: [* tstr] }
 bytes-message = { data: bstr }
 
 bytes-echo = { data: bstr, length: uint .size 4, sum: uint .size 4 }
+
+; The benchmark's load (docs/ipc-benchmark.md): `count` events, `perSecond` of them each second, each
+; carrying `bytes` bytes and the time the backend sent it (milliseconds since the epoch, this machine's
+; clock). Map tiles are 50 a second of 30 000 bytes; telemetry is 100 a second of a few dozen.
+bench-params = { perSecond: uint .size 2, count: uint .size 4, bytes: uint .size 4 }
+
+bench-event = { n: uint .size 4, sentAt: uint, data: bstr }

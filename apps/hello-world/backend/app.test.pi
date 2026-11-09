@@ -3,15 +3,18 @@ import { describe, it, expect } from "std/test"
 import { Cbor, Envelope, MemoryEnd, decodeEnvelope, encodeEnvelope, envelope, integer, memoryPair } from "pico-desktop/communicator"
 import { createBackend } from "./app"
 import {
+  BenchParams,
   BytesMessage,
   ClockParams,
   ConfirmResponse,
   HelloRequest,
+  decodeBenchEvent,
   decodeBytesEcho,
   decodeConfirmRequest,
   decodeGreeted,
   decodeGreeting,
   decodeTick,
+  encodeBenchParams,
   encodeBytesMessage,
   encodeClockParams,
   encodeConfirmResponse,
@@ -107,6 +110,29 @@ async function ticks(): Promise<void> throws Error {
   f.peer.close()
 }
 
+/// The benchmark's load: exactly `count` events, in order, of the size asked for, each stamped with
+/// the time it was sent; then the timer stops by itself (or this test would never end).
+async function benchEventsArrive(): Promise<void> throws Error {
+  const f = await connected()
+  const before = Date.now() as int
+  await f.call("subscribe", 1, "bench.events", encodeBenchParams(BenchParams { perSecond: 1000, count: 3, bytes: 100 }))
+  const accepted = await f.next()
+  expect(accepted.k == "response" && accepted.s != null).toBe(true)
+  for (let want = 1; want <= 3; want++) {
+    const e = await f.next()
+    const event = decodeBenchEvent(e.p ?? Cbor.Null, "$")
+    expect(e.k == "event" && e.n == "bench.events" && e.s == accepted.s).toBe(true)
+    expect(event.n as int).toBe(want)
+    expect(event.data.length).toBe(100)
+    expect((event.sentAt as int) >= before && (event.sentAt as int) <= (Date.now() as int)).toBe(true)
+  }
+  const stop = envelope("unsubscribe")
+  stop.s = accepted.s
+  stop.w = 1
+  await f.send(stop)
+  f.peer.close()
+}
+
 /// `n` bytes counting 0, 1, … 255, 0, … (every byte value, so none is lost or changed to text).
 function counting(n: int): Uint8Array {
   const bytes = new Uint8Array(n)
@@ -157,4 +183,5 @@ describe("the hello-world backend", () => {
   it("publishes a clock", ticks)
   it("echoes byte strings of any size, byte for byte", echoesBytes)
   it("refuses text where bytes belong", refusesTextForBytes)
+  it("publishes the benchmark's load, and stops after the last event", benchEventsArrive)
 })

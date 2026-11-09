@@ -3,6 +3,7 @@
 // covers the F3 slice: typed RPC both ways, events, a managed subscription, typed errors, and a
 // backend crash and restart in the same window (host.killBackend exists only in --self-test).
 import { type Communicator, CommunicatorError, type Subscription } from '@pico-desktop/communicator'
+import { LOADS, type Load, type Sample, describe, summarize, verdict } from './bench'
 import type { Services } from './generated/hello'
 import type { HelloApp } from './app'
 import type { DomView } from './view'
@@ -230,6 +231,29 @@ function bytesArrive({ c }: Context): Promise<Outcome> {
 }
 
 /**
+ * Plays one of the benchmark's loads: the Pico backend publishes it, the page records when each event
+ * arrives. Reported as a `pd-info` line, and failed only outside the (generous) limits of bench.ts,
+ * with all the numbers in the message.
+ *
+ * @param c the communicator
+ * @param load the load
+ * @returns the outcome
+ */
+async function benchmark(c: Communicator<Services>, load: Load): Promise<Outcome> {
+  const samples: Sample[] = []
+  const { perSecond, count, bytes } = load
+  const subscription = await c.subscribe('bench.events', { perSecond, count, bytes }, (event, delivery) => {
+    samples.push({ sentAt: Number(event.sentAt), receivedAt: Date.now(), dropped: delivery.dropped })
+  })
+  await until(() => samples.length >= load.count, (load.count / load.perSecond) * 1000 + 5000)
+  await subscription.unsubscribe()
+  const summary = summarize(load, samples)
+  console.log(`pd-info: bench ${describe(summary)}`)
+
+  return verdict(summary)
+}
+
+/**
  * Round trips through the whole path (page → host → Pico → host → page): 1000 one after another,
  * then 1000 at once. Reported as `pd-info` lines (docs/ipc-benchmark.md).
  *
@@ -277,6 +301,10 @@ const CHECKS: [string, Check][] = [
   ['Pico refuses text where bytes belong',
     ({ untyped }) => expectCode(untyped.request('data.echo', { data: 'AAEC' }), 'INVALID_PAYLOAD')],
   ['2000 round trips through the bridge (measured)', throughput],
+  ...LOADS.map((load): [string, Check] => [
+    `${load.name}: ${load.count} events at ${load.perSecond}/s, ${load.bytes} bytes each (measured)`,
+    ({ c }) => benchmark(c, load),
+  ]),
   ['a backend crash fails the pending call with DISCONNECTED; the window stays', crash],
   ['the backend restarts in the same window (epoch 2)', restarts],
   ['the subscription resumes by itself, once, from a fresh publisher', resumes],

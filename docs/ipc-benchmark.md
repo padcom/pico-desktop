@@ -60,3 +60,36 @@ pico-lang #90 has the analysis. The fix runs due finalizers between busy loop st
 This doesn't depend on the transport: both transports showed the same growth.
 
 **The rest: pico-lang #97 (2026-11-07).** The remaining ~410 MB grew linearly with the number of requests, about 1 MiB kept per 1 MiB echoed, and the code under test wasn't the cause. `Map.delete` kept a deleted entry, key and value, until a rehash, and rehashes always doubled the buckets. The event loop's `io` map has one entry per I/O job, so it kept every read's promise and its 64 KiB chunk: a program reading stdin kept about half of everything it had read. PR #98 fixes it, and the backend now stays at 20 MB after 400 × 1 MiB requests. The pico-desktop Communicator's own maps (running handlers, waiting requests) churn the same way and get the fix too. #95 (PR #96) is separate: buffers in long synchronous code.
+
+## Map tiles and telemetry through the whole path (#50)
+
+The parity work will push two kinds of traffic from the backend to the page: **map tiles** (256 × 256, about
+30 KB, 50 a second) and **telemetry** events (100 a second). hello-world's self-test plays both through the
+real path (Pico backend → pipe → host → renderer → page) and checks the result. This is the number that
+matters for the user: not the Pico link alone (the table above) but what reaches the page, and when.
+
+- **The load.** `bench.events` (hello-world's contract, `apps/hello-world/contracts/hello.cddl`) is a
+  subscription: the backend publishes `count` events, `perSecond` of them every second, each carrying
+  `bytes` bytes and the time it was sent. The page records the time each one arrives and the `dropped`
+  count the publisher puts on an event after it dropped some (docs/protocol.md, "Backpressure").
+  Loads (`apps/hello-world/frontend/src/bench.ts`): *map tiles* 150 events of 30 000 bytes at 50/s, and
+  *telemetry* 300 events of 64 bytes at 100/s, one after the other, each about 3 seconds.
+- **Latency** is the page's `Date.now()` at arrival minus the backend's `Date.now()` at sending: the same
+  machine's clock, so it is meaningful to about a millisecond. Reported are p50, p95, p99 and the maximum.
+- **Lost** is `count` minus what arrived. **Dropped by the publisher** is the sum of the `d` the page saw.
+  With a page that keeps up, both should be 0.
+- **The gate.** The self-test fails when more than 2 % are lost, the p95 latency is above 500 ms, or the
+  maximum above 2 s (`LIMITS` in `bench.ts`). They are far above what a healthy run does, on purpose: CI
+  runners differ, and a flaky gate costs more than it catches. A failure prints every number on one line.
+- **Where it runs.** The self-test (ctest `hello-world.self-test`) runs in the CEF host jobs on linux-x64
+  and linux-arm64 and on macOS and Windows. The `pd-info: bench …` lines are printed by
+  `ctest --preset cef -R hello-world.self-test -V`, and `pnpm hello-world:self-test` on a machine with a
+  host build. The statistics and the pass/fail rule are unit-tested (`bench.test.ts`), and the Pico side is
+  unit-tested too (the backend publishes exactly `count` events of the size asked for and stops).
+- **Not measured here.** The numbers below are from CI runs, not from the author's machine, which has no
+  CEF host build. The slow-page case (a page that stops reading) is *not* part of this benchmark: the host
+  has no bound toward the page yet (docs/protocol.md, "Backpressure"), which is the next change in #50.
+
+### Results
+
+_The first CI run that prints them goes here._

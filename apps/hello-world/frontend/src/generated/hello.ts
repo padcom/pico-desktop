@@ -153,6 +153,24 @@ function validateBytesEchoInto(value: any, path: string): boolean {
 /** The first problem with `value` as a bytes-echo, or null. */
 export const validateBytesEcho = (value: unknown) => run(validateBytesEchoInto, value)
 
+export type BenchParams = { "perSecond": number, "count": number, "bytes": number }
+
+function validateBenchParamsInto(value: any, path: string): boolean {
+  return map(value, path, ["perSecond","count","bytes"]) && (value["perSecond"] === undefined ? fail(`${path}.perSecond`, 'present') : nested(value["perSecond"], `${path}.perSecond`, (value, path) => uint(value, path, 0xffff))) && (value["count"] === undefined ? fail(`${path}.count`, 'present') : nested(value["count"], `${path}.count`, (value, path) => uint(value, path, 0xffffffff))) && (value["bytes"] === undefined ? fail(`${path}.bytes`, 'present') : nested(value["bytes"], `${path}.bytes`, (value, path) => uint(value, path, 0xffffffff)))
+}
+
+/** The first problem with `value` as a bench-params, or null. */
+export const validateBenchParams = (value: unknown) => run(validateBenchParamsInto, value)
+
+export type BenchEvent = { "n": number, "sentAt": number | bigint, "data": Uint8Array }
+
+function validateBenchEventInto(value: any, path: string): boolean {
+  return map(value, path, ["n","sentAt","data"]) && (value["n"] === undefined ? fail(`${path}.n`, 'present') : nested(value["n"], `${path}.n`, (value, path) => uint(value, path, 0xffffffff))) && (value["sentAt"] === undefined ? fail(`${path}.sentAt`, 'present') : nested(value["sentAt"], `${path}.sentAt`, (value, path) => uint(value, path, Number.MAX_SAFE_INTEGER) && (typeof value !== 'bigint' || value < 2n ** 64n))) && (value["data"] === undefined ? fail(`${path}.data`, 'present') : nested(value["data"], `${path}.data`, (value, path) => value instanceof Uint8Array || fail(path, 'bytes')))
+}
+
+/** The first problem with `value` as a bench-event, or null. */
+export const validateBenchEvent = (value: unknown) => run(validateBenchEventInto, value)
+
 /** The services, for a typed Communicator. */
 export interface Services {
   "greeting.hello": { kind: 'method', request: HelloRequest, response: Greeting }
@@ -163,6 +181,7 @@ export interface Services {
   "window.retitle": { kind: 'method', request: WindowTitle, response: WindowTitle }
   "files.pick": { kind: 'method', request: null, response: Picked }
   "data.echo": { kind: 'method', request: BytesMessage, response: BytesEcho }
+  "bench.events": { kind: 'subscription', params: BenchParams, value: BenchEvent }
 }
 
 const services: Record<string, Partial<Record<string, Check>>> = {
@@ -196,6 +215,10 @@ const services: Record<string, Partial<Record<string, Check>>> = {
   "data.echo": {
     request: (value: any, path: string) => validateBytesMessageInto(value, path),
     response: (value: any, path: string) => validateBytesEchoInto(value, path),
+  },
+  "bench.events": {
+    params: (value: any, path: string) => validateBenchParamsInto(value, path),
+    value: (value: any, path: string) => validateBenchEventInto(value, path),
   },
 }
 
