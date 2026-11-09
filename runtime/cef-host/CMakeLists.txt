@@ -301,7 +301,7 @@ endif()
 # A page that stops reading gets a bounded backlog, and is told what it missed (#50). Needs pico.
 if(NOT WIN32)
   add_test(NAME host.flood
-    COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/flood.sh ${PD_HOST})
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/flood.sh ${PD_HOST})  # through bash: no executable bit needed
   set_tests_properties(host.flood PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endif()
 if(NOT WIN32)  # Windows: notifications aren't implemented on Windows yet
