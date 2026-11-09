@@ -42,7 +42,7 @@ export type Publisher = (params: Cbor?, sink: Sink) => void throws Error
 /// Receives an event.
 export type Listener = (payload: Cbor?, window: u64?) => void
 
-/// Undelivered values a subscription may have before older ones are dropped.
+/// Undelivered values a subscription may have; beyond that, new values are dropped (and counted).
 export const MAX_UNDELIVERED: int = 256
 
 /// A subscription as its publisher sees it.

@@ -125,10 +125,54 @@ subscription ID, chosen by the publisher) or refuses with `error`. Values then a
 that `s` and the topic `n`. Either side ends a subscription with `unsubscribe` (`s`, plus `err`
 when the publisher ends it because of a failure).
 
-The publisher keeps at most **256** undelivered events per subscription. Beyond that, the oldest are
-dropped, and the next delivered event says how many with `d`. The payload keeps its type. After a
+The publisher keeps at most **256** undelivered events per subscription. Beyond that, a **new** event
+is dropped (the ones already on their way aren't recalled) and counted, and the next event that is
+delivered says how many were dropped before it with `d`. The payload keeps its type. After a
 backend restart, the frontend Communicator re-subscribes managed subscriptions once the
 backend is `ready` again. Missed events are never replayed.
+
+### Binary payloads
+
+A contract's `bstr` is a CBOR byte string and nothing else: a `Uint8Array` in the page and in Pico, never
+base64 or an array of numbers, and the generated validators refuse text where bytes belong. On the
+wire it costs a head of 1, 2, 3 or 5 bytes (below 24, 256, 65 536 bytes, or more) plus the bytes
+themselves. Both codecs copy in bulk, not per byte. A payload from Pico to the page is copied about
+five times (into the frame, out of the pipe, into the process message to the renderer, into the page's
+`ArrayBuffer`, out of the CBOR item): for a 30 KB map tile that is noise; for megabytes, count it.
+
+**The size limit applies to the whole message**, not to the byte string: 4 MiB for the envelope, its
+payload and every byte string in it (§2, §9). A message above it is refused at once, never cut off:
+the page's bridge throws before sending (the host fixture's self-test checks it: "a message over
+4 MiB is refused by the bridge"), and the frame reader on the Pico link rejects an
+oversized frame (`framing.test.pi`). So a byte string needs room for its envelope (a few hundred
+bytes at most), and bulk data larger than about 4 MiB must be **chunked** by the app: a sequence of
+requests (offset and length) or events with a sequence number.
+
+Proof, all in CI: `cbor.test.ts` and `cbor.test.pi` (sizes up to 1 MiB, exact wire sizes), the
+hello-world backend's `data.echo` tests, and hello-world's self-test in a real window, which sends
+0, 1, 30 000 and 1 048 576 bytes through page, host and Pico and back and compares content, count and
+a sum Pico computed itself (the `pd-info` lines also give the round-trip times).
+
+### Backpressure
+
+Nothing in the path may grow without bound when a reader is slow. Backend → page, hop by hop:
+
+| Hop | Bound | When it is exceeded |
+|---|---|---|
+| the backend's subscription (`Sink`) | 256 undelivered events per subscription | **new** events are dropped and counted; the next one delivered carries `d`, how many |
+| the pipe between backend and host | the OS pipe (64 KiB) | the backend's write waits, so its events queue in the `Sink` (above) |
+| the host's queue to the page | **none yet** | **a page that is busy (long JavaScript, a hidden tab) lets the host's and the renderer's memory grow as fast as the backend publishes.** Tracked in #50: a bounded queue with acknowledgements, dropping events (never responses) and counting them in `d` |
+| the host's queue to the backend (page → backend) | 1024 messages or 16 MiB | new requests and subscriptions from pages get `BUSY`, their events are dropped; answers to the backend's own requests always go through |
+
+Responses and errors are never dropped by a bound: only events are. A request waiting for an answer
+has the caller's timeout instead.
+
+What an app should do: send **state** as events and **publish it again periodically** (telemetry once
+a second, say), not a log that must be complete. When a burst is dropped, it is the *new* events
+that are lost, so the page shows the older state until the next publish; a periodic republish bounds
+how stale it can be, and `d` tells the page that something was lost. Let the page **ask** for bulk
+data (a tile, a file) with a request, which a slow page does not issue and so does not pile up; keep
+one event under 1 MiB; and read `d` where completeness matters.
 
 ## 7. Lifecycle and handshake
 
@@ -193,5 +237,5 @@ Applications use their own codes as `HANDLER_ERROR` with structured `data`.
 | message size | 4 MiB (configurable up to 16 MiB) |
 | nesting depth | 32 |
 | pending requests per link and direction | 1024 (more → `BUSY`) |
-| undelivered events per subscription | 256 (oldest dropped) |
+| undelivered events per subscription | 256 (new events dropped and counted in `d`) |
 | name length | 256 bytes |

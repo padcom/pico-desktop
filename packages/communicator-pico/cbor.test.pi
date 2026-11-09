@@ -90,8 +90,37 @@ function copiesBytes(): void throws Error {
   expect(diagnostic(out)).toBe("h'010203'")
 }
 
+/// A byte string of `n` bytes is a head of 1, 2, 3 or 5 bytes and the bytes themselves, nothing else:
+/// no text encoding, no per-byte overhead (the same sizes as the TypeScript codec's test).
+function carriesBytesAsTheyAre(): void throws Error {
+  const sizes = [0, 1, 23, 24, 255, 256, 30000, 65535, 65536, 1048576]
+  const heads = [1, 1, 1, 2, 2, 3, 3, 3, 5, 5]
+  for (let k = 0; k < sizes.length; k++) {
+    const n = sizes[k]
+    const bytes = new Uint8Array(n)
+    for (let i = 0; i < n; i++) {
+      bytes.set(i, i % 256)
+    }
+    const encoded = encode(Cbor.Bytes(bytes))
+    expect(encoded.length).toBe(heads[k] + n)
+    const out = decode(encoded)
+    match (out) {
+      Bytes { value } => {
+        expect(value.length).toBe(n)
+        let same = true
+        for (let i = 0; i < n; i++) {
+          same = same && value.get(i) == bytes.get(i)
+        }
+        expect(same).toBe(true)
+      },
+      _ => expect(false).toBe(true),
+    }
+  }
+}
+
 describe("CBOR codec", () => {
   it("encodes values built in pico", encodesValues)
+  it("carries byte strings as they are, at every header size", carriesBytesAsTheyAre)
   it("limits nesting to 32 levels when encoding", limitsNesting)
   it("decodes byte strings as copies", copiesBytes)
 })

@@ -170,6 +170,65 @@ async function greetsAnew({ c }: Context): Promise<Outcome> {
   return count === 1 || `count ${count}`
 }
 
+/** Sizes that need a CBOR header of 1, 2, 3 and 5 bytes, up to a megabyte (a map tile is about 30 000). */
+const BYTE_SIZES = [0, 1, 30_000, 1_048_576]
+
+const counting = (n: number) => Uint8Array.from({ length: n }, (_, i) => i % 256)
+
+const total = (bytes: Uint8Array) => bytes.reduce((sum, byte) => sum + byte, 0)
+
+const same = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((byte, i) => byte === b[i])
+
+/**
+ * Whether the echo is the bytes that were sent, and Pico counted what it received.
+ *
+ * @param sent what the page sent
+ * @param echo what came back
+ * @param echo.data the bytes
+ * @param echo.length how many bytes Pico counted
+ * @param echo.sum their sum modulo 2^32, counted in Pico
+ * @returns true, or what differs
+ */
+function sameBytes(sent: Uint8Array, echo: { data: Uint8Array, length: number, sum: number }): Outcome {
+  if (echo.length !== sent.length || echo.sum !== total(sent) % 2 ** 32) {
+    return `Pico counted ${echo.length} bytes (sum ${echo.sum}), ${sent.length} were sent (sum ${total(sent)})`
+  }
+
+  return same(sent, echo.data) || `the ${sent.length} bytes came back different`
+}
+
+/**
+ * Sends `n` bytes through the whole path and back; why it didn't work, or true.
+ *
+ * @param c the communicator
+ * @param n how many bytes
+ * @returns the outcome
+ */
+async function echoed(c: Communicator<Services>, n: number): Promise<Outcome> {
+  const sent = counting(n)
+  const started = performance.now()
+  const echo = await c.request('data.echo', { data: sent })
+  console.log(`pd-info: data.echo of ${n} bytes: round trip ${(performance.now() - started).toFixed(2)} ms`)
+
+  return echo.data instanceof Uint8Array ? sameBytes(sent, echo) : `${n} bytes came back as ${typeof echo.data}`
+}
+
+// A byte string (CDDL `bstr`) is bytes from the page to Pico and back: same content and count, as
+// Pico itself counted them, with no text encoding in between (docs/protocol.md, "Binary payloads").
+function bytesArrive({ c }: Context): Promise<Outcome> {
+  const from = async (i: number): Promise<Outcome> => {
+    const size = BYTE_SIZES[i]
+    if (size === undefined) {
+      return true
+    }
+    const outcome = await echoed(c, size)
+
+    return outcome === true ? from(i + 1) : outcome
+  }
+
+  return from(0)
+}
+
 /**
  * Round trips through the whole path (page → host → Pico → host → page): 1000 one after another,
  * then 1000 at once. Reported as `pd-info` lines (docs/ipc-benchmark.md).
@@ -214,6 +273,9 @@ const CHECKS: [string, Check][] = [
     ({ c }) => expectCode(c.request('files.pick', null), 'NOT_ALLOWED')],
   ['a permission the app didn\'t declare (clipboard read) is denied, not left pending', permissionAnswered],
   ['a managed subscription ticks', subscribes],
+  ['byte strings cross the whole path as bytes, up to a megabyte, byte for byte', bytesArrive],
+  ['Pico refuses text where bytes belong',
+    ({ untyped }) => expectCode(untyped.request('data.echo', { data: 'AAEC' }), 'INVALID_PAYLOAD')],
   ['2000 round trips through the bridge (measured)', throughput],
   ['a backend crash fails the pending call with DISCONNECTED; the window stays', crash],
   ['the backend restarts in the same window (epoch 2)', restarts],

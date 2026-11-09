@@ -135,6 +135,24 @@ function validatePickedInto(value: any, path: string): boolean {
 /** The first problem with `value` as a picked, or null. */
 export const validatePicked = (value: unknown) => run(validatePickedInto, value)
 
+export type BytesMessage = { "data": Uint8Array }
+
+function validateBytesMessageInto(value: any, path: string): boolean {
+  return map(value, path, ["data"]) && (value["data"] === undefined ? fail(`${path}.data`, 'present') : nested(value["data"], `${path}.data`, (value, path) => value instanceof Uint8Array || fail(path, 'bytes')))
+}
+
+/** The first problem with `value` as a bytes-message, or null. */
+export const validateBytesMessage = (value: unknown) => run(validateBytesMessageInto, value)
+
+export type BytesEcho = { "data": Uint8Array, "length": number, "sum": number }
+
+function validateBytesEchoInto(value: any, path: string): boolean {
+  return map(value, path, ["data","length","sum"]) && (value["data"] === undefined ? fail(`${path}.data`, 'present') : nested(value["data"], `${path}.data`, (value, path) => value instanceof Uint8Array || fail(path, 'bytes'))) && (value["length"] === undefined ? fail(`${path}.length`, 'present') : nested(value["length"], `${path}.length`, (value, path) => uint(value, path, 0xffffffff))) && (value["sum"] === undefined ? fail(`${path}.sum`, 'present') : nested(value["sum"], `${path}.sum`, (value, path) => uint(value, path, 0xffffffff)))
+}
+
+/** The first problem with `value` as a bytes-echo, or null. */
+export const validateBytesEcho = (value: unknown) => run(validateBytesEchoInto, value)
+
 /** The services, for a typed Communicator. */
 export interface Services {
   "greeting.hello": { kind: 'method', request: HelloRequest, response: Greeting }
@@ -144,6 +162,7 @@ export interface Services {
   "clock.ticks": { kind: 'subscription', params: ClockParams, value: Tick }
   "window.retitle": { kind: 'method', request: WindowTitle, response: WindowTitle }
   "files.pick": { kind: 'method', request: null, response: Picked }
+  "data.echo": { kind: 'method', request: BytesMessage, response: BytesEcho }
 }
 
 const services: Record<string, Partial<Record<string, Check>>> = {
@@ -173,6 +192,10 @@ const services: Record<string, Partial<Record<string, Check>>> = {
   "files.pick": {
     request: (value: any, path: string) => value === null || fail(path, 'null'),
     response: (value: any, path: string) => validatePickedInto(value, path),
+  },
+  "data.echo": {
+    request: (value: any, path: string) => validateBytesMessageInto(value, path),
+    response: (value: any, path: string) => validateBytesEchoInto(value, path),
   },
 }
 
