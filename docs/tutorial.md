@@ -106,6 +106,34 @@ const paths = await host.openFile(OpenFile { title: "Open", multiple: true })
 
 Each group needs a capability declared in `pico-desktop.config.ts` (`capabilities: ['window', 'dialogs', 'notifications', 'clipboard']`); anything else fails with `NOT_ALLOWED`. The clipboard: `await host.writeClipboard("text")` needs no capability, `await host.readClipboard()` (`null` when there's no text) needs `clipboard`. The full list is in [`contracts/host.cddl`](../packages/communicator-pico/contracts/host.cddl).
 
+### Settings and caches
+
+A backend that remembers things asks for its two directories once, when it starts:
+
+```ts
+import { appDirs, AppDirError } from "pico-desktop/communicator"
+import { readText, writeText } from "std/fs"
+import { join } from "std/path"
+
+try {
+  const dirs = await appDirs("com.example.my-app")  // your app ID, the one in pico-desktop.config.ts
+  await writeText(join(dirs.data, "settings.json"), json)  // survives; never touched by the framework
+  await writeText(join(dirs.cache, "tiles.index"), index)  // can be rebuilt; may be deleted at any time
+} catch (e: AppDirError) {
+  // e.kind: "NotWritable", "NoHome" or "InvalidAppId"; e.path: the directory; e.message says what to change
+}
+```
+
+| | Linux | Windows (not tested yet) |
+|---|---|---|
+| `dirs.data` | `$XDG_DATA_HOME/pico-desktop/apps/<app-id>` (default `~/.local/share`) | `%LOCALAPPDATA%\pico-desktop\apps\<app-id>` |
+| `dirs.cache` | `$XDG_CACHE_HOME/pico-desktop/apps/<app-id>/backend` (default `~/.cache`) | the same with `\backend` |
+
+- Both are created on first use (with their parents), and `appDirs` proves each can be written to, so a problem shows up here and not in the middle of a save. An `XDG_*` variable that is empty or not an absolute path is ignored, as the XDG specification says.
+- A location that can't be created or written to (a file in the way, a read-only directory) is an `AppDirError` naming the directory and the variable to change, not a crash: catch it and carry on without persistence, or tell the user. Reading and writing files is `std/fs`; the framework adds nothing on top.
+- The app ID must be a valid one (lowercase letters, digits, `-` and `.`, like `com.example.app`): it is a directory name.
+- The cache is under the same `apps/<app-id>` directory as the window's browser profile, in `backend`. To keep files out of tests' way, set `XDG_DATA_HOME` and `XDG_CACHE_HOME` to a temporary directory; `ctest host.appdata` does that for the real host.
+
 ## 5. Test
 
 ```sh

@@ -1,0 +1,127 @@
+// Where a backend keeps what it writes (docs/tutorial.md, "Settings and caches"): one directory for
+// data that must survive (settings, user files) and one for caches that may be deleted.
+//
+//   Linux      data   $XDG_DATA_HOME/pico-desktop/apps/<app-id>            (default ~/.local/share)
+//              cache  $XDG_CACHE_HOME/pico-desktop/apps/<app-id>/backend   (default ~/.cache)
+//   Windows    %LOCALAPPDATA%\pico-desktop\apps\<app-id>, with \backend for the cache
+//
+// An XDG variable that is empty or not an absolute path is ignored, as the XDG specification says. The
+// directories are created on first use; one that can't be created or written to is an `AppDirError`
+// naming the directory and the variable to change, not a crash. macOS and Windows are not tested yet.
+import { mkdir, remove, writeText } from "std/fs"
+import { isAbsolute, join } from "std/path"
+import { env } from "std/process"
+
+/// Why the directories aren't available: `InvalidAppId`, `NoHome` (no variable says where) or
+/// `NotWritable` (they can't be created, or can't be written to).
+export class AppDirError extends Error {
+  public kind: string
+  /// The directory the problem is with ("" when it is not about one).
+  public path: string
+
+  constructor(kind: string, path: string, message: string) {
+    super(message)
+    this.kind = kind
+    this.path = path
+  }
+}
+
+/// An app's directories.
+export class AppDirs {
+  /// For what must survive: settings, user files. Never cleaned up by the framework.
+  public data: string
+  /// For what can be rebuilt: downloads, indexes. The user (or the system) may delete it at any time.
+  public cache: string
+
+  constructor(data: string, cache: string) {
+    this.data = data
+    this.cache = cache
+  }
+}
+
+/// Whether `appId` is an app ID as the host takes it (lowercase letters, digits, '-' and '.', like
+/// com.example.app): the ID is a directory name, so nothing else is allowed (no '/', no "..").
+export function isValidAppId(appId: string): bool {
+  if (appId.length == 0 || appId.length > 200) {
+    return false
+  }
+  for (const label of appId.split(".")) {
+    if (!isValidLabel(label)) {
+      return false
+    }
+  }
+  true
+}
+
+/// One dot-separated part of an app ID: 1 to 63 of a-z, 0-9 and '-', not starting or ending with '-'.
+function isValidLabel(label: string): bool {
+  if (label.length == 0 || label.length > 63 || label.startsWith("-") || label.endsWith("-")) {
+    return false
+  }
+  for (const ch of label) {
+    if (!"abcdefghijklmnopqrstuvwxyz0123456789-".includes(`${ch}`)) {
+      return false
+    }
+  }
+  true
+}
+
+/// The base directory for `xdg` (an XDG variable), else `windows` (a Windows variable), else `fallback`
+/// under the home directory; null when none of them says.
+function base(vars: Map<string, string>, xdg: string, windows: string, fallback: string): string? {
+  const wanted = vars.get(xdg)
+  if (wanted != null && wanted != "" && isAbsolute(wanted)) {
+    return wanted
+  }
+  const local = vars.get(windows)
+  if (local != null && local != "" && isAbsolute(local)) {
+    return local
+  }
+  const home = vars.get("HOME")
+  if (home != null && home != "" && isAbsolute(home)) {
+    return join(home, fallback)
+  }
+  null
+}
+
+/// Where the directories of `appId` are, given the environment `vars`. Nothing is created.
+export function locate(appId: string, vars: Map<string, string>): AppDirs throws AppDirError {
+  if (!isValidAppId(appId)) {
+    throw new AppDirError("InvalidAppId", "", `'${appId}' isn't a valid app ID: use lowercase letters, digits, '-' and '.' (like com.example.app)`)
+  }
+  const data = base(vars, "XDG_DATA_HOME", "LOCALAPPDATA", ".local/share")
+  const cache = base(vars, "XDG_CACHE_HOME", "LOCALAPPDATA", ".cache")
+  if (data == null || cache == null) {
+    throw new AppDirError("NoHome", "", "no place for the app's data: set XDG_DATA_HOME and XDG_CACHE_HOME (or HOME) to an absolute path")
+  }
+  new AppDirs(join(data, "pico-desktop", "apps", appId), join(cache, "pico-desktop", "apps", appId, "backend"))
+}
+
+/// Creates `dir` if it's missing, and proves it can be written to by creating and removing a file.
+async function prepare(dir: string, variable: string): Promise<void> throws AppDirError {
+  try {
+    await mkdir(dir, true)
+    const probe = join(dir, ".write-test")
+    await writeText(probe, "")
+    await remove(probe)
+  } catch (e: IoError) {
+    throw new AppDirError("NotWritable", dir, `can't use ${dir}: ${e.message}; set ${variable} to a directory you can write to`)
+  }
+}
+
+/// The app's data and cache directories, created if they don't exist and checked to be writable. Call it
+/// once, when the backend starts, and keep the result.
+///
+/// ```
+/// const dirs = await appDirs("com.example.app")
+/// await writeText(join(dirs.data, "settings.json"), json)
+/// ```
+///
+/// @throws AppDirError if the app ID is invalid, nothing says where the directories go, or a directory
+/// can't be created or written to; the backend can carry on without it (say so to the user), nothing here exits.
+export async function appDirs(appId: string): Promise<AppDirs> throws AppDirError {
+  const dirs = locate(appId, env.toObject())
+  await prepare(dirs.data, "XDG_DATA_HOME")
+  await prepare(dirs.cache, "XDG_CACHE_HOME")
+  dirs
+}

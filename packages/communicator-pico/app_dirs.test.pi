@@ -1,0 +1,149 @@
+// The app's data and cache directories: where they are for each environment (pure), and creating them on
+// first use, with a location that can't be written to failing with an AppDirError instead of crashing.
+import { describe, it, expect } from "std/test"
+import { chmod, mkdir, readText, remove, writeText } from "std/fs"
+import { join } from "std/path"
+import { env, pid } from "std/process"
+import { AppDirError, appDirs, isValidAppId, locate } from "./app_dirs"
+
+function vars(pairs: string[]): Map<string, string> {
+  const m = new Map<string, string>()
+  for (let i = 0; i < pairs.length; i += 2) {
+    m.set(pairs[i], pairs[i + 1])
+  }
+  m
+}
+
+/// The error `locate` fails with, or null.
+function failure(appId: string, pairs: string[]): AppDirError? {
+  try {
+    locate(appId, vars(pairs))
+    null
+  } catch (e: AppDirError) {
+    e
+  }
+}
+
+function usesXdg(): void throws Error {
+  const dirs = locate("com.example.app", vars(["XDG_DATA_HOME", "/d", "XDG_CACHE_HOME", "/c", "HOME", "/h"]))
+  expect(dirs.data).toBe("/d/pico-desktop/apps/com.example.app")
+  expect(dirs.cache).toBe("/c/pico-desktop/apps/com.example.app/backend")
+}
+
+function fallsBackToHome(): void throws Error {
+  const dirs = locate("app", vars(["HOME", "/home/me"]))
+  expect(dirs.data).toBe("/home/me/.local/share/pico-desktop/apps/app")
+  expect(dirs.cache).toBe("/home/me/.cache/pico-desktop/apps/app/backend")
+}
+
+function ignoresBadXdg(): void throws Error {
+  // Empty and relative values are ignored (XDG Base Directory specification).
+  const dirs = locate("app", vars(["XDG_DATA_HOME", "", "XDG_CACHE_HOME", "relative/cache", "HOME", "/home/me"]))
+  expect(dirs.data).toBe("/home/me/.local/share/pico-desktop/apps/app")
+  expect(dirs.cache).toBe("/home/me/.cache/pico-desktop/apps/app/backend")
+}
+
+function usesLocalAppData(): void throws Error {
+  const dirs = locate("app", vars(["LOCALAPPDATA", "/local"]))
+  expect(dirs.data).toBe("/local/pico-desktop/apps/app")
+  expect(dirs.cache).toBe("/local/pico-desktop/apps/app/backend")
+}
+
+function needsAPlace(): void throws Error {
+  const err = failure("app", ["HOME", "relative"])
+  expect(err != null).toBe(true)
+  expect(err!.kind).toBe("NoHome")
+  expect(err!.message).toContain("XDG_DATA_HOME")
+  expect(failure("app", [])!.kind).toBe("NoHome")
+}
+
+function takesOnlyHostAppIds(): void throws Error {
+  for (const ok of ["app", "com.example.app", "my-app", "a1.b2-c3"]) {
+    expect(isValidAppId(ok)).toBe(true)
+  }
+  for (const bad of ["", ".", "..", "../x", "a/b", "A", "com..app", ".app", "app.", "-app", "app-", "a b", "a\\b", "a".repeat(64)]) {
+    expect(isValidAppId(bad)).toBe(false)
+  }
+  expect(failure("../../etc", ["HOME", "/h"])!.kind).toBe("InvalidAppId")
+}
+
+// ---- creating the directories (the process environment is changed and put back)
+
+function scratchDir(): string {
+  join(env.get("TMPDIR") ?? "/tmp", `pd-app-dirs-test-${pid}`)
+}
+
+async function createsOnFirstUse(): Promise<void> throws Error {
+  const root = scratchDir()
+  await mkdir(root, true)
+  env.set("XDG_DATA_HOME", join(root, "data"))
+  env.set("XDG_CACHE_HOME", join(root, "cache"))
+  const dirs = await appDirs("com.example.app")
+  expect(dirs.data).toBe(join(root, "data", "pico-desktop", "apps", "com.example.app"))
+  await writeText(join(dirs.data, "settings.json"), "{\"a\":1}")
+  await writeText(join(dirs.cache, "index"), "x")
+  // A second call keeps what is there.
+  const again = await appDirs("com.example.app")
+  expect(again.data).toBe(dirs.data)
+  expect(await readText(join(dirs.data, "settings.json"))).toBe("{\"a\":1}")
+  await remove(root, true)
+}
+
+async function failsWhenTheParentIsAFile(): Promise<void> throws Error {
+  // A file where the directory should be: fails whoever runs the test, root included.
+  const root = scratchDir()
+  await mkdir(root, true)
+  const blocker = join(root, "blocker")
+  await writeText(blocker, "not a directory")
+  env.set("XDG_DATA_HOME", blocker)
+  env.set("XDG_CACHE_HOME", join(root, "cache"))
+  let err: AppDirError? = null
+  try {
+    await appDirs("com.example.app")
+  } catch (e: AppDirError) {
+    err = e
+  }
+  expect(err != null).toBe(true)
+  expect(err!.kind).toBe("NotWritable")
+  expect(err!.path).toBe(join(blocker, "pico-desktop", "apps", "com.example.app"))
+  expect(err!.message).toContain("XDG_DATA_HOME")
+  expect(err!.message).toContain(blocker)
+  await remove(root, true)
+}
+
+async function failsWhenTheDirectoryIsReadOnly(): Promise<void> throws Error {
+  const root = scratchDir()
+  const locked = join(root, "locked")
+  await mkdir(join(locked, "pico-desktop", "apps", "com.example.app"), true)
+  await chmod(join(locked, "pico-desktop", "apps", "com.example.app"), 365)  // r-xr-xr-x
+  env.set("XDG_DATA_HOME", locked)
+  env.set("XDG_CACHE_HOME", join(root, "cache"))
+  let err: AppDirError? = null
+  try {
+    await appDirs("com.example.app")
+  } catch (e: AppDirError) {
+    err = e
+  }
+  await chmod(join(locked, "pico-desktop", "apps", "com.example.app"), 493)  // rwxr-xr-x
+  // root may write anywhere: then there is nothing to fail (the parent-is-a-file test covers that case).
+  if (err != null) {
+    expect(err!.kind).toBe("NotWritable")
+    expect(err!.message).toContain("permission denied")
+  }
+  await remove(root, true)
+}
+
+describe("where the directories are", () => {
+  it("uses XDG_DATA_HOME and XDG_CACHE_HOME", usesXdg)
+  it("falls back to ~/.local/share and ~/.cache", fallsBackToHome)
+  it("ignores an empty or relative XDG variable", ignoresBadXdg)
+  it("uses LOCALAPPDATA when there is no XDG variable", usesLocalAppData)
+  it("fails with NoHome when nothing says where", needsAPlace)
+  it("accepts only the app IDs the host accepts", takesOnlyHostAppIds)
+})
+
+describe("creating them", () => {
+  it("creates both on first use and keeps their content", createsOnFirstUse)
+  it("fails with NotWritable, naming the directory and the variable, when a file is in the way", failsWhenTheParentIsAFile)
+  it("fails with NotWritable on a read-only directory", failsWhenTheDirectoryIsReadOnly)
+})

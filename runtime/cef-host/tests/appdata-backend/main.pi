@@ -1,0 +1,39 @@
+// A test backend that asks for its data and cache directories once it's running and reports on stderr
+// what happened (tests/appdata.sh). Its app ID is the one the test starts the host with.
+import { readText, writeText } from "std/fs"
+import { join } from "std/path"
+import { stderr } from "std/process"
+import { AppDirError, Communicator, StdioTransport, appDirs } from "../../../../packages/communicator-pico/index"
+
+const communicator = new Communicator(new StdioTransport())
+
+async function say(text: string): Promise<void> throws Error {
+  await stderr.write(new TextEncoder().encode(`appdata-backend: ${text}\n`))
+}
+
+async function useTheDirectories(): Promise<void> throws Error {
+  try {
+    const dirs = await appDirs("pd-appdata-test")
+    await writeText(join(dirs.data, "settings.json"), "saved")
+    await writeText(join(dirs.cache, "index"), "cached")
+    await say(`data ${dirs.data}`)
+    await say(`cache ${dirs.cache}`)
+    await say(`settings ${await readText(join(dirs.data, "settings.json"))}`)
+  } catch (e: AppDirError) {
+    // Not a crash: the backend reports it and carries on.
+    await say(`error ${e.kind} ${e.path}`)
+    await say(`message ${e.message}`)
+  }
+}
+
+async function stillRunning(): Promise<void> throws Error {
+  await say("alive")
+}
+
+async function start(): Promise<void> throws Error {
+  await useTheDirectories()
+  setTimeout(() => stillRunning(), 500)
+}
+
+setTimeout(() => start(), 300)
+await communicator.run()
