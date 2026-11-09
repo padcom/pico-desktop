@@ -188,6 +188,7 @@ void Router::session_unsubscribe(std::uint64_t session, std::uint64_t window, st
   const auto it = subscriptions_.find(s);
   if (it != subscriptions_.end() && it->second == session) {
     subscriptions_.erase(it);
+    dropped_.erase(std::make_pair(session, s));
     out_.to_backend(ipc::with_window(message, window));
   }
 }
@@ -326,11 +327,15 @@ void Router::deliver_event(std::uint64_t session, std::span<const std::byte> mes
     return;
   }
   const auto key = std::make_pair(session, s);
-  if (unacked_[session] >= kMaxUnacked) {
-    // The page isn't keeping up: this new event is dropped, and the next one that gets through says so.
-    if (dropped_[key]++ == 0) {
+  const Backlog& backlog = unacked_[session];
+  if (backlog.sizes.size() >= kMaxUnacked || backlog.bytes >= kMaxUnackedBytes) {
+    // The page isn't keeping up: this new event is dropped, and the next one that gets through says
+    // so. What the backend had already counted on this event (its own `d`) is not lost with it.
+    std::uint64_t& count = dropped_[key];
+    if (count == 0) {
       out_.log("pd-host: a page isn't keeping up with its events; dropping new ones until it does");
     }
+    count += 1 + ipc::read_uint_field(message, ipc::kKeyDropped).value_or(0);
     return;
   }
   Bytes event = ipc::without_window(message);
@@ -343,14 +348,21 @@ void Router::deliver_event(std::uint64_t session, std::span<const std::byte> mes
 }
 
 void Router::send(std::uint64_t session, Bytes message) {
-  ++unacked_[session];
+  Backlog& backlog = unacked_[session];
+  backlog.sizes.push_back(message.size());
+  backlog.bytes += message.size();
   out_.to_session(session, std::move(message));
 }
 
 void Router::session_ack(std::uint64_t session, std::uint64_t count) {
   const auto it = unacked_.find(session);
-  if (it != unacked_.end()) {
-    it->second = it->second > count ? it->second - count : 0;
+  if (it == unacked_.end()) {
+    return;
+  }
+  Backlog& backlog = it->second;
+  for (std::uint64_t i = 0; i < count && !backlog.sizes.empty(); ++i) {
+    backlog.bytes -= backlog.sizes.front();
+    backlog.sizes.pop_front();
   }
 }
 
@@ -359,6 +371,7 @@ void Router::backend_ended_subscription(std::span<const std::byte> message, std:
   if (it != subscriptions_.end()) {
     const auto session = it->second;
     subscriptions_.erase(it);
+    dropped_.erase(std::make_pair(session, s));
     deliver(session, message);
   }
 }

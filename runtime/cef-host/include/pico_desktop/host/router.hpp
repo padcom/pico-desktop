@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <optional>
 #include <span>
@@ -51,10 +52,11 @@ class Router {
   /// The page behind `session` went away (navigation, reload, crash, window closed).
   void end_session(std::uint64_t session);
   /// The page behind `session` has handled `count` more of the messages sent to it. A page that is
-  /// `kMaxUnacked` behind gets no new events (they are dropped and counted in `d`, docs/protocol.md
-  /// §7); responses, errors and lifecycle messages always go through.
+  /// `kMaxUnacked` messages or `kMaxUnackedBytes` behind gets no new events (they are dropped and
+  /// counted in `d`, docs/protocol.md §6); responses, errors and lifecycle messages always go through.
   void session_ack(std::uint64_t session, std::uint64_t count);
   static constexpr std::size_t kMaxUnacked = 256;
+  static constexpr std::size_t kMaxUnackedBytes = 8 * 1024 * 1024;
 
   /// A new backend process is starting: its epoch begins and the host says hello to it (it's
   /// ready after its own hello).
@@ -123,7 +125,11 @@ class Router {
   std::map<std::uint64_t, UiRequest> ui_requests_;         // host ID → a session's request
   std::map<std::uint64_t, std::uint64_t> backend_requests_;  // backend ID → the session asked
   std::map<std::uint64_t, std::uint64_t> subscriptions_;     // publisher's s → subscriber session
-  std::map<std::uint64_t, std::uint64_t> unacked_;           // session → messages sent, not yet acknowledged
+  struct Backlog {
+    std::deque<std::size_t> sizes;  // the sizes of the messages sent and not yet acknowledged, oldest first
+    std::size_t bytes = 0;          // their sum
+  };
+  std::map<std::uint64_t, Backlog> unacked_;                 // session → what it has not acknowledged
   std::map<std::pair<std::uint64_t, std::uint64_t>, std::uint64_t> dropped_;  // (session, s) → events dropped
 };
 

@@ -131,6 +131,11 @@ delivered says how many were dropped before it with `d`. The payload keeps its t
 backend restart, the frontend Communicator re-subscribes managed subscriptions once the
 backend is `ready` again. Missed events are never replayed.
 
+The host bounds the other hop the same way: a page that has not acknowledged 256 messages or 8 MiB
+is sent no new events until it catches up (the renderer acknowledges what its script has handled).
+The dropped events are counted in `d` too, **added to** the publisher's own count: `d` on an event is
+everything of that subscription lost before it, wherever it was lost (see Backpressure, §6).
+
 ### Binary payloads
 
 A contract's `bstr` is a CBOR byte string and nothing else: a `Uint8Array` in the page and in Pico, never
@@ -161,7 +166,7 @@ Nothing in the path may grow without bound when a reader is slow. Backend → pa
 |---|---|---|
 | the backend's subscription (`Sink`) | 256 undelivered events per subscription | **new** events are dropped and counted; the next one delivered carries `d`, how many |
 | the pipe between backend and host | the OS pipe (64 KiB) | the backend's write waits, so its events queue in the `Sink` (above) |
-| the host's queue to the page | 256 messages the page has not yet acknowledged, per page | **new** events are dropped (never responses, errors or lifecycle messages) and counted per subscription; the next event delivered carries `d`, the backend's own count plus the host's. The renderer acknowledges the messages it has handled once its thread is free, so a page stuck in long JavaScript acknowledges nothing and stops being sent events (`tests/flood.sh`) |
+| the host's queue to the page | per page, 256 messages or 8 MiB the page has not yet acknowledged (so events for a stuck page wait for less than 8 MiB + 4 MiB, one message past the bound; responses are the answers to its own requests and are not bounded) | **new** events are dropped (never responses, errors or lifecycle messages) and counted per subscription; the next event delivered carries `d`, the backend's own count plus the host's. The renderer acknowledges the messages it has handled once its thread is free, so a page stuck in long JavaScript acknowledges nothing and stops being sent events (`tests/flood.sh`) |
 | the host's queue to the backend (page → backend) | 1024 messages or 16 MiB | new requests and subscriptions from pages get `BUSY`, their events are dropped; answers to the backend's own requests always go through |
 
 Responses and errors are never dropped by a bound: only events are. A request waiting for an answer
@@ -238,4 +243,5 @@ Applications use their own codes as `HANDLER_ERROR` with structured `data`.
 | nesting depth | 32 |
 | pending requests per link and direction | 1024 (more → `BUSY`) |
 | undelivered events per subscription | 256 (new events dropped and counted in `d`) |
+| messages a page has not acknowledged (host → page) | 256 or 8 MiB (new events dropped and counted in `d`) |
 | name length | 256 bytes |

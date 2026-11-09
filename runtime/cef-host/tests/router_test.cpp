@@ -403,6 +403,92 @@ void drops_per_subscription() {
   CHECK(out.sessions.size() == 2 && ipc::read_uint_field(out.sessions[1].second, ipc::kKeyDropped) == 2u);
 }
 
+// An event with a payload of `size` bytes of text (and the backend's own `d`, when it has one).
+Bytes big_event(std::uint64_t s, std::size_t size, std::optional<std::uint64_t> d = std::nullopt) {
+  ipc::Writer w;
+  w.map(5 + (d ? 1 : 0)).uint(0).uint(1).uint(1).uint(3).uint(3).text("clock").uint(4).text(std::string(size, 'x'));
+  w.uint(8).uint(s);
+  if (d) {
+    w.uint(9).uint(*d);
+  }
+  return w.take();
+}
+
+// What the backend already counted as dropped on an event the host then drops is not lost.
+void backend_drops_are_kept() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.session_ack(1, 1000);
+  router.from_session(1, 10, call(Kind::subscribe, 5, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend[0]).id, 10, 3));
+  router.session_ack(1, 1000);
+  for (std::size_t i = 0; i < Router::kMaxUnacked; ++i) {
+    router.from_backend(event("clock", 10, 3));
+  }
+  out.clear();
+  router.from_backend(big_event(3, 1, 3));  // dropped here, after the backend dropped 3 before it
+  CHECK(out.sessions.empty());
+  router.session_ack(1, Router::kMaxUnacked);
+  router.from_backend(event("clock", 10, 3));
+  CHECK(out.sessions.size() == 1 && ipc::read_uint_field(out.sessions[0].second, ipc::kKeyDropped) == 4u);
+  // And an event that arrives with its own d, once the page is caught up, keeps it.
+  router.from_backend(big_event(3, 1, 2));
+  CHECK(out.sessions.size() == 2 && ipc::read_uint_field(out.sessions[1].second, ipc::kKeyDropped) == 2u);
+}
+
+// A few big messages are as much of a backlog as many small ones: 8 MiB, not 256 x 4 MiB.
+void byte_bound() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.session_ack(1, 1000);
+  router.from_session(1, 10, call(Kind::subscribe, 5, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend[0]).id, 10, 3));
+  router.session_ack(1, 1000);
+  out.clear();
+  const std::size_t tile = 3 * 1024 * 1024;
+  for (int i = 0; i < 5; ++i) {
+    router.from_backend(big_event(3, tile));
+  }
+  CHECK(out.sessions.size() == 3);  // 3, 6 and 9 MiB are sent: the fourth finds 9 MiB >= 8 MiB
+  CHECK(!ipc::read_uint_field(out.sessions[2].second, ipc::kKeyDropped));
+  // Acknowledging frees the room (by the sizes of the oldest messages), and the next says what it missed.
+  router.session_ack(1, 3);
+  router.from_backend(big_event(3, 100));
+  CHECK(out.sessions.size() == 4 && ipc::read_uint_field(out.sessions[3].second, ipc::kKeyDropped) == 2u);
+  // A response goes through however big the backlog is.
+  router.from_backend(big_event(3, tile));
+  router.from_backend(big_event(3, tile));
+  router.from_backend(big_event(3, tile));
+  out.clear();
+  router.from_session(1, 10, call(Kind::request, 7, "greeting.hello"));
+  router.from_backend(answer(Kind::response, *header(out.backend.back()).id, 10));
+  CHECK(out.sessions.size() == 1 && header(out.sessions[0].second).kind == Kind::response);
+}
+
+// What was counted for a subscription that ends is forgotten with it.
+void ended_subscription_forgets_drops() {
+  Fake out;
+  Router router(out);
+  connect(router, out);
+  router.session_ack(1, 1000);
+  router.from_session(1, 10, call(Kind::subscribe, 5, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend[0]).id, 10, 3));
+  router.session_ack(1, 1000);
+  for (std::size_t i = 0; i < Router::kMaxUnacked + 5; ++i) {
+    router.from_backend(event("clock", 10, 3));
+  }
+  router.from_session(1, 10, control(Kind::unsubscribe, std::nullopt, 3));
+  router.session_ack(1, 1000);
+  // The same number again, for a new subscription: it starts from nothing.
+  router.from_session(1, 10, call(Kind::subscribe, 6, "clock"));
+  router.from_backend(answer(Kind::response, *header(out.backend.back()).id, 10, 3));
+  out.clear();
+  router.from_backend(event("clock", 10, 3));
+  CHECK(out.sessions.size() == 1 && !ipc::read_uint_field(out.sessions[0].second, ipc::kKeyDropped));
+}
+
 void restart() {
   Fake out;
   Router router(out);
@@ -544,6 +630,9 @@ int main() {
   subscriptions();
   slow_page();
   drops_per_subscription();
+  backend_drops_are_kept();
+  byte_bound();
+  ended_subscription_forgets_drops();
   restart();
   refusals();
   echo();
