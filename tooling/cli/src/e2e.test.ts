@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -39,12 +39,41 @@ describe('screenshot', () => {
     expect(readFileSync(path).subarray(0, 8)).toEqual(PNG_SIGNATURE)
     expect(readFileSync(path)).toEqual(png)
   })
+})
 
-  it('says so, and writes nothing, when the page gives no picture', async () => {
-    const page = new FakePage({})
+describe('screenshot, when it cannot', () => {
+  it.each([
+    ['no data', {}],
+    ['no result at all', undefined],
+    ['empty data', { data: '' }],
+    ['data that is not a PNG', { data: Buffer.from('not a picture at all').toString('base64') }],
+    ['data that is not text', { data: 42 }],
+  ])('says so, and writes nothing, when the page gives %s', async (_what, answer) => {
+    const page = new FakePage(answer)
     const path = join(scratch, 'nothing', 'none.png')
 
     await expect(page.screenshot(path)).rejects.toThrow(E2eError)
+    await expect(page.screenshot(path)).rejects.toThrow(/no PNG/u)
     expect(existsSync(path)).toBe(false)
+  })
+
+  it('says where it could not save, as an E2eError', async () => {
+    const page = new FakePage({ data: Buffer.concat([PNG_SIGNATURE, Buffer.from('x')]).toString('base64') })
+    writeFileSync(join(scratch, 'a-file'), '')
+    const path = join(scratch, 'a-file', 'inside', 'shot.png')
+
+    await expect(page.screenshot(path)).rejects.toThrow(E2eError)
+    await expect(page.screenshot(path)).rejects.toThrow(`cannot save the screenshot to ${path}`)
+  })
+})
+
+describe('screenshot, when the page stalls', () => {
+  it('gives up when the page never answers', async () => {
+    const page = new FakePage(new Promise<never>(() => {
+      // Never settles: a capture that stalls.
+    }))
+
+    await expect(page.screenshot(join(scratch, 'late.png'), 50)).rejects.toThrow('the page gave no screenshot in 50 ms')
+    expect(existsSync(join(scratch, 'late.png'))).toBe(false)
   })
 })
