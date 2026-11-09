@@ -116,17 +116,23 @@ ten runs.** "Arrived at" is the rate the page saw between its first and last eve
 
 What they say:
 
-- **The path is fast and does not queue.** Both loads arrive within a few milliseconds on every system, a
-  hundred times under the gate's limits (p95 500 ms, max 2 s). The bridge itself (a page's request
-  answered by Pico) takes about a millisecond at the 99th percentile.
-- **The Linux gate has room.** The limits are far above what a healthy run does, so a failure there is a
-  real regression, not noise. The one outlier is a 27 ms maximum on macOS telemetry.
-- **The lower "arrived at" on macOS and Windows is the sender's timer, not the path.** Nothing was lost
-  and the latency is the same as on Linux, yet only about 32 events a second arrive of 50 (and 64 of
-  100) on Windows. That is what a timer with a coarse tick gives (Windows' default is about 15.6 ms:
-  a 20 ms interval fires every 31 ms), which is my reading and not something the benchmark proves. It
-  does not matter for the gate (macOS and Windows only report), but an app that wants an exact rate there
-  must not count on `setInterval` for it.
+- **The path is fast and does not queue.** Both loads arrive within a few milliseconds on every system:
+  the p95 is 1 to 2 ms against the gate's limit of 500 ms (about 250 times under it), and the largest
+  maximum is 27 ms against 2 s (about 70 times). The bridge itself (a page's request answered by Pico)
+  takes at most 1.7 ms at the 99th percentile.
+- **The Linux gate has room.** The limits sit far above these values, so a failure there is more likely
+  a regression than noise. This table cannot show the spread, though: it is one run per system. The CI
+  history of the gate will, and the limits should be tightened only after seeing several runs. The one
+  outlier is a 27 ms maximum on macOS telemetry.
+- **The lower "arrived at" on macOS and Windows is probably not the path, but only Windows has a
+  candidate explanation.** Nothing was lost and the latency is as low as on Linux, so the events were not
+  held up in transit, and with a latency of 1 ms they were sent at about the rate they arrived. (The
+  samples hold the send times, but the summary prints no send rate, so this is an inference.) On Windows (32/s of 50, 64/s of 100) a coarse
+  timer tick would give this: the default resolution is about 15.6 ms, so a 20 ms interval would fire
+  every 31 ms. That is my reading, not something the benchmark proves. **macOS (45.7/s of 50, 81.7/s of
+  100) is not explained by it, and I have no explanation for it.** It does not matter for the gate
+  (macOS and Windows only report), but until it is understood an app should not count on `setInterval`
+  for an exact rate there.
 
 **A page that stops reading (`host.flood`, docs/protocol.md "Backpressure").** The backend publishes a
 counter every millisecond; the page does not read for two seconds, then reads for one and a half. The
@@ -138,6 +144,10 @@ host's bound on what a page has not acknowledged (256 messages or 8 MiB) turns t
 | linux-arm64 | 1677 | 1639 | 3316 |
 | macos-arm64 | 1445 | 1287 | 2732 |
 
-In each run, received plus dropped is exactly the last event number: nothing is unaccounted for.
-(The page also reads the events that arrive after its pause, which is most of "received"; the backlog the
-host kept for it during the pause was at most 256 messages.)
+There is no Windows row: `host.flood` is not registered on Windows (`runtime/cef-host/CMakeLists.txt`
+registers it only where `NOT WIN32`; it uses a shell script).
+
+In each run, received plus dropped is exactly the last event number: nothing is unaccounted for. Most of
+"received" is the events that arrived after the page started reading again. These numbers do not measure
+the backlog kept during the pause: that it is at most 256 messages (or 8 MiB) is the host's bound,
+checked by the router's unit tests (`runtime/cef-host/tests/router_test.cpp`), not read off this table.
