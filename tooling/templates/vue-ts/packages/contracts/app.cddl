@@ -1,0 +1,15 @@
+; The app's contract (CDDL, RFC 8610): methods, events and subscriptions, and their types.
+; `pico-desktop generate` turns it into apps/frontend/src/generated/app.ts and
+; apps/backend/generated/app.pi.
+services = {
+  "greeting.hello": ["method", hello-request, greeting],
+  "clock.ticks": ["subscription", clock-params, tick],
+}
+
+hello-request = { name: tstr }
+
+greeting = { message: tstr }
+
+clock-params = { ? intervalMs: uint .size 4 }
+
+tick = { n: uint .size 4 }

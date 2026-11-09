@@ -1,0 +1,9 @@
+packages:
+  - apps/frontend
+
+# @padcom/eslint-config-typescript@0.20.2 imports @padcom/eslint-config-javascript without declaring
+# it (hidden by npm's hoisting, fatal under pnpm). Remove once the package declares it.
+packageExtensions:
+  '@padcom/eslint-config-typescript@0.20.2':
+    dependencies:
+      '@padcom/eslint-config-javascript': 0.20.4

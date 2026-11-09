@@ -11,11 +11,11 @@ const scratch = mkdtempSync(join(tmpdir(), 'pd-create-'))
 
 afterAll(() => rmSync(scratch, { recursive: true, force: true }))
 
-function run(dir: string, id?: string) {
+function run(dir: string, id?: string, template?: string) {
   const out: string[] = []
   const io: Output = { out: t => out.push(t), err: t => out.push(t) }
 
-  return { code: create({ dir, id, framework }, io), out: out.join('\n') }
+  return { code: create({ dir, id, framework, template }, io), out: out.join('\n') }
 }
 
 describe('create', () => {
@@ -41,6 +41,38 @@ describe('create', () => {
   it('refuses a directory that isn\'t empty, and bad names', () => {
     expect(run(join(scratch, 'my-app')).code).toBe(1)
     expect(run(join(scratch, 'My App')).out).toContain('isn\'t a valid app name')
+  })
+})
+
+describe('create --template vue-ts', () => {
+  const dir = join(scratch, 'vue-app')
+
+  it('scaffolds the Vue template with its placeholders filled and its contract generated', () => {
+    const { code, out } = run(dir, 'com.example.vue-app', 'vue-ts')
+    expect(code, out).toBe(0)
+    const app = readFileSync(join(dir, 'apps/frontend/src/App.vue'), 'utf8')
+    expect(app).toContain('<h1>vue-app</h1>')
+    expect(app).not.toMatch(/\{\{(?:name|appName|appId)\}\}/u)
+    const text = readFileSync(join(dir, 'apps/frontend/package.json'), 'utf8')
+    const frontend = JSON.parse(text) as Record<string, Record<string, string>>
+    expect(frontend.dependencies?.vue).toBeDefined()
+    expect(frontend.dependencies?.['@pico-desktop/communicator']).toMatch(/^link:/u)
+    expect(readFileSync(join(dir, 'pico-desktop.config.ts'), 'utf8')).toContain("id: 'com.example.vue-app'")
+    expect(existsSync(join(dir, 'apps/frontend/src/generated/app.ts'))).toBe(true)
+    expect(existsSync(join(dir, '.gitignore'))).toBe(true)
+  })
+
+  it('brings the ESLint rules of padcom/vue-template', () => {
+    const text = readFileSync(join(dir, 'apps/frontend/package.json'), 'utf8')
+    const frontend = JSON.parse(text) as Record<string, Record<string, string>>
+    expect(frontend.devDependencies?.['@padcom/eslint-config-vue']).toBeDefined()
+    expect(frontend.devDependencies?.eslint).toMatch(/^\d/u)
+    expect(frontend.scripts?.lint).toBe('eslint .')
+    expect(existsSync(join(dir, 'apps/frontend/eslint.config.mjs'))).toBe(true)
+  })
+
+  it('refuses a template that doesn\'t exist', () => {
+    expect(run(join(scratch, 'other'), undefined, 'react').out).toContain('isn\'t a template')
   })
 })
 

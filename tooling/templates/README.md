@@ -10,4 +10,6 @@ The `pico-desktop create` templates.
   - the Pico workspace (`project.json`) lists `node_modules/@pico-desktop/communicator-pico` as a member;
   - the backend then imports `pico-desktop/communicator`, with no vendored sources and the same version as the TypeScript packages.
 
+**`vue-ts`:** the same app with a Vue 3 + TypeScript frontend (`pico-desktop create <dir> --template vue-ts`). It builds for the production CSP (`script-src 'self'; style-src 'self'`): the runtime-only Vue build with precompiled SFCs, extracted CSS, no `eval`, no inline script or style (see the tutorial). Placeholders in `.vue` files must keep spaces inside the mustaches (`{{ value }}`), or `create` fills them in. It has no `.vscode` folder yet. `tooling/cli/tests/vue-template.sh` (ctest `cli.vue-template`) creates an app from it, tests, typechecks and runs it in a real window.
+
 The framework's ESLint skips this directory. `tooling/cli/tests/dev-loop.sh` (ctest `cli.dev-loop`) checks the template instead: it creates an app, installs it, runs its tests and its typecheck, and runs `pnpm dev`.

@@ -11,7 +11,7 @@ pnpm exec pico-desktop build | package
 
 | Command | What it does |
 |---|---|
-| `create` | scaffolds `tooling/templates/vanilla-ts` and generates its contract. Until the packages are published, it links them from a framework checkout: `--framework`, or by default the checkout the CLI runs from |
+| `create` | scaffolds `tooling/templates/vanilla-ts` (or, with `--template vue-ts`, the Vue 3 one) and generates its contract. Until the packages are published, it links them from a framework checkout: `--framework`, or by default the checkout the CLI runs from |
 | `generate` | turns every contract (CDDL) into the frontend's TypeScript (types, validators, `Services`, `validate`) and the backend's Pico (structs, decoders, encoders). It writes only the files that changed |
 | `dev` | starts the app's Vite dev server (HMR), builds the Pico backend and starts the host with `--dev --control=stdin` (see the next section) |
 | `test` | regenerates the contracts, then runs the frontend's Vitest and `pico test` on the backend |

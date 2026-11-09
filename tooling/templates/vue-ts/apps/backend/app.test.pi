@@ -1,0 +1,23 @@
+import { describe, it, expect } from "std/test"
+import { Cbor, Envelope, decodeEnvelope, encodeEnvelope, envelope, memoryPair } from "pico-desktop/communicator"
+import { createBackend } from "./app"
+import { HelloRequest, decodeGreeting, encodeHelloRequest } from "./generated/app"
+
+async function greets(): Promise<void> throws Error {
+  const ends = memoryPair()
+  createBackend(ends[0]).run()
+  const frontend = ends[1]
+  await frontend.receive()  // the backend's hello
+  const request = envelope("request")
+  request.id = 1
+  request.n = "greeting.hello"
+  request.p = encodeHelloRequest(HelloRequest { name: "Pico" })
+  await frontend.send(encodeEnvelope(request))
+  const answer = decodeEnvelope((await frontend.receive()) ?? new Uint8Array(0))
+  expect(decodeGreeting(answer.p ?? Cbor.Null, "$").message).toBe("Hello, Pico!")
+  frontend.close()
+}
+
+describe("the backend", () => {
+  it("greets", greets)
+})
