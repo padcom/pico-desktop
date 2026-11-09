@@ -45,10 +45,11 @@ read the `fps` lines of a run on the hardware you care about.
 ## What an app can expect
 
 - **With a GPU:** hardware WebGL and GPU compositing, as in Chrome. `webgl.software` is `false`.
-- **Without one** (a VM, a container, CI under Xvfb): Chromium falls back to its software
-  rasterizer (SwiftShader). WebGL works, if it works, on the CPU: the self-test tells whether the
-  host's Chromium allows that (`webgl.api`, `webgl.software=true`), and how many frames per second it
-  manages for the two loads above.
+- **Without one** (a VM, a container, CI under Xvfb): canvas 2D is software-rendered (60 fps for the
+  load above in CI), and WebGL runs on the CPU through SwiftShader, which the host allows on Linux
+  with `--enable-unsafe-swiftshader`; without that flag there is no WebGL (see "Results"). The
+  self-test says which renderer drew (`webgl.renderer`, `webgl.software=true`) and how many frames
+  per second it managed for the two loads above.
 - **An app must not assume 60 fps.** Check `renderer` and the measured frame rate at start (the same
   `WEBGL_debug_renderer_info` call), and have a cheaper mode: fewer points, no antialiasing,
   or a 2D canvas.
@@ -67,14 +68,37 @@ Honest account of the state when this was written:
 - **Where it runs:** CI, in the jobs "CEF host, linux-x64" and "CEF host, linux-arm64" (a native runner
   each, under Xvfb, so software rendering), in the ctest `host.self-test.app` and `host.self-test.https`
   (once per origin, so twice per job). It also runs in the macOS and Windows jobs, where it only reports.
-- **The first CI results** (renderer, `software`, frames per second) go in the section below once a run
-  has produced them.
+- **The CI results** (renderer, `software`, frames per second) are in "Results" below.
 - **Real GPUs are not covered by CI.** On a developer machine with one, run `pnpm cef` and read the
   `graphics:` line.
 
 ## Results
 
-_To be filled in from the first CI run of this self-test (the pull request that added it says where)._
+**First CI run (run 42543593827 of the pull request that added the self-test), before the host did
+anything about it: linux-x64 and linux-arm64, Xvfb, no GPU.**
+
+| | linux-x64 | linux-arm64 |
+|---|---|---|
+| WebGL context (WebGL 2 or 1) | **none could be created** (`webgl.api=none`) | **none could be created** |
+| 2D canvas, 300 circles | 60.0 fps (61 frames, the slowest 17 ms) | 60.0 fps (61 frames, the slowest 17 ms) |
+
+So with no GPU the host as it was gave a page software-rendered canvas 2D, at a full 60 fps for that
+load, and **no WebGL at all**: Chromium does not fall back to its software renderer for WebGL on its
+own any more. The map could not have worked in CI (or in a VM or container) like that.
+
+The host now passes `--enable-unsafe-swiftshader` on Linux (`HostApp::OnBeforeCommandLineProcessing`),
+which allows that fallback. The name says "unsafe" because SwiftShader runs shader code on the CPU for
+whatever page asks; here only the app's own content runs, under a CSP, and the host refuses navigation
+elsewhere (ADR-0003, [security-model.md](security-model.md)). The numbers with the flag follow
+(see "With the flag", below, once a run has produced them).
+
+macOS and Windows: the self-test ran and passed there, but ctest prints a passing test's output
+only when asked to, so no renderer or frame rate was recorded for them. Read it with
+`ctest --preset cef -R host.self-test -V` on a machine of the kind you care about.
+
+### With the flag
+
+_Not yet measured: the run that has `--enable-unsafe-swiftshader` is the next one._
 
 ## What this means for the map
 
