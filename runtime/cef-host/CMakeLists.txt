@@ -303,6 +303,14 @@ if(NOT WIN32)  # Windows: notifications aren't implemented on Windows yet
     COMMAND ${PD_SH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/services.sh ${PD_HOST} ${PD_FIXTURE_DIR})
   set_tests_properties(host.services PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
 endif()
+# The backend's data and cache directories (packages/communicator-pico/app_dirs.pi): created and written
+# in the normal case; a blocked or read-only location is reported as an error and the backend carries on.
+# Run through bash, so the script doesn't need an executable bit. Linux only for now.
+if(OS_LINUX)
+  add_test(NAME host.appdata
+    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/appdata.sh ${PD_HOST} ${PD_FIXTURE_DIR})
+  set_tests_properties(host.appdata PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180 RUN_SERIAL TRUE)
+endif()
 
 # The F3 vertical slice end to end: the hello-world app's self-test build and its compiled Pico
 # backend in a real window (`pnpm --filter @pico-desktop/hello-world build:self-test` and

@@ -21,6 +21,7 @@ export { FRAME_HEADER_BYTES, FrameReader, encodeFrame } from "./framing"
 export { Communicator, CommunicatorError, Handler, Listener, MAX_UNDELIVERED, Publisher, RequestContext, Sink } from "./communicator"
 export { MemoryEnd, StdioTransport, Transport, memoryPair } from "./transport"
 export { Host } from "./host"
+export { AppDirError, AppDirs, appDirs, isValidAppId, locate } from "./app_dirs"
 export { FilePath, FilePaths, Notification, OpenFile, OpenFolder, SaveFile, WindowBounds, WindowSize, WindowTitle } from "./generated/host"
 export { InvalidPayload, boolean, bytes, choice, float, int, items, members, required, tagOf, text, uint } from "./payload"
 
