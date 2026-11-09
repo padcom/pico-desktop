@@ -94,8 +94,10 @@ matters for the user: not the Pico link alone (the table above) but what reaches
   host build. The statistics and the pass/fail rule are unit-tested (`bench.test.ts`), and the Pico side is
   unit-tested too (the backend publishes exactly `count` events of the size asked for and stops).
 - **Not measured here.** The numbers below are from CI runs, not from the author's machine, which has no
-  CEF host build. The slow-page case (a page that stops reading) is *not* part of this benchmark: the host
-  has no bound toward the page yet (docs/protocol.md, "Backpressure"), which is the next change in #50.
+  CEF host build. The slow-page case (a page that stops reading) is *not* part of this benchmark: the
+  host bounds what it sends to a page that does not acknowledge (256 messages or 8 MiB, then new events
+  are dropped and counted in `d`; docs/protocol.md, "Backpressure"), and `host.flood` (`tests/flood.sh`)
+  tests that. A page that keeps up, as here, never reaches the bound.
 
 ### Results
 
