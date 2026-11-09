@@ -143,21 +143,38 @@ function summarize(times: number[]): Frames {
   return { frames: times.length, fps: seconds > 0 ? (times.length - 1) / seconds : 0, worstMs: Math.max(0, ...spans) }
 }
 
+// How long past `MEASURE_MS` to wait for frames that may never come (a window that is not visible
+// gets no animation frames): then the frames so far are the result, and the check says how few.
+const GIVE_UP_MS = 5000
+
 // Draws on every animation frame for `MEASURE_MS` and says how many frames came and how evenly.
 function measureFrames(draw: (frame: number) => void): Promise<Frames> {
   return new Promise(resolve => {
     const times: number[] = []
+    let finished = false
+    const finish = () => {
+      finished = true
+      resolve(summarize(times))
+    }
     const step = (now: number) => {
+      if (finished) {
+        return
+      }
       times.push(now)
       draw(times.length)
 
       if (now - (times[0] ?? now) < MEASURE_MS) {
         requestAnimationFrame(step)
       } else {
-        resolve(summarize(times))
+        finish()
       }
     }
     requestAnimationFrame(step)
+    setTimeout(() => {
+      if (!finished) {
+        finish()
+      }
+    }, MEASURE_MS + GIVE_UP_MS)
   })
 }
 

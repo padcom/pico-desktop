@@ -101,4 +101,53 @@ matters for the user: not the Pico link alone (the table above) but what reaches
 
 ### Results
 
-_The first CI run that prints them goes here._
+From CI run 42576469621 (pull request #59), one run on a hosted runner each; the CEF host jobs print the
+`pd-info: bench …` lines with `ctest --preset cef -R hello-world.self-test -V`. Latencies are in
+milliseconds, p50 / p95 / p99 / max. **Nothing was lost and the publisher dropped nothing in any of the
+ten runs.** "Arrived at" is the rate the page saw between its first and last event.
+
+| System | Map tiles (30 000 B, 50/s): latency, arrived at | Telemetry (64 B, 100/s): latency, arrived at | Bridge round trip (64 B) p50 / p95 / p99 | 1000 concurrent calls |
+|---|---|---|---|---|
+| linux-x64 | 1 / 1 / 2 / 4, 49.9/s | 0 / 1 / 1 / 2, 99.3/s | 0.40 / 0.80 / 1.30 ms | 111 ms (9050/s) |
+| linux-arm64 | 1 / 1 / 1 / 2, 49.8/s | 0 / 1 / 1 / 1, 99.3/s | 0.80 / 1.30 / 1.70 ms | 162 ms (6165/s) |
+| macos-arm64 | 1 / 1 / 2 / 2, 45.7/s | 0 / 1 / 1 / 27, 81.7/s | 0.30 / 0.70 / 1.30 ms | 121 ms (8285/s) |
+| windows-x64 | 1 / 1 / 1 / 2, 32.0/s | 0 / 1 / 1 / 1, 63.9/s | 0.70 / 1.00 / 1.20 ms | 316 ms (3162/s) |
+| windows-arm64 | 1 / 2 / 2 / 2, 32.1/s | 1 / 1 / 1 / 6, 63.5/s | 0.90 / 1.50 / 1.70 ms | 297 ms (3364/s) |
+
+What they say:
+
+- **The path is fast and does not queue.** Both loads arrive within a few milliseconds on every system:
+  the p95 is 1 to 2 ms against the gate's limit of 500 ms (about 250 times under it), and the largest
+  maximum is 27 ms against 2 s (about 70 times). The bridge itself (a page's request answered by Pico)
+  takes at most 1.7 ms at the 99th percentile.
+- **The Linux gate has room.** The limits sit far above these values, so a failure there is more likely
+  a regression than noise. This table cannot show the spread, though: it is one run per system. The CI
+  history of the gate will, and the limits should be tightened only after seeing several runs. The one
+  outlier is a 27 ms maximum on macOS telemetry.
+- **The lower "arrived at" on macOS and Windows is probably not the path, but only Windows has a
+  candidate explanation.** Nothing was lost and the latency is as low as on Linux, so the events were not
+  held up in transit, and with a latency of 1 ms they were sent at about the rate they arrived. (The
+  samples hold the send times, but the summary prints no send rate, so this is an inference.) On Windows (32/s of 50, 64/s of 100) a coarse
+  timer tick would give this: the default resolution is about 15.6 ms, so a 20 ms interval would fire
+  every 31 ms. That is my reading, not something the benchmark proves. **macOS (45.7/s of 50, 81.7/s of
+  100) is not explained by it, and I have no explanation for it.** It does not matter for the gate
+  (macOS and Windows only report), but until it is understood an app should not count on `setInterval`
+  for an exact rate there.
+
+**A page that stops reading (`host.flood`, docs/protocol.md "Backpressure").** The backend publishes a
+counter every millisecond; the page does not read for two seconds, then reads for one and a half. The
+host's bound on what a page has not acknowledged (256 messages or 8 MiB) turns the rest into `d`:
+
+| System | received | dropped (`d`) | last event |
+|---|---|---|---|
+| linux-x64 | 1643 | 1595 | 3238 |
+| linux-arm64 | 1677 | 1639 | 3316 |
+| macos-arm64 | 1445 | 1287 | 2732 |
+
+There is no Windows row: `host.flood` is not registered on Windows (`runtime/cef-host/CMakeLists.txt`
+registers it only where `NOT WIN32`; it uses a shell script).
+
+In each run, received plus dropped is exactly the last event number: nothing is unaccounted for. Most of
+"received" is the events that arrived after the page started reading again. These numbers do not measure
+the backlog kept during the pause: that it is at most 256 messages (or 8 MiB) is the host's bound,
+checked by the router's unit tests (`runtime/cef-host/tests/router_test.cpp`), not read off this table.

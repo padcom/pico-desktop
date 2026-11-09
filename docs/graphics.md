@@ -81,17 +81,31 @@ anything about it: linux-x64 and linux-arm64, Xvfb, no GPU.**
 | | linux-x64 | linux-arm64 |
 |---|---|---|
 | WebGL context (WebGL 2 or 1) | **none could be created** (`webgl.api=none`) | **none could be created** |
-| 2D canvas, 300 circles | 60.0 fps (61 frames, the slowest 17 ms) | 60.0 fps (61 frames, the slowest 17 ms) |
+| 2D canvas, 300 circles | 60.0 fps (61 frames, the slowest 17 ms) | 60.0 fps (62 frames, the slowest 17 ms) |
 
 So with no GPU the host as it was gave a page software-rendered canvas 2D, at a full 60 fps for that
 load, and **no WebGL at all**: Chromium does not fall back to its software renderer for WebGL on its
 own any more. The map could not have worked in CI (or in a VM or container) like that.
 
 The host now passes `--enable-unsafe-swiftshader` on Linux (`HostApp::OnBeforeCommandLineProcessing`),
-which allows that fallback. The name says "unsafe" because SwiftShader runs shader code on the CPU for
-whatever page asks; here only the app's own content runs, under a CSP, and the host refuses navigation
-elsewhere (ADR-0003, [security-model.md](security-model.md)). The numbers with the flag, and for macOS
-and Windows, follow.
+which allows that fallback. What the name means: SwiftShader was not hardened against shaders from an
+untrusted page, because it compiles them with a JIT (Subzero on x64, LLVM on arm64) inside the GPU
+process, whose sandbox on Linux is the weaker kind. So the exposure is **page-supplied shaders reaching
+that JIT compiler**, and exploiting it needs script already running in the app's page. That is
+acceptable while the host shows only the app's own content: the page runs under `script-src 'self'` and
+the host refuses navigation elsewhere (ADR-0003, [security-model.md](security-model.md)).
+
+Three things to know:
+
+- **It is not only the self-test.** The flag applies to every app on Linux and to every mode of the host.
+  In `dev` the window loads Vite's own origin, which has no CSP, so "CSP-locked" is not true there; that
+  is the developer's own machine and content.
+- **It only permits a fallback.** On a machine with a working GPU nothing changes.
+- **An app can refuse it:** `--no-software-webgl` (the host option) leaves the flag out, and WebGL then
+  fails without a GPU, as in the table above. The default stays on. If the host ever shows content the
+  app does not control, this decision must be made again.
+
+The numbers with the flag, and for macOS and Windows, follow.
 
 (ctest prints a passing test's output only when asked to, so each CEF host job re-runs the app-origin
 self-test once with `-V` and prints the `graphics:` lines; that is where these numbers come from.

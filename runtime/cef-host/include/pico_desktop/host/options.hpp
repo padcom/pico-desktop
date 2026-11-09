@@ -35,6 +35,9 @@ struct Options {
   bool dev = false;
   /// Hand external links to the system browser (off in tests: they're only logged).
   bool open_external = true;
+  /// Linux: let Chromium fall back to SwiftShader (software rendering) for the page's WebGL shaders when
+  /// there is no GPU (`--no-software-webgl` turns it off; docs/graphics.md, docs/security-model.md).
+  bool software_webgl = true;
   /// A remote-debugging switch was given (refused outside development).
   bool remote_debugging_requested = false;
   /// Development: read control commands from stdin, one per line (the dev CLI drives the host).

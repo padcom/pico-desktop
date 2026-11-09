@@ -241,6 +241,15 @@ static void options() {
     const auto* o = std::get_if<Options>(&r);
     CHECK(o && o->mode == Mode::self_test && !o->open_external);
   }
+  {
+    // The software WebGL fallback is on unless the app says no.
+    const auto yes = parse({"--app-dir=/x"});
+    const auto no = parse({"--app-dir=/x", "--no-software-webgl"});
+    const auto* on = std::get_if<Options>(&yes);
+    const auto* off = std::get_if<Options>(&no);
+    CHECK(on && on->software_webgl);
+    CHECK(off && !off->software_webgl);
+  }
   CHECK(std::holds_alternative<std::string>(parse({})));
   CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--app-id=Bad"})));
   CHECK(std::holds_alternative<std::string>(parse({"--app-dir=/x", "--origin=file"})));

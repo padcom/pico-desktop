@@ -51,6 +51,11 @@ running in CI, so a regression on either side is visible.
   system browser (user gesture only), and the CSP (`connect-src 'self'`, `frame-src 'self'`,
   `script-src 'self'`) keeps the page from fetching or framing them.
 - The bridge is injected by origin *and* re-checked in the browser process for every message.
+- **WebGL's software fallback depends on this.** On Linux the host passes `--enable-unsafe-swiftshader`
+  (page-supplied shaders reach SwiftShader's JIT in the GPU process; docs/graphics.md), which is
+  acceptable only because the page is the app's own content under this origin and CSP. If the host
+  ever shows content the app does not control (a remote page, a webview of another origin), that
+  decision must be made again; `--no-software-webgl` turns the fallback off.
 
 ## Consequences
 - App IDs must be valid DNS labels (`com.example.app` → `https://com.example.app.localhost/`); the host
