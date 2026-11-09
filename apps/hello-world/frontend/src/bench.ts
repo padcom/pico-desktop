@@ -111,10 +111,12 @@ const limits = (s: Summary): [boolean, string][] => [
  * Whether the run is within the limits.
  *
  * @param s the summary
+ * @param enforce false to only report (macOS and Windows, until their first numbers are seen: the limits
+ * were chosen before any CI number existed)
  * @returns true, or what broke which limit, with every number
  */
-export function verdict(s: Summary): true | string {
+export function verdict(s: Summary, enforce = true): true | string {
   const broken = limits(s).filter(([bad]) => bad).map(([, why]) => why)
 
-  return broken.length === 0 || `${broken.join('; ')}. ${describe(s)}`
+  return !enforce || broken.length === 0 || `${broken.join('; ')}. ${describe(s)}`
 }

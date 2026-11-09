@@ -248,9 +248,11 @@ async function benchmark(c: Communicator<Services>, load: Load): Promise<Outcome
   await until(() => samples.length >= load.count, (load.count / load.perSecond) * 1000 + 5000)
   await subscription.unsubscribe()
   const summary = summarize(load, samples)
-  console.log(`pd-info: bench ${describe(summary)}`)
+  // The limits are enforced on Linux; elsewhere the numbers are only reported (docs/ipc-benchmark.md).
+  const enforce = navigator.userAgent.includes('Linux')
+  console.log(`pd-info: bench ${describe(summary)}${enforce ? '' : ' (reported only on this system)'}`)
 
-  return verdict(summary)
+  return verdict(summary, enforce)
 }
 
 /**

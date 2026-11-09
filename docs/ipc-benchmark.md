@@ -78,9 +78,16 @@ matters for the user: not the Pico link alone (the table above) but what reaches
   machine's clock, so it is meaningful to about a millisecond. Reported are p50, p95, p99 and the maximum.
 - **Lost** is `count` minus what arrived. **Dropped by the publisher** is the sum of the `d` the page saw.
   With a page that keeps up, both should be 0.
-- **The gate.** The self-test fails when more than 2 % are lost, the p95 latency is above 500 ms, or the
-  maximum above 2 s (`LIMITS` in `bench.ts`). They are far above what a healthy run does, on purpose: CI
-  runners differ, and a flaky gate costs more than it catches. A failure prints every number on one line.
+- **The gate.** On Linux the self-test fails when more than 2 % are lost, the p95 latency is above 500 ms,
+  or the maximum above 2 s (`LIMITS` in `bench.ts`). They are far above what a healthy run does, on
+  purpose: CI runners differ, and a flaky gate costs more than it catches. A failure prints every number on
+  one line. **On macOS and Windows the numbers are only reported** (`reported only on this system`), until
+  their first results are seen: the limits were chosen before any CI number existed, and those systems are
+  not gates for #50.
+- **The rate.** The backend's timer runs in whole milliseconds, so `perSecond` must divide 1000 (50 and 100
+  do; 3 would run at 3.003); anything else is refused (`HANDLER_ERROR`, the subscription ends at once).
+  After the last event the timer stops but the subscription stays open until the page unsubscribes (the
+  benchmark does, when it has counted the events or waited for them).
 - **Where it runs.** The self-test (ctest `hello-world.self-test`) runs in the CEF host jobs on linux-x64
   and linux-arm64 and on macOS and Windows. The `pd-info: bench …` lines are printed by
   `ctest --preset cef -R hello-world.self-test -V`, and `pnpm hello-world:self-test` on a machine with a

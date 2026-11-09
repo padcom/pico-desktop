@@ -64,6 +64,13 @@ suite('the benchmark verdict', () => {
     expect(verdict(summarize(stalled, [...steady(149, 5), { sentAt: 5000, receivedAt: 5000 + LIMITS.maxMs + 1, dropped: 0 }])))
       .toContain('max latency')
   })
+})
+
+suite('the benchmark outside Linux', () => {
+  it('only reports, and passes, when the limits are not enforced', () => {
+    expect(verdict(summarize(tiles, steady(100, 5)), false)).toBe(true)
+    expect(verdict(summarize(tiles, steady(100, 5)), true)).not.toBe(true)
+  })
 
   it('describes a run on one line', () => {
     const line = describe(summarize(tiles, steady(150, 4)))

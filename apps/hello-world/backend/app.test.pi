@@ -1,5 +1,6 @@
 // The hello-world backend against a scripted frontend on an in-memory link.
 import { describe, it, expect } from "std/test"
+import { delay } from "std/timers"
 import { Cbor, Envelope, MemoryEnd, decodeEnvelope, encodeEnvelope, envelope, integer, memoryPair } from "pico-desktop/communicator"
 import { createBackend } from "./app"
 import {
@@ -126,10 +127,31 @@ async function benchEventsArrive(): Promise<void> throws Error {
     expect(event.data.length).toBe(100)
     expect((event.sentAt as int) >= before && (event.sentAt as int) <= (Date.now() as int)).toBe(true)
   }
+  // The timer ended by itself, before anyone unsubscribed: after a pause (60 intervals), the first
+  // thing to arrive for a new request is that request's own event, not one more of the load. (A
+  // greeting sends its event before its answer.)
+  await delay(60)
+  await f.call("request", 2, "greeting.hello", encodeHelloRequest(HelloRequest { name: "Pico" }))
+  const next = await f.next()
+  expect(next.k == "event" && next.n == "greeting.greeted").toBe(true)
   const stop = envelope("unsubscribe")
   stop.s = accepted.s
   stop.w = 1
   await f.send(stop)
+  f.peer.close()
+}
+
+/// A rate that doesn't divide 1000 would run at another one (the timer is whole milliseconds), so
+/// it is refused: the subscription is accepted and ended at once with the reason.
+async function benchRefusesAnInexactRate(): Promise<void> throws Error {
+  const f = await connected()
+  await f.call("subscribe", 1, "bench.events", encodeBenchParams(BenchParams { perSecond: 3, count: 3, bytes: 10 }))
+  const accepted = await f.next()
+  expect(accepted.k).toBe("response")
+  const ended = await f.next()
+  expect(ended.k).toBe("unsubscribe")
+  expect(ended.err?.code ?? "").toBe("HANDLER_ERROR")
+  expect(ended.err?.message ?? "").toContain("divides 1000")
   f.peer.close()
 }
 
@@ -184,4 +206,5 @@ describe("the hello-world backend", () => {
   it("echoes byte strings of any size, byte for byte", echoesBytes)
   it("refuses text where bytes belong", refusesTextForBytes)
   it("publishes the benchmark's load, and stops after the last event", benchEventsArrive)
+  it("refuses a benchmark rate that doesn't divide 1000", benchRefusesAnInexactRate)
 })

@@ -119,7 +119,8 @@ async function echoBytes(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> t
 }
 
 /// The benchmark's load (docs/ipc-benchmark.md): `count` events, `perSecond` each second, each with
-/// `bytes` bytes and the time it was sent. The timer ends after the last one.
+/// `bytes` bytes and the time it was sent. The timer ends after the last one; the subscription stays
+/// open until the subscriber ends it.
 class Bench {
   sink: Sink
   count: u32
@@ -144,8 +145,9 @@ class Bench {
 
 function benchEvents(params: Cbor?, sink: Sink): void throws Error {
   const p = decodeBenchParams(params ?? Cbor.Null, "$")
-  if (p.perSecond < 1 || p.perSecond > 1000 || p.count < 1 || p.bytes > 2097152) {
-    throw new CommunicatorError("INVALID_VALUE", "the benchmark wants 1 to 1000 events a second, at least one event and at most 2 MiB each")
+  // The timer runs in whole milliseconds, so only a rate that divides 1000 is the rate asked for.
+  if (p.perSecond < 1 || p.perSecond > 1000 || 1000 % (p.perSecond as int) != 0 || p.count < 1 || p.bytes > 2097152) {
+    throw new CommunicatorError("INVALID_VALUE", "the benchmark wants a rate that divides 1000 (50, 100, ...), at least one event and at most 2 MiB each")
   }
   const bench = new Bench(sink, p.count, p.bytes as int)
   bench.timer = setInterval(() => bench.tick(), (1000 / p.perSecond) as int)
