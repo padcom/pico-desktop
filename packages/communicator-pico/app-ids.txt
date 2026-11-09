@@ -1,0 +1,29 @@
+# App IDs and whether the configuration accepts them: `valid|<id>` or `invalid|<id>`.
+# The same table is checked through the CLI's validation (tooling/cli/src/config.test.ts) and through
+# isValidAppId (app_dirs.test.pi), so the two cannot drift apart.
+# (The host is stricter still: it refuses a part that ends in '-' or has more than 63 characters, and
+# so never starts a backend for such an ID.)
+valid|app
+valid|com.example.app
+valid|my-app
+valid|a1.b2-c3
+valid|app-
+valid|a-b-.c
+valid|0
+valid|1.2.3
+invalid|
+invalid|.
+invalid|..
+invalid|../x
+invalid|../../etc
+invalid|a/b
+invalid|A
+invalid|com..app
+invalid|.app
+invalid|app.
+invalid|-app
+invalid|a.-b
+invalid|a b
+invalid|a\b
+invalid|app_1
+invalid|é

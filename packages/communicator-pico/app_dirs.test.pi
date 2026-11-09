@@ -1,7 +1,7 @@
 // The app's data and cache directories: where they are for each environment (pure), and creating them on
 // first use, with a location that can't be written to failing with an AppDirError instead of crashing.
 import { describe, it, expect } from "std/test"
-import { chmod, mkdir, readText, remove, writeText } from "std/fs"
+import { chmod, exists, mkdir, readText, remove, writeText } from "std/fs"
 import { join } from "std/path"
 import { env, pid } from "std/process"
 import { AppDirError, appDirs, isValidAppId, locate } from "./app_dirs"
@@ -17,7 +17,7 @@ function vars(pairs: string[]): Map<string, string> {
 /// The error `locate` fails with, or null.
 function failure(appId: string, pairs: string[]): AppDirError? {
   try {
-    locate(appId, vars(pairs))
+    locate(appId, vars(pairs), false)
     null
   } catch (e: AppDirError) {
     e
@@ -25,28 +25,38 @@ function failure(appId: string, pairs: string[]): AppDirError? {
 }
 
 function usesXdg(): void throws Error {
-  const dirs = locate("com.example.app", vars(["XDG_DATA_HOME", "/d", "XDG_CACHE_HOME", "/c", "HOME", "/h"]))
+  const dirs = locate("com.example.app", vars(["XDG_DATA_HOME", "/d", "XDG_CACHE_HOME", "/c", "HOME", "/h"]), false)
   expect(dirs.data).toBe("/d/pico-desktop/apps/com.example.app")
   expect(dirs.cache).toBe("/c/pico-desktop/apps/com.example.app/backend")
 }
 
 function fallsBackToHome(): void throws Error {
-  const dirs = locate("app", vars(["HOME", "/home/me"]))
+  const dirs = locate("app", vars(["HOME", "/home/me"]), false)
   expect(dirs.data).toBe("/home/me/.local/share/pico-desktop/apps/app")
   expect(dirs.cache).toBe("/home/me/.cache/pico-desktop/apps/app/backend")
 }
 
 function ignoresBadXdg(): void throws Error {
   // Empty and relative values are ignored (XDG Base Directory specification).
-  const dirs = locate("app", vars(["XDG_DATA_HOME", "", "XDG_CACHE_HOME", "relative/cache", "HOME", "/home/me"]))
+  const dirs = locate("app", vars(["XDG_DATA_HOME", "", "XDG_CACHE_HOME", "relative/cache", "HOME", "/home/me"]), false)
   expect(dirs.data).toBe("/home/me/.local/share/pico-desktop/apps/app")
   expect(dirs.cache).toBe("/home/me/.cache/pico-desktop/apps/app/backend")
 }
 
-function usesLocalAppData(): void throws Error {
-  const dirs = locate("app", vars(["LOCALAPPDATA", "/local"]))
+function usesLocalAppDataOnWindowsOnly(): void throws Error {
+  const dirs = locate("app", vars(["LOCALAPPDATA", "/local", "XDG_DATA_HOME", "/ignored"]), true)
   expect(dirs.data).toBe("/local/pico-desktop/apps/app")
   expect(dirs.cache).toBe("/local/pico-desktop/apps/app/backend")
+  // Elsewhere LOCALAPPDATA means nothing.
+  expect(failure("app", ["LOCALAPPDATA", "/local"])!.kind).toBe("NoHome")
+  // On Windows the error names the Windows variable.
+  let message = ""
+  try {
+    locate("app", vars(["HOME", "/h"]), true)
+  } catch (e: AppDirError) {
+    message = e.message
+  }
+  expect(message).toContain("LOCALAPPDATA")
 }
 
 function needsAPlace(): void throws Error {
@@ -57,118 +67,201 @@ function needsAPlace(): void throws Error {
   expect(failure("app", [])!.kind).toBe("NoHome")
 }
 
-function takesOnlyHostAppIds(): void throws Error {
-  for (const ok of ["app", "com.example.app", "my-app", "a1.b2-c3"]) {
-    expect(isValidAppId(ok)).toBe(true)
+/// The IDs of app-ids.txt, the table the CLI's validation is tested with too.
+async function idTable(): Promise<string[]> throws Error {
+  const path = if (await exists("packages/communicator-pico/app-ids.txt")) "packages/communicator-pico/app-ids.txt" else "app-ids.txt"
+  const lines: string[] = []
+  for (const line of (await readText(path)).split("\n")) {
+    if (line != "" && !line.startsWith("#")) {
+      lines.push(line)
+    }
   }
-  for (const bad of ["", ".", "..", "../x", "a/b", "A", "com..app", ".app", "app.", "-app", "app-", "a b", "a\\b", "a".repeat(64)]) {
-    expect(isValidAppId(bad)).toBe(false)
+  lines
+}
+
+async function agreesWithTheConfiguration(): Promise<void> throws Error {
+  const lines = await idTable()
+  expect(lines.length > 10).toBe(true)
+  for (const line of lines) {
+    const at = line.indexOf("|")
+    const verdict = line.slice(0, at)
+    const id = line.slice(at + 1)
+    expect(`${id} is ${if (isValidAppId(id)) "valid" else "invalid"}`).toBe(`${id} is ${verdict}`)
   }
   expect(failure("../../etc", ["HOME", "/h"])!.kind).toBe("InvalidAppId")
   expect(failure("", ["HOME", "/h"])!.kind).toBe("InvalidAppId")
   expect(failure("a/b", ["HOME", "/h"])!.kind).toBe("InvalidAppId")
 }
 
-// ---- creating the directories (the process environment is changed and put back)
+// ---- creating the directories (the process environment is changed, and put back)
 
-function scratchDir(): string {
-  join(env.get("TMPDIR") ?? "/tmp", `pd-app-dirs-test-${pid}`)
+/// The two variables as they were.
+class SavedEnv {
+  public data: string?
+  public cache: string?
+
+  constructor(data: string?, cache: string?) {
+    this.data = data
+    this.cache = cache
+  }
+}
+
+function saveEnv(): SavedEnv {
+  new SavedEnv(env.get("XDG_DATA_HOME"), env.get("XDG_CACHE_HOME"))
+}
+
+function restoreEnv(saved: SavedEnv): void {
+  if (saved.data == null) env.delete("XDG_DATA_HOME") else env.set("XDG_DATA_HOME", saved.data!)
+  if (saved.cache == null) env.delete("XDG_CACHE_HOME") else env.set("XDG_CACHE_HOME", saved.cache!)
+}
+
+function scratchDir(name: string): string {
+  join(env.get("TMPDIR") ?? "/tmp", `pd-app-dirs-${name}-${pid}`)
+}
+
+/// The error appDirs fails with, or null.
+async function appDirsFailure(appId: string): Promise<AppDirError?> throws Error {
+  try {
+    await appDirs(appId)
+    null
+  } catch (e: AppDirError) {
+    e
+  }
 }
 
 async function createsOnFirstUse(): Promise<void> throws Error {
-  const root = scratchDir()
-  await mkdir(root, true)
-  env.set("XDG_DATA_HOME", join(root, "data"))
-  env.set("XDG_CACHE_HOME", join(root, "cache"))
-  const dirs = await appDirs("com.example.app")
-  expect(dirs.data).toBe(join(root, "data", "pico-desktop", "apps", "com.example.app"))
-  await writeText(join(dirs.data, "settings.json"), "{\"a\":1}")
-  await writeText(join(dirs.cache, "index"), "x")
-  // A second call keeps what is there.
-  const again = await appDirs("com.example.app")
-  expect(again.data).toBe(dirs.data)
-  expect(await readText(join(dirs.data, "settings.json"))).toBe("{\"a\":1}")
-  await remove(root, true)
+  const saved = saveEnv()
+  const root = scratchDir("first")
+  try {
+    await mkdir(root, true)
+    env.set("XDG_DATA_HOME", join(root, "data"))
+    env.set("XDG_CACHE_HOME", join(root, "cache"))
+    const dirs = await appDirs("com.example.app")
+    expect(dirs.data).toBe(join(root, "data", "pico-desktop", "apps", "com.example.app"))
+    await writeText(join(dirs.data, "settings.json"), "{\"a\":1}")
+    await writeText(join(dirs.cache, "index"), "x")
+    // A second call keeps what is there, and leaves no probe file.
+    const again = await appDirs("com.example.app")
+    expect(again.data).toBe(dirs.data)
+    expect(await readText(join(dirs.data, "settings.json"))).toBe("{\"a\":1}")
+    expect(await exists(join(dirs.data, `.write-test-${pid}-1`))).toBe(false)
+  } finally {
+    restoreEnv(saved)
+    await remove(root, true)
+  }
+}
+
+async function worksWhenCalledAtOnce(): Promise<void> throws Error {
+  // Two backends (a restart in dev leaves the old one exiting) or two calls: each its own probe file.
+  const saved = saveEnv()
+  const root = scratchDir("once")
+  try {
+    await mkdir(root, true)
+    env.set("XDG_DATA_HOME", join(root, "data"))
+    env.set("XDG_CACHE_HOME", join(root, "cache"))
+    for (let round = 0; round < 5; round++) {
+      const first = appDirs("com.example.app")
+      const second = appDirs("com.example.app")
+      const third = appDirs("com.example.app")
+      expect((await first).data).toBe((await second).data)
+      expect((await third).cache).toBe((await first).cache)
+    }
+  } finally {
+    restoreEnv(saved)
+    await remove(root, true)
+  }
 }
 
 async function failsWhenTheParentIsAFile(): Promise<void> throws Error {
   // A file where the directory should be: fails whoever runs the test, root included.
-  const root = scratchDir()
-  await mkdir(root, true)
-  const blocker = join(root, "blocker")
-  await writeText(blocker, "not a directory")
-  env.set("XDG_DATA_HOME", blocker)
-  env.set("XDG_CACHE_HOME", join(root, "cache"))
-  let err: AppDirError? = null
+  const saved = saveEnv()
+  const root = scratchDir("data")
   try {
-    await appDirs("com.example.app")
-  } catch (e: AppDirError) {
-    err = e
+    await mkdir(root, true)
+    const blocker = join(root, "blocker")
+    await writeText(blocker, "not a directory")
+    env.set("XDG_DATA_HOME", blocker)
+    env.set("XDG_CACHE_HOME", join(root, "cache"))
+    const err = await appDirsFailure("com.example.app")
+    expect(err != null).toBe(true)
+    expect(err!.kind).toBe("NotWritable")
+    expect(err!.path).toBe(join(blocker, "pico-desktop", "apps", "com.example.app"))
+    expect(err!.message).toContain("XDG_DATA_HOME")
+    expect(err!.message).toContain(blocker)
+  } finally {
+    restoreEnv(saved)
+    await remove(root, true)
   }
-  expect(err != null).toBe(true)
-  expect(err!.kind).toBe("NotWritable")
-  expect(err!.path).toBe(join(blocker, "pico-desktop", "apps", "com.example.app"))
-  expect(err!.message).toContain("XDG_DATA_HOME")
-  expect(err!.message).toContain(blocker)
-  await remove(root, true)
 }
 
 async function failsWhenTheCacheParentIsAFile(): Promise<void> throws Error {
   // The same for the cache: the data directory is fine, a file is where the cache home should be.
-  const root = scratchDir()
-  await mkdir(root, true)
-  const blocker = join(root, "blocker")
-  await writeText(blocker, "not a directory")
-  env.set("XDG_DATA_HOME", join(root, "data"))
-  env.set("XDG_CACHE_HOME", blocker)
-  let err: AppDirError? = null
+  const saved = saveEnv()
+  const root = scratchDir("cache")
   try {
-    await appDirs("com.example.app")
-  } catch (e: AppDirError) {
-    err = e
+    await mkdir(root, true)
+    const blocker = join(root, "blocker")
+    await writeText(blocker, "not a directory")
+    env.set("XDG_DATA_HOME", join(root, "data"))
+    env.set("XDG_CACHE_HOME", blocker)
+    const err = await appDirsFailure("com.example.app")
+    expect(err != null).toBe(true)
+    expect(err!.kind).toBe("NotWritable")
+    expect(err!.path).toBe(join(blocker, "pico-desktop", "apps", "com.example.app", "backend"))
+    expect(err!.message).toContain("XDG_CACHE_HOME")
+    expect(err!.message).toContain(blocker)
+  } finally {
+    restoreEnv(saved)
+    await remove(root, true)
   }
-  expect(err != null).toBe(true)
-  expect(err!.kind).toBe("NotWritable")
-  expect(err!.path).toBe(join(blocker, "pico-desktop", "apps", "com.example.app", "backend"))
-  expect(err!.message).toContain("XDG_CACHE_HOME")
-  expect(err!.message).toContain(blocker)
-  await remove(root, true)
 }
 
 async function failsWhenTheDirectoryIsReadOnly(): Promise<void> throws Error {
-  const root = scratchDir()
-  const locked = join(root, "locked")
-  await mkdir(join(locked, "pico-desktop", "apps", "com.example.app"), true)
-  await chmod(join(locked, "pico-desktop", "apps", "com.example.app"), 365)  // r-xr-xr-x
-  env.set("XDG_DATA_HOME", locked)
-  env.set("XDG_CACHE_HOME", join(root, "cache"))
-  let err: AppDirError? = null
+  const saved = saveEnv()
+  const root = scratchDir("readonly")
+  const app = join(root, "locked", "pico-desktop", "apps", "com.example.app")
   try {
-    await appDirs("com.example.app")
-  } catch (e: AppDirError) {
-    err = e
+    await mkdir(app, true)
+    await chmod(app, 365)  // r-xr-xr-x
+    env.set("XDG_DATA_HOME", join(root, "locked"))
+    env.set("XDG_CACHE_HOME", join(root, "cache"))
+    const err = await appDirsFailure("com.example.app")
+    // root may write anywhere: then there is nothing to fail (the parent-is-a-file tests cover that case).
+    if (err != null) {
+      expect(err!.kind).toBe("NotWritable")
+      expect(err!.message).toContain("permission denied")
+      expect(err!.message).toContain("XDG_DATA_HOME")
+    }
+  } finally {
+    await chmod(app, 493)  // rwxr-xr-x, so it can be removed
+    restoreEnv(saved)
+    await remove(root, true)
   }
-  await chmod(join(locked, "pico-desktop", "apps", "com.example.app"), 493)  // rwxr-xr-x
-  // root may write anywhere: then there is nothing to fail (the parent-is-a-file test covers that case).
-  if (err != null) {
-    expect(err!.kind).toBe("NotWritable")
-    expect(err!.message).toContain("permission denied")
-  }
-  await remove(root, true)
+}
+
+async function restoresTheEnvironment(): Promise<void> throws Error {
+  const before = saveEnv()
+  env.set("XDG_DATA_HOME", "/somewhere")
+  env.delete("XDG_CACHE_HOME")
+  restoreEnv(before)
+  expect(env.get("XDG_DATA_HOME") == before.data).toBe(true)
+  expect(env.get("XDG_CACHE_HOME") == before.cache).toBe(true)
 }
 
 describe("where the directories are", () => {
   it("uses XDG_DATA_HOME and XDG_CACHE_HOME", usesXdg)
   it("falls back to ~/.local/share and ~/.cache", fallsBackToHome)
   it("ignores an empty or relative XDG variable", ignoresBadXdg)
-  it("uses LOCALAPPDATA when there is no XDG variable", usesLocalAppData)
+  it("uses LOCALAPPDATA on Windows only, and names it there", usesLocalAppDataOnWindowsOnly)
   it("fails with NoHome when nothing says where", needsAPlace)
-  it("accepts only the app IDs the host accepts", takesOnlyHostAppIds)
+  it("accepts exactly the app IDs the configuration accepts", agreesWithTheConfiguration)
 })
 
 describe("creating them", () => {
   it("creates both on first use and keeps their content", createsOnFirstUse)
-  it("fails with NotWritable, naming the directory and the variable, when a file is in the way", failsWhenTheParentIsAFile)
+  it("works when called several times at once", worksWhenCalledAtOnce)
+  it("fails with NotWritable, naming XDG_DATA_HOME, when a file is in the way", failsWhenTheParentIsAFile)
   it("fails with NotWritable, naming XDG_CACHE_HOME, when a file is in the way of the cache", failsWhenTheCacheParentIsAFile)
   it("fails with NotWritable on a read-only directory", failsWhenTheDirectoryIsReadOnly)
+  it("puts the environment back", restoresTheEnvironment)
 })

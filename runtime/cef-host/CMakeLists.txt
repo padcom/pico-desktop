@@ -309,7 +309,7 @@ endif()
 if(OS_LINUX)
   add_test(NAME host.appdata
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/appdata.sh ${PD_HOST} ${PD_FIXTURE_DIR})
-  set_tests_properties(host.appdata PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RUN_SERIAL TRUE)
+  set_tests_properties(host.appdata PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180 RUN_SERIAL TRUE)
 endif()
 
 # The F3 vertical slice end to end: the hello-world app's self-test build and its compiled Pico

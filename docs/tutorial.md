@@ -126,13 +126,13 @@ try {
 
 | | Linux | Windows (not tested yet) |
 |---|---|---|
-| `dirs.data` | `$XDG_DATA_HOME/pico-desktop/apps/<app-id>` (default `~/.local/share`) | `%LOCALAPPDATA%\pico-desktop\apps\<app-id>` |
+| `dirs.data` | `$XDG_DATA_HOME/pico-desktop/apps/<app-id>` (default `~/.local/share`) | `%LOCALAPPDATA%\pico-desktop\apps\<app-id>` (Windows looks at no other variable) |
 | `dirs.cache` | `$XDG_CACHE_HOME/pico-desktop/apps/<app-id>/backend` (default `~/.cache`) | the same with `\backend` |
 
-- Both are created on first use (with their parents), and `appDirs` proves each can be written to, so a problem shows up here and not in the middle of a save. An `XDG_*` variable that is empty or not an absolute path is ignored, as the XDG specification says.
+- Both are created on first use (with their parents; a new directory gets mode `0700`, as the XDG specification asks), and `appDirs` proves each can be written to with a probe file of its own name, so a problem shows up here and not in the middle of a save, and several calls at once (or an old backend still exiting during a restart in `pnpm dev`) don't disturb each other. An `XDG_*` variable that is empty or not an absolute path is ignored, as the XDG specification says.
 - A location that can't be created or written to (a file in the way, a read-only directory) is an `AppDirError` naming the directory and the variable to change, not a crash: catch it and carry on without persistence, or tell the user. Reading and writing files is `std/fs`; the framework adds nothing on top.
-- The app ID must be a valid one (lowercase letters, digits, `-` and `.`, like `com.example.app`): it is a directory name.
-- The cache is under the same `apps/<app-id>` directory as the window's browser profile, in `backend`. To keep files out of tests' way, set `XDG_DATA_HOME` and `XDG_CACHE_HOME` to a temporary directory; `ctest host.appdata` does that for the real host.
+- The app ID must be one the configuration accepts (lowercase letters, digits, `-` and `.`, like `com.example.app`; `app.id` is checked the same way): it is a directory name.
+- The cache directory is `backend` inside `apps/<app-id>`, next to the window's browser profile when both use the same cache home. The host also accepts a relative `XDG_CACHE_HOME`, which `appDirs` ignores as the specification says, so give both an absolute one. To keep files out of tests' way, set `XDG_DATA_HOME` and `XDG_CACHE_HOME` to a temporary directory; `ctest host.appdata` does that for the real host.
 
 ## 5. Test
 

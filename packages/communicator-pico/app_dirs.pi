@@ -6,11 +6,15 @@
 //   Windows    %LOCALAPPDATA%\pico-desktop\apps\<app-id>, with \backend for the cache
 //
 // An XDG variable that is empty or not an absolute path is ignored, as the XDG specification says. The
-// directories are created on first use; one that can't be created or written to is an `AppDirError`
-// naming the directory and the variable to change, not a crash. macOS and Windows are not tested yet.
-import { mkdir, remove, writeText } from "std/fs"
+// directories are created on first use (a new one with mode 0700); one that can't be created or written
+// to is an `AppDirError` naming the directory and the variable to change, not a crash. macOS and Windows
+// are not tested yet.
+import { chmod, exists, mkdir, remove, writeText } from "std/fs"
 import { isAbsolute, join } from "std/path"
-import { env } from "std/process"
+import { env, pid } from "std/process"
+
+/// Whether this is a Windows build: it looks for %LOCALAPPDATA%, everything else for the XDG variables.
+const onWindows: bool = comptime if (target.os == "windows") true else false
 
 /// Why the directories aren't available: `InvalidAppId`, `NoHome` (no variable says where) or
 /// `NotWritable` (they can't be created, or can't be written to).
@@ -39,10 +43,11 @@ export class AppDirs {
   }
 }
 
-/// Whether `appId` is an app ID as the host takes it (lowercase letters, digits, '-' and '.', like
-/// com.example.app): the ID is a directory name, so nothing else is allowed (no '/', no "..").
+/// Whether `appId` is an app ID as the configuration accepts it (pico-desktop.config.ts: lowercase letters,
+/// digits, '-' and '.', each dot-separated part starting with a letter or digit, like com.example.app). The ID
+/// is a directory name, so nothing else is allowed (no '/', no "..").
 export function isValidAppId(appId: string): bool {
-  if (appId.length == 0 || appId.length > 200) {
+  if (appId.length == 0) {
     return false
   }
   for (const label of appId.split(".")) {
@@ -53,9 +58,9 @@ export function isValidAppId(appId: string): bool {
   true
 }
 
-/// One dot-separated part of an app ID: 1 to 63 of a-z, 0-9 and '-', not starting or ending with '-'.
+/// One dot-separated part of an app ID: a-z, 0-9 and '-', not starting with '-'.
 function isValidLabel(label: string): bool {
-  if (label.length == 0 || label.length > 63 || label.startsWith("-") || label.endsWith("-")) {
+  if (label.length == 0 || label.startsWith("-")) {
     return false
   }
   for (const ch of label) {
@@ -66,46 +71,78 @@ function isValidLabel(label: string): bool {
   true
 }
 
-/// The base directory for `xdg` (an XDG variable), else `windows` (a Windows variable), else `fallback`
-/// under the home directory; null when none of them says.
-function base(vars: Map<string, string>, xdg: string, windows: string, fallback: string): string? {
-  const wanted = vars.get(xdg)
-  if (wanted != null && wanted != "" && isAbsolute(wanted)) {
-    return wanted
-  }
-  const local = vars.get(windows)
-  if (local != null && local != "" && isAbsolute(local)) {
-    return local
-  }
-  const home = vars.get("HOME")
-  if (home != null && home != "" && isAbsolute(home)) {
-    return join(home, fallback)
-  }
-  null
+/// The variable that says where `kind` ("data" or "cache") goes on this system.
+function variableFor(kind: string, windows: bool): string {
+  if (windows) "LOCALAPPDATA" else if (kind == "data") "XDG_DATA_HOME" else "XDG_CACHE_HOME"
 }
 
-/// Where the directories of `appId` are, given the environment `vars`. Nothing is created.
-export function locate(appId: string, vars: Map<string, string>): AppDirs throws AppDirError {
+/// An absolute path in the variable `name`, or null.
+function absolute(vars: Map<string, string>, name: string): string? {
+  const value = vars.get(name)
+  if (value != null && value != "" && isAbsolute(value)) value else null
+}
+
+/// The base directory for `kind`: on Windows %LOCALAPPDATA%; elsewhere its XDG variable, else `fallback`
+/// under the home directory. Null when nothing says.
+function base(vars: Map<string, string>, kind: string, fallback: string, windows: bool): string? {
+  if (windows) {
+    return absolute(vars, "LOCALAPPDATA")
+  }
+  const wanted = absolute(vars, variableFor(kind, false))
+  if (wanted != null) {
+    return wanted
+  }
+  const home = absolute(vars, "HOME")
+  if (home != null) join(home!, fallback) else null
+}
+
+/// Where the directories of `appId` are, given the environment `vars` (and whether it's Windows's).
+/// Nothing is created.
+export function locate(appId: string, vars: Map<string, string>, windows: bool = onWindows): AppDirs throws AppDirError {
   if (!isValidAppId(appId)) {
     throw new AppDirError("InvalidAppId", "", `'${appId}' isn't a valid app ID: use lowercase letters, digits, '-' and '.' (like com.example.app)`)
   }
-  const data = base(vars, "XDG_DATA_HOME", "LOCALAPPDATA", ".local/share")
-  const cache = base(vars, "XDG_CACHE_HOME", "LOCALAPPDATA", ".cache")
+  const data = base(vars, "data", ".local/share", windows)
+  const cache = base(vars, "cache", ".cache", windows)
   if (data == null || cache == null) {
-    throw new AppDirError("NoHome", "", "no place for the app's data: set XDG_DATA_HOME and XDG_CACHE_HOME (or HOME) to an absolute path")
+    const names = if (windows) "LOCALAPPDATA" else "XDG_DATA_HOME and XDG_CACHE_HOME (or HOME)"
+    throw new AppDirError("NoHome", "", `no place for the app's data: set ${names} to an absolute path`)
   }
-  new AppDirs(join(data, "pico-desktop", "apps", appId), join(cache, "pico-desktop", "apps", appId, "backend"))
+  new AppDirs(join(data!, "pico-desktop", "apps", appId), join(cache!, "pico-desktop", "apps", appId, "backend"))
 }
 
-/// Creates `dir` if it's missing, and proves it can be written to by creating and removing a file.
+/// Makes the probe files of this process distinct: two calls at once, or a backend still exiting during a
+/// restart, must not remove each other's.
+class Probes {
+  public count: int = 0
+}
+
+const probes = new Probes()
+
+/// Creates `dir` if it's missing (a new one private to the user, mode 0700), and proves it can be written
+/// to by creating and removing a file of its own.
 async function prepare(dir: string, variable: string): Promise<void> throws AppDirError {
+  probes.count += 1
+  const probe = join(dir, `.write-test-${pid}-${probes.count}`)
   try {
+    const existed = await exists(dir)
     await mkdir(dir, true)
-    const probe = join(dir, ".write-test")
+    if (!existed) {
+      try {
+        await chmod(dir, 448)  // 0700; where modes mean nothing (Windows) this changes nothing
+      } catch (e: IoError) {}
+    }
     await writeText(probe, "")
-    await remove(probe)
   } catch (e: IoError) {
     throw new AppDirError("NotWritable", dir, `can't use ${dir}: ${e.message}; set ${variable} to a directory you can write to`)
+  }
+  try {
+    await remove(probe)
+  } catch (e: IoError) {
+    // Gone already is fine; anything else means the directory can't really be used.
+    if (e.kind != "NotFound") {
+      throw new AppDirError("NotWritable", dir, `can't use ${dir}: ${e.message}; set ${variable} to a directory you can write to`)
+    }
   }
 }
 
@@ -121,7 +158,7 @@ async function prepare(dir: string, variable: string): Promise<void> throws AppD
 /// can't be created or written to; the backend can carry on without it (say so to the user), nothing here exits.
 export async function appDirs(appId: string): Promise<AppDirs> throws AppDirError {
   const dirs = locate(appId, env.toObject())
-  await prepare(dirs.data, "XDG_DATA_HOME")
-  await prepare(dirs.cache, "XDG_CACHE_HOME")
+  await prepare(dirs.data, variableFor("data", onWindows))
+  await prepare(dirs.cache, variableFor("cache", onWindows))
   dirs
 }

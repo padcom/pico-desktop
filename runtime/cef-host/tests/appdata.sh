@@ -54,7 +54,8 @@ grep -qF 'appdata-backend: settings saved' "$scratch/normal.log" || fail "the ba
 [[ $(cat "$app/settings.json" 2> /dev/null) == saved ]] || fail "settings.json wasn't written to the data directory"
 [[ $(cat "$XDG_CACHE_HOME/pico-desktop/apps/pd-appdata-test/backend/index" 2> /dev/null) == cached ]] \
   || fail "the cache file wasn't written to the cache directory"
-[[ -e $app/.write-test ]] && fail "the write test left its file behind"
+[[ -n $(find "$app" -maxdepth 1 -name '.write-test*' 2> /dev/null) ]] && fail "the write test left its file behind"
+[[ $(stat -c %a "$app" 2> /dev/null) == 700 ]] || fail "a new data directory isn't private (mode 700)"
 
 # A file where the data home should be: an error naming the directory and the variable, and a backend that carries on.
 echo "not a directory" > "$scratch/blocker"
@@ -72,6 +73,8 @@ if [[ $(id -u) -ne 0 ]]; then
   grep -qF "appdata-backend: error NotWritable $scratch/ro/pico-desktop/apps/pd-appdata-test" "$scratch/readonly.log" \
     || fail "no NotWritable error for the read-only directory"
   grep -F 'appdata-backend: message' "$scratch/readonly.log" | grep -qF 'permission denied' || fail "the error doesn't say why"
+else
+  echo "note: running as root, where nothing is read-only: the read-only case is skipped"
 fi
 
 if [[ $failed -ne 0 ]]; then
