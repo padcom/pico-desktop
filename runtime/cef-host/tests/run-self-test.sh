@@ -27,6 +27,10 @@ timeout 120 ${pd_runner[@]+"${pd_runner[@]}"} "$host" --app-dir="$fixture" --app
   --no-external-open > "$log" 2>&1
 code=$?
 grep -E '^(pd-|console: pd-info)' "$log"
+# Which renderer drew the WebGL and canvas checks (docs/graphics.md): one line to read in the ctest output.
+info_of() { sed -n "s/^console: pd-info: $1=//p" "$log" | tail -n 1 | tr -d '\r'; }
+echo "graphics: $(info_of webgl.api), renderer '$(info_of webgl.renderer)', software rendering: $(info_of webgl.software)," \
+  "WebGL $(info_of webgl.fps), 2D canvas $(info_of canvas2d.fps)"
 # A failed self-test keeps its profile: show the end of CEF's log, often the only clue on CI.
 kept=$(sed -n 's/^pico-desktop-host: the self-test failed; its CEF log is kept: //p' "$log" | tail -n 1 | tr -d '\r')
 if [[ -n "$kept" ]]; then
@@ -50,6 +54,9 @@ expect() {
 expect "pd-test: done"
 expect " 0 failed"
 expect "pd-test: ok renderer is sandboxed"
+expect "pd-test: ok WebGL context is created"
+expect "pd-test: ok an animated WebGL canvas gets frames"
+expect "pd-test: ok an animated 2D canvas gets frames"
 expect "pd-host: blocked navigation to https://example.com/ (no user gesture)"
 
 # Nothing may outlive the host (renderers, GPU, zygotes, utilities).

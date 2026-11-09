@@ -17,6 +17,21 @@ void HostApp::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) {
                                         CEF_SCHEME_OPTION_CORS_ENABLED | CEF_SCHEME_OPTION_FETCH_ENABLED);
 }
 
+void HostApp::OnBeforeCommandLineProcessing(const CefString& process_type, CefRefPtr<CefCommandLine> command_line) {
+  (void)process_type;
+  (void)command_line;
+#if defined(__linux__)
+  // Without a GPU (a VM, a container, CI under Xvfb) Chromium no longer falls back to its software
+  // renderer for WebGL by itself: no WebGL context could be created in CI (docs/graphics.md). This
+  // allows the fallback. Only app content runs here (CSP-locked, no navigation to other sites, ADR
+  // 0003 and the security model), which is why the "unsafe" in the name, meant for untrusted pages,
+  // is acceptable. Set on the browser process; Chromium passes it on to the GPU process.
+  if (process_type.empty()) {
+    command_line->AppendSwitch("enable-unsafe-swiftshader");
+  }
+#endif
+}
+
 void HostApp::OnContextInitialized() {
   register_asset_scheme(browser_state().options);
   link().start();

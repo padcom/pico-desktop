@@ -3,6 +3,7 @@
 // reaches it.
 import './style.css'
 import logo from './logo.svg'
+import { graphics } from './graphics'
 import { probePlatform } from './probes'
 import { type NamedCheck, type Outcome, runInOrder, sleep } from './report'
 import { double } from './util'
@@ -201,7 +202,7 @@ const navigation: NamedCheck[] = [
 ]
 
 async function main() {
-  await runInOrder([...assets, ...security, ...bridge, ...navigation])
+  await runInOrder([...assets, ...security, ...bridge, ...navigation, ...graphics])
   await probePlatform()
   // Leave a reply in flight and replace this page: the second page must never receive it.
   send({ k: 'request', id: 99, n: 'host.echo', p: 'late' })
