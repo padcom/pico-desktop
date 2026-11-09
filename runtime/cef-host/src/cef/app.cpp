@@ -23,10 +23,14 @@ void HostApp::OnBeforeCommandLineProcessing(const CefString& process_type, CefRe
 #if defined(__linux__)
   // Without a GPU (a VM, a container, CI under Xvfb) Chromium no longer falls back to its software
   // renderer for WebGL by itself: no WebGL context could be created in CI (docs/graphics.md). This
-  // allows the fallback. Only app content runs here (CSP-locked, no navigation to other sites, ADR
-  // 0003 and the security model), which is why the "unsafe" in the name, meant for untrusted pages,
-  // is acceptable. Set on the browser process; Chromium passes it on to the GPU process.
-  if (process_type.empty()) {
+  // allows the fallback. The exposure: shaders the page supplies reach SwiftShader's JIT compiler in
+  // the GPU process (whose Linux sandbox is the weaker kind), and exploiting it needs script running
+  // in the app's page first. That is acceptable while the host shows only the app's own content (CSP
+  // `script-src 'self'`, no navigation elsewhere; ADR 0003). It applies to every app on Linux and to
+  // every mode, including `dev` (Vite's origin has no CSP), and it must be re-examined if the host
+  // ever shows content the app does not control. `--no-software-webgl` turns it off. Set on the
+  // browser process; Chromium passes it on to the GPU process.
+  if (process_type.empty() && browser_state().options.software_webgl) {
     command_line->AppendSwitch("enable-unsafe-swiftshader");
   }
 #endif

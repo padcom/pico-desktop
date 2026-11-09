@@ -83,6 +83,7 @@ std::string usage() {
          "  --close-grace=<ms>     how long the backend has to finish when the app closes (default 3000)\n"
          "  --self-test            let the page test itself, check the sandbox, exit with the result\n"
          "  --no-external-open     log external links instead of opening the system browser\n"
+         "  --no-software-webgl    Linux: no software (SwiftShader) fallback for WebGL without a GPU\n"
          "  -V, --version          print the version\n"
          "  -h, --help             print this help\n";
 }
@@ -159,6 +160,8 @@ ParseResult parse_options(const std::vector<std::string>& args) {
       options.mode = Mode::self_test;
     } else if (arg == "--no-external-open") {
       options.open_external = false;
+    } else if (arg == "--no-software-webgl") {
+      options.software_webgl = false;
     } else if (arg.starts_with("--remote-debugging")) {
       options.remote_debugging_requested = true;
     } else if (!arg.starts_with("--")) {
