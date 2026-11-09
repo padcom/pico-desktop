@@ -3,6 +3,7 @@
 // closures, so handlers are named async functions sharing the module's state.
 import { Cbor, Communicator, CommunicatorError, Host, RequestContext, Sink, Transport } from "pico-desktop/communicator"
 import {
+  BenchEvent,
   BytesEcho,
   ConfirmRequest,
   Greeted,
@@ -10,11 +11,13 @@ import {
   Picked,
   Tick,
   WindowTitle,
+  decodeBenchParams,
   decodeBytesMessage,
   decodeClockParams,
   decodeConfirmResponse,
   decodeHelloRequest,
   decodeWindowTitle,
+  encodeBenchEvent,
   encodeBytesEcho,
   encodeConfirmRequest,
   encodeGreeted,
@@ -44,6 +47,7 @@ export function createBackend(transport: Transport): Communicator {
   c.handle("files.pick", pick)
   c.handle("data.echo", echoBytes)
   c.publish("clock.ticks", ticks)
+  c.publish("bench.events", benchEvents)
   c
 }
 
@@ -112,6 +116,42 @@ async function echoBytes(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> t
     sum += request.data.get(i) as int
   }
   encodeBytesEcho(BytesEcho { data: request.data, length: request.data.length as u32, sum: (sum % 4294967296) as u32 })
+}
+
+/// The benchmark's load (docs/ipc-benchmark.md): `count` events, `perSecond` each second, each with
+/// `bytes` bytes and the time it was sent. The timer ends after the last one; the subscription stays
+/// open until the subscriber ends it.
+class Bench {
+  sink: Sink
+  count: u32
+  data: Uint8Array
+  public n: u32 = 0
+  public timer: int = 0
+
+  constructor(sink: Sink, count: u32, bytes: int) {
+    this.sink = sink
+    this.count = count
+    this.data = new Uint8Array(bytes)
+  }
+
+  public tick(): void {
+    n += 1
+    sink.next(encodeBenchEvent(BenchEvent { n: n, sentAt: Date.now() as u64, data: data }))
+    if (n >= count) {
+      clearInterval(timer)
+    }
+  }
+}
+
+function benchEvents(params: Cbor?, sink: Sink): void throws Error {
+  const p = decodeBenchParams(params ?? Cbor.Null, "$")
+  // The timer runs in whole milliseconds, so only a rate that divides 1000 is the rate asked for.
+  if (p.perSecond < 1 || p.perSecond > 1000 || 1000 % (p.perSecond as int) != 0 || p.count < 1 || p.bytes > 2097152) {
+    throw new CommunicatorError("INVALID_VALUE", "the benchmark wants a rate that divides 1000 (50, 100, ...), at least one event and at most 2 MiB each")
+  }
+  const bench = new Bench(sink, p.count, p.bytes as int)
+  bench.timer = setInterval(() => bench.tick(), (1000 / p.perSecond) as int)
+  sink.onClose = () => clearInterval(bench.timer)
 }
 
 /// A tick every `intervalMs` (default 1 s) until the subscriber unsubscribes.

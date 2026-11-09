@@ -225,3 +225,49 @@ export function encodeBytesEcho(v: BytesEcho): Cbor {
   m.set("sum", Cbor.Uint(v.sum as u64))
   Cbor.Dict(m)
 }
+
+export struct BenchParams {
+  perSecond: u16
+  count: u32
+  bytes: u32
+}
+
+export function decodeBenchParams(v: Cbor, path: string): BenchParams throws InvalidPayload {
+  const m = members(v, path, ["perSecond", "count", "bytes"])
+  BenchParams {
+    perSecond: (uint(required(m, "perSecond", path), `${path}.perSecond`, 65535) as u16),
+    count: (uint(required(m, "count", path), `${path}.count`, 4294967295) as u32),
+    bytes: (uint(required(m, "bytes", path), `${path}.bytes`, 4294967295) as u32),
+  }
+}
+
+export function encodeBenchParams(v: BenchParams): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("perSecond", Cbor.Uint(v.perSecond as u64))
+  m.set("count", Cbor.Uint(v.count as u64))
+  m.set("bytes", Cbor.Uint(v.bytes as u64))
+  Cbor.Dict(m)
+}
+
+export struct BenchEvent {
+  n: u32
+  sentAt: u64
+  data: Uint8Array
+}
+
+export function decodeBenchEvent(v: Cbor, path: string): BenchEvent throws InvalidPayload {
+  const m = members(v, path, ["n", "sentAt", "data"])
+  BenchEvent {
+    n: (uint(required(m, "n", path), `${path}.n`, 4294967295) as u32),
+    sentAt: (uint(required(m, "sentAt", path), `${path}.sentAt`, 18446744073709551615) as u64),
+    data: bytes(required(m, "data", path), `${path}.data`),
+  }
+}
+
+export function encodeBenchEvent(v: BenchEvent): Cbor {
+  const m = new Map<string, Cbor>()
+  m.set("n", Cbor.Uint(v.n as u64))
+  m.set("sentAt", Cbor.Uint(v.sentAt as u64))
+  m.set("data", Cbor.Bytes(v.data))
+  Cbor.Dict(m)
+}
