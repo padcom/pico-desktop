@@ -161,7 +161,7 @@ int run_browser(int argc, char** argv) {
 #else
   CefMainArgs main_args(argc, argv);
 #endif
-  CefRefPtr<HostApp> app = new HostApp(true);
+  CefRefPtr<HostApp> app = new HostApp();
   CefSettings settings;
   settings.no_sandbox = false;  // never disabled (PROJECT_DESCRIPTION.md §6)
   settings.remote_debugging_port = 0;
@@ -249,7 +249,7 @@ int main(int argc, char* argv[]) {
   if (command_line->HasSwitch("type")) {
     // A Chromium subprocess (renderer, GPU, utility, zygote).
     CefMainArgs main_args(argc, argv);
-    CefRefPtr<pico_desktop::host::cef::HostApp> app = new pico_desktop::host::cef::HostApp(false);
+    CefRefPtr<pico_desktop::host::cef::HostApp> app = new pico_desktop::host::cef::HostApp();
     return CefExecuteProcess(main_args, app, nullptr);
   }
   return pico_desktop::host::cef::run_browser(argc, argv);

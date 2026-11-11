@@ -11,8 +11,9 @@ namespace pico_desktop::host::cef {
 
 class HostApp : public CefApp, public CefBrowserProcessHandler, public CefRenderProcessHandler {
  public:
-  /// `browser`: whether this is the browser process (it has the host's options).
-  explicit HostApp(bool browser);
+  // The same app serves every process: what it does in each follows from the process it runs in (the browser process has the
+  // host's options, `browser_state()`), not from a flag it is given.
+  HostApp() = default;
 
   CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
   CefRefPtr<CefRenderProcessHandler> GetRenderProcessHandler() override { return this; }
@@ -35,7 +36,6 @@ class HostApp : public CefApp, public CefBrowserProcessHandler, public CefRender
                                 CefProcessId source_process, CefRefPtr<CefProcessMessage> message) override;
 
  private:
-  bool browser_;
   std::unique_ptr<RendererBridge> bridge_;
 
   IMPLEMENT_REFCOUNTING(HostApp);
