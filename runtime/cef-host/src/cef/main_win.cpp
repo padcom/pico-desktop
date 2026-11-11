@@ -20,7 +20,7 @@ int RunConsoleMain(int argc, char* argv[], void* sandbox_info, cef_version_info_
   if (command_line->HasSwitch("type")) {
     // A Chromium subprocess (renderer, GPU, utility).
     CefMainArgs main_args(::GetModuleHandleW(nullptr));
-    CefRefPtr<pico_desktop::host::cef::HostApp> app = new pico_desktop::host::cef::HostApp(false);
+    CefRefPtr<pico_desktop::host::cef::HostApp> app = new pico_desktop::host::cef::HostApp();
     return CefExecuteProcess(main_args, app, sandbox_info);
   }
   pico_desktop::host::cef::set_sandbox_info(sandbox_info);

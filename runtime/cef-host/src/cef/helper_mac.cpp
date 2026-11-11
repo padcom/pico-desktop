@@ -22,6 +22,6 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   CefMainArgs main_args(argc, argv);
-  CefRefPtr<pico_desktop::host::cef::HostApp> app = new pico_desktop::host::cef::HostApp(false);
+  CefRefPtr<pico_desktop::host::cef::HostApp> app = new pico_desktop::host::cef::HostApp();
   return CefExecuteProcess(main_args, app, nullptr);
 }

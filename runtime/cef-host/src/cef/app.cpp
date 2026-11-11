@@ -8,8 +8,6 @@
 
 namespace pico_desktop::host::cef {
 
-HostApp::HostApp(bool browser) : browser_(browser) {}
-
 void HostApp::OnRegisterCustomSchemes(CefRawPtr<CefSchemeRegistrar> registrar) {
   // Every process registers the same schemes with the same options. `app:` is a standard,
   // secure scheme: real origins, secure context, CORS and fetch() like https (ADR-0003).
