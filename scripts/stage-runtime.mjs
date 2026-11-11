@@ -1,18 +1,19 @@
-// Stages the host runtime for this machine's target (linux-arm64 first): `cmake --install` of the
-// CEF build, the shared libraries stripped (libcef.so: 2.5 GB with debug info, 280 MB without), every
-// file hashed into runtime.json, then archived:
+// Stages the host runtime for this machine's target (linux-arm64, linux-x64, darwin-arm64):
+// `cmake --install` of the CEF build, the Linux shared libraries stripped (libcef.so: 2.5 GB with
+// debug info, 280 MB without; macOS: the app bundle pico-desktop-host.app as built, not touched),
+// every file hashed into runtime.json, then archived:
 //   build/runtime/pico-desktop-runtime-<version>-<target>/            (the runtime)
 //   build/runtime/pico-desktop-runtime-<version>-<target>.tar.gz      (+ .sha256)
 // Usage: node scripts/stage-runtime.mjs [--no-archive]
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { lstatSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
 const run = (program, args) => execFileSync(program, args, { cwd: root, stdio: 'inherit' })
 
-const TARGETS = { 'linux-arm64': ['linux', 'arm64'], 'linux-x64': ['linux', 'x64'] }
+const TARGETS = { 'linux-arm64': ['linux', 'arm64'], 'linux-x64': ['linux', 'x64'], 'darwin-arm64': ['darwin', 'arm64'] }
 const target = Object.keys(TARGETS).find(t => TARGETS[t][0] === process.platform && TARGETS[t][1] === process.arch)
 if (!target) {
   throw new Error(`no runtime staging for ${process.platform}-${process.arch} yet`)
@@ -27,13 +28,22 @@ const dir = join(out, name)
 rmSync(dir, { recursive: true, force: true })
 run('cmake', ['--install', 'build/cef', '--prefix', dir, '--component', 'runtime'])
 
+// Every file below `path`. A symbolic link to a directory is not entered (macOS frameworks have
+// Versions/Current → A: its files would be listed twice); a link to a file is listed (and hashed as
+// the file it points to), and the archive keeps the links as they are.
 const files = path => readdirSync(path).flatMap((entry) => {
   const full = join(path, entry)
+  const info = lstatSync(full)
 
-  return statSync(full).isDirectory() ? files(full) : [full]
+  if (info.isSymbolicLink()) {
+    return statSync(full, { throwIfNoEntry: false })?.isFile() ? [full] : []
+  }
+
+  return info.isDirectory() ? files(full) : [full]
 })
 
-for (const lib of files(dir).filter(f => /\.so(\.\d+)*$/u.test(f))) {
+// Linux only: macOS binaries are signed, and stripping one would break its signature.
+for (const lib of process.platform === 'linux' ? files(dir).filter(f => /\.so(\.\d+)*$/u.test(f)) : []) {
   run('strip', ['--strip-unneeded', lib]) // the dynamic symbols stay; CEF publishes symbols separately
 }
 

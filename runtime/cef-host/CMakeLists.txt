@@ -184,6 +184,15 @@ elseif(OS_MAC)
               "${PD_APP}/Contents/Frameworks/${_helper_output_name}.app"
       VERBATIM)
   endforeach()
+  # `cmake --install … --component runtime` lays out the runtime: the app bundle as built (it already
+  # holds the CEF framework and the helper apps, copied in by the POST_BUILD steps above), with the
+  # notices (scripts/stage-runtime.mjs hashes and archives it). The host is
+  # pico-desktop-host.app/Contents/MacOS/pico-desktop-host.
+  install(TARGETS pico-desktop-host BUNDLE DESTINATION . COMPONENT runtime)
+  install(FILES "${CEF_ROOT}/LICENSE.txt" DESTINATION licenses RENAME CEF-LICENSE.txt COMPONENT runtime)
+  install(FILES "${CEF_ROOT}/CREDITS.html" DESTINATION licenses RENAME CHROMIUM-CREDITS.html COMPONENT runtime)
+  install(FILES "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION licenses RENAME PICO-DESKTOP-LICENSE.txt
+          COMPONENT runtime)
 elseif(OS_WINDOWS)
   # Windows: the host is pico-desktop-host.dll, run by CEF's console bootstrap (bootstrapc.exe,
   # copied as pico-desktop-host.exe), which sets up the sandbox for every process. CEF's DLLs and
