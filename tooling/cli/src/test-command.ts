@@ -7,9 +7,10 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import { parseArgs } from 'node:util'
 import { buildBackend } from './backend'
 import { buildFrontend } from './build'
-import type { ResolvedConfig } from './config'
+import { ConfigError, type ResolvedConfig } from './config'
 import { E2E_SETUP, type E2eSetup } from './e2e'
 import { generate } from './generate'
 import { appArgs } from './host-args'
@@ -38,6 +39,38 @@ export async function test(config: ResolvedConfig, io: Output): Promise<number> 
   const backend = await passthrough('pico', ['test', '.'], { cwd: config.backend.root, io, prefix: 'pico │ ' })
 
   return frontend === 0 ? backend : frontend
+}
+
+/** What `pico-desktop test` was asked: which kind of test, and (for `--e2e`) which files and which test names. */
+export interface TestArgs {
+  /** Run the end-to-end tests. */
+  e2e: boolean
+  /** File filters for Vitest (a part of a path, as Vitest takes them): only the e2e files that match are run. */
+  files: string[]
+  /** A test name pattern for Vitest (`-t`), or undefined. */
+  name?: string | undefined
+}
+
+/**
+ * Reads the arguments of `pico-desktop test`: `[--e2e [files...] [-t pattern]]`. File filters and `-t` belong to `--e2e`
+ * (the other run is every test: it takes none, as before).
+ *
+ * @param args the arguments after `test`
+ * @returns what was asked
+ * @throws {ConfigError} for a filter without `--e2e`
+ */
+export function parseTestArgs(args: string[]): TestArgs {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    options: { 'e2e': { type: 'boolean' }, 'test-name-pattern': { type: 'string', short: 't' } },
+  })
+  const name = values['test-name-pattern']
+  if (!values.e2e && (positionals.length > 0 || name !== undefined)) {
+    throw new ConfigError('test: file filters and -t only go with --e2e (pico-desktop test --e2e [files...] [-t pattern])')
+  }
+
+  return { e2e: values.e2e === true, files: positionals, name }
 }
 
 /** Where the end-to-end tests are, in the frontend. */
@@ -86,13 +119,24 @@ export function e2eHostArgs(config: ResolvedConfig, out: string, platform: NodeJ
 }
 
 /**
+ * The arguments that make Vitest run only some of the end-to-end tests: the file filters, and `-t` with the name pattern.
+ *
+ * @param filters what was asked
+ * @returns the arguments to add to Vitest's (none for all of the tests)
+ */
+export function vitestFilters(filters: Pick<TestArgs, 'files' | 'name'>): string[] {
+  return [...filters.files, ...filters.name === undefined ? [] : ['-t', filters.name]]
+}
+
+/**
  * Runs the end-to-end tests against the real app.
  *
  * @param config the app
  * @param io where output goes
+ * @param filters which files and test names to run (all of them by default)
  * @returns 0 when all pass
  */
-export async function testE2e(config: ResolvedConfig, io: Output): Promise<number> {
+export async function testE2e(config: ResolvedConfig, io: Output, filters: Pick<TestArgs, 'files' | 'name'>): Promise<number> {
   const tests = join(config.frontend.root, E2E_DIR)
   if (!hasE2eTests(tests)) {
     io.err(`e2e │ no end-to-end tests: put them in ${tests}, named *.e2e.ts`)
@@ -119,7 +163,8 @@ export async function testE2e(config: ResolvedConfig, io: Output): Promise<numbe
   const setup: E2eSetup = { host, args: e2eHostArgs(config, out) }
   const env = { ...process.env, [E2E_SETUP]: JSON.stringify(setup) }
 
-  const vitest = [vitestBin(config.frontend.root), 'run', '--config', vitestConfig, '--root', config.frontend.root]
+  const run = [vitestBin(config.frontend.root), 'run', '--config', vitestConfig, '--root', config.frontend.root]
+  const vitest = [...run, ...vitestFilters(filters)]
 
   return passthrough(process.execPath, vitest, { cwd: config.frontend.root, io, prefix: 'e2e │ ', env })
 }

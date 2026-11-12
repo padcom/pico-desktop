@@ -9,7 +9,7 @@ import { generate } from './generate'
 import type { Output } from './io'
 import { build } from './build'
 import { packageApp } from './package-command'
-import { test, testE2e } from './test-command'
+import { parseTestArgs, test, testE2e } from './test-command'
 
 export { CAPABILITIES, type Capability, type ContractConfig, type UserConfig, defineConfig } from './config'
 
@@ -31,7 +31,8 @@ Commands:
   dev [--trace-ipc] [--debug]   the app with HMR; Pico edits rebuild and restart the backend in the same window
              (--debug: for a debugger attached to the backend; see the template's launch.json)
   generate   the contracts → TypeScript and Pico
-  test [--e2e]   Vitest and pico test (--e2e: the end-to-end tests, frontend/e2e/*.e2e.ts, in the real app)
+  test [--e2e [files...] [-t pattern]]   Vitest and pico test (--e2e: the end-to-end tests, frontend/e2e/*.e2e.ts, in the
+             real app; files... are Vitest file filters and -t a test name pattern: only those run)
   build      a portable bundle for this machine (dist/<name>-<version>-<target>/)
   package    that bundle as dist/<name>-<version>-<target>.tar.gz (+ .sha256), and an AppDir
   doctor     checks what development and builds need
@@ -88,10 +89,10 @@ const handlers: Record<string, Handler> = {
   'generate': inApp(generateCommand),
   'doctor': inApp(doctor),
   'test': async (args, io) => {
-    const { values } = parseArgs({ args, options: { e2e: { type: 'boolean' } } })
+    const asked = parseTestArgs(args)
     const config = await loadConfig(process.cwd())
 
-    return values.e2e ? testE2e(config, io) : test(config, io)
+    return asked.e2e ? testE2e(config, io, asked) : test(config, io)
   },
   'build': inApp(build),
   'package': inApp(packageApp),

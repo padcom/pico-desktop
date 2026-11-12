@@ -148,7 +148,7 @@ End to end, in the real window with the real backend:
 pnpm e2e
 ```
 
-`pnpm e2e` (`pico-desktop test --e2e`) builds the frontend and the backend, then runs `apps/frontend/e2e/*.e2e.ts` in Vitest under Node, one file at a time. In a test, `launchApp()` (from `pico-desktop`) starts the app, and the page is driven over the DevTools protocol:
+`pnpm e2e` (`pico-desktop test --e2e`) builds the frontend and the backend, then runs `apps/frontend/e2e/*.e2e.ts` in Vitest under Node, one file at a time. To run only some, give file filters (a part of a path, as Vitest takes them) and `-t` for a test name pattern: `pnpm e2e e2e/palette.e2e.ts` or `pnpm e2e shell -t "opens the palette"` (they only go with `--e2e`, which `pnpm e2e` has). In a test, `launchApp()` (from `pico-desktop`) starts the app, and the page is driven over the DevTools protocol:
 
 ```ts
 import { launchApp } from 'pico-desktop'
