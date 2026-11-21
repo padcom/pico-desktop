@@ -30,5 +30,5 @@ export type ConnectionState = "connecting" | "ready" | "disconnected" | "restart
 
 /// The state a new Communicator starts in.
 export function initialState(): ConnectionState {
-  "connecting"
+  return "connecting"
 }

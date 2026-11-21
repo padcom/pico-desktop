@@ -33,7 +33,7 @@ export function required(m: Map<string, Cbor>, key: string, path: string): Cbor 
   if (v == null) {
     throw new InvalidPayload(`${path}.${key}`, "present")
   }
-  v
+  return v
 }
 
 export function text(v: Cbor, path: string): string throws InvalidPayload {

@@ -29,7 +29,7 @@ function seeds(): Uint8Array[] {
   tick.s = 5
   const cancel = envelope("cancel")
   cancel.id = 1
-  [encodeEnvelope(hello), encodeEnvelope(request), encodeEnvelope(tick), encodeEnvelope(cancel)]
+  return [encodeEnvelope(hello), encodeEnvelope(request), encodeEnvelope(tick), encodeEnvelope(cancel)]
 }
 
 /// One change at `at`: replace, insert, delete, truncate, or an interesting byte.
@@ -75,7 +75,7 @@ function mutate(valid: Uint8Array, random: Random): Uint8Array {
     out.set(j, bytes[j] as u8)
     j += 1
   }
-  out
+  return out
 }
 
 function randomBytes(random: Random): Uint8Array {
@@ -85,7 +85,7 @@ function randomBytes(random: Random): Uint8Array {
     out.set(i, random.int(0, 256) as u8)
     i += 1
   }
-  out
+  return out
 }
 
 /// Whether `bytes` decode as CBOR (and if so, that they round-trip).

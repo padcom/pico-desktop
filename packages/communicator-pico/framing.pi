@@ -21,7 +21,7 @@ export function encodeFrame(message: Uint8Array): Uint8Array throws ProtocolErro
   out.set(2, (n >> 8) & 0xff)
   out.set(3, n & 0xff)
   out.setAll(message, FRAME_HEADER_BYTES)
-  out
+  return out
 }
 
 /// Splits a byte stream back into messages; after an error the stream is unusable.
@@ -77,6 +77,6 @@ export class FrameReader {
 
   /// Bytes of an unfinished frame (non-zero at end of stream: it was cut off).
   public get pending(): int {
-    end - start
+    return end - start
   }
 }

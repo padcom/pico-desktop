@@ -42,7 +42,7 @@ async function started(rig: Rig): Promise<Rig> throws Error {
   runIt(rig)
   const hello = await rig.next()
   expect(hello.n ?? "").toBe("hello")
-  rig
+  return rig
 }
 
 function request(id: u64, name: string, payload: Cbor?, window: u64?): Envelope {
@@ -51,7 +51,7 @@ function request(id: u64, name: string, payload: Cbor?, window: u64?): Envelope 
   e.n = name
   e.p = payload
   e.w = window
-  e
+  return e
 }
 
 async function greet(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {
@@ -71,7 +71,7 @@ async function strict(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> thro
 
 async function slow(payload: Cbor?, ctx: RequestContext): Promise<Cbor?> throws Error {
   await delay(5000, ctx.signal)
-  null
+  return null
 }
 
 async function answersRequests(): Promise<void> throws Error {

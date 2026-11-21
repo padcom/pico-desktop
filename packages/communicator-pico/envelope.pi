@@ -48,7 +48,7 @@ function invalid(message: string): ProtocolError {
 
 /// An envelope with only the kind set.
 export function envelope(k: MessageKind): Envelope {
-  Envelope { k: k, id: null, n: null, p: null, err: null, w: null, e: null, s: null, d: null }
+  return Envelope { k: k, id: null, n: null, p: null, err: null, w: null, e: null, s: null, d: null }
 }
 
 function uintField(entries: Map<u64, Cbor>, key: u64, field: string): u64? throws ProtocolError {
@@ -96,7 +96,7 @@ function kindOf(entries: Map<u64, Cbor>): MessageKind throws ProtocolError {
   if (k == null || k >= (MESSAGE_KINDS.length as u64)) {
     throw invalid("unknown kind")
   }
-  MESSAGE_KINDS[k as int]
+  return MESSAGE_KINDS[k as int]
 }
 
 function checkVersion(entries: Map<u64, Cbor>): void throws ProtocolError {
@@ -159,7 +159,7 @@ export function decodeEnvelope(bytes: Uint8Array): Envelope throws ProtocolError
     d: uintField(entries, 9, "d"),
   }
   checkRequired(env)
-  env
+  return env
 }
 
 function putUint(entries: Map<u64, Cbor>, key: u64, value: u64?): void {

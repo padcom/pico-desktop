@@ -11,7 +11,7 @@ function vars(pairs: string[]): Map<string, string> {
   for (let i = 0; i < pairs.length; i += 2) {
     m.set(pairs[i], pairs[i + 1])
   }
-  m
+  return m
 }
 
 /// The error `locate` fails with, or null.
@@ -76,7 +76,7 @@ async function idTable(): Promise<string[]> throws Error {
       lines.push(line)
     }
   }
-  lines
+  return lines
 }
 
 async function agreesWithTheConfiguration(): Promise<void> throws Error {

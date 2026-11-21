@@ -22,7 +22,7 @@ function shown(text: string?): string {
     return "no text"
   }
   const t = text ?? ""
-  t.length > 40 ? `${t.length} chars: ${t.slice(0, 20)}…` : t
+  return t.length > 40 ?`${t.length} chars: ${t.slice(0, 20)}…` : t
 }
 
 async function check(): Promise<void> throws Error {

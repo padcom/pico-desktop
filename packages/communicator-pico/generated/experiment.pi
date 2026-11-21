@@ -26,7 +26,7 @@ export function decodeSerialPort(v: Cbor, path: string): SerialPort throws Inval
   if (cbor3 != null) {
     opt3 = text(cbor3, `${path}.serial`)
   }
-  SerialPort {
+  return SerialPort {
     path: text(required(m, "path", path), `${path}.path`),
     vendorId: opt1,
     productId: opt2,
@@ -49,7 +49,7 @@ export function encodeSerialPort(v: SerialPort): Cbor {
   if (opt3 != null) {
     m.set("serial", Cbor.Text(opt3))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export enum OpenParamsParity { None, Even, Odd }
@@ -84,7 +84,7 @@ export function decodeOpenParams(v: Cbor, path: string): OpenParams throws Inval
   if (cbor2 != null) {
     opt2 = decodeOpenParamsParity(cbor2, `${path}.parity`)
   }
-  OpenParams {
+  return OpenParams {
     path: text(required(m, "path", path), `${path}.path`),
     baud: (uint(required(m, "baud", path), `${path}.baud`, 4294967295) as u32),
     parity: opt2,
@@ -99,7 +99,7 @@ export function encodeOpenParams(v: OpenParams): Cbor {
   if (opt2 != null) {
     m.set("parity", encodeOpenParamsParity(opt2))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct WriteParams {
@@ -115,7 +115,7 @@ export function decodeWriteParams(v: Cbor, path: string): WriteParams throws Inv
   if (cbor2 != null) {
     opt2 = decodePacket(cbor2, `${path}.packet`)
   }
-  WriteParams {
+  return WriteParams {
     handle: (uint(required(m, "handle", path), `${path}.handle`, 4294967295) as u32),
     data: bytes(required(m, "data", path), `${path}.data`),
     packet: opt2,
@@ -130,7 +130,7 @@ export function encodeWriteParams(v: WriteParams): Cbor {
   if (opt2 != null) {
     m.set("packet", encodePacket(opt2))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export enum Packet {
@@ -175,7 +175,7 @@ export struct RawPacket {
 
 export function decodeRawPacket(v: Cbor, path: string): RawPacket throws InvalidPayload {
   const m = members(v, path, ["kind", "data"])
-  RawPacket {
+  return RawPacket {
     kind: decodeRawPacketKind(required(m, "kind", path), `${path}.kind`),
     data: bytes(required(m, "data", path), `${path}.data`),
   }
@@ -185,7 +185,7 @@ export function encodeRawPacket(v: RawPacket): Cbor {
   const m = new Map<string, Cbor>()
   m.set("kind", encodeRawPacketKind(v.kind))
   m.set("data", Cbor.Bytes(v.data))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export enum TextPacketKind { Text }
@@ -210,7 +210,7 @@ export struct TextPacket {
 
 export function decodeTextPacket(v: Cbor, path: string): TextPacket throws InvalidPayload {
   const m = members(v, path, ["kind", "line"])
-  TextPacket {
+  return TextPacket {
     kind: decodeTextPacketKind(required(m, "kind", path), `${path}.kind`),
     line: text(required(m, "line", path), `${path}.line`),
   }
@@ -220,7 +220,7 @@ export function encodeTextPacket(v: TextPacket): Cbor {
   const m = new Map<string, Cbor>()
   m.set("kind", encodeTextPacketKind(v.kind))
   m.set("line", Cbor.Text(v.line))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct TelemetryAttitude {
@@ -231,7 +231,7 @@ export struct TelemetryAttitude {
 
 export function decodeTelemetryAttitude(v: Cbor, path: string): TelemetryAttitude throws InvalidPayload {
   const m = members(v, path, ["roll", "pitch", "yaw"])
-  TelemetryAttitude {
+  return TelemetryAttitude {
     roll: float(required(m, "roll", path), `${path}.roll`),
     pitch: float(required(m, "pitch", path), `${path}.pitch`),
     yaw: float(required(m, "yaw", path), `${path}.yaw`),
@@ -243,7 +243,7 @@ export function encodeTelemetryAttitude(v: TelemetryAttitude): Cbor {
   m.set("roll", Cbor.Float(v.roll))
   m.set("pitch", Cbor.Float(v.pitch))
   m.set("yaw", Cbor.Float(v.yaw))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct TelemetryBattery {
@@ -258,7 +258,7 @@ export function decodeTelemetryBattery(v: Cbor, path: string): TelemetryBattery 
   if (cbor1 != null) {
     opt1 = (uint(cbor1, `${path}.remaining`, 100) as u64)
   }
-  TelemetryBattery {
+  return TelemetryBattery {
     voltage: float(required(m, "voltage", path), `${path}.voltage`),
     remaining: opt1,
   }
@@ -271,7 +271,7 @@ export function encodeTelemetryBattery(v: TelemetryBattery): Cbor {
   if (opt1 != null) {
     m.set("remaining", Cbor.Uint(opt1 as u64))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export enum TelemetryMode { Manual, Stabilize, Auto }
@@ -307,7 +307,7 @@ export function decodeTelemetry(v: Cbor, path: string): Telemetry throws Invalid
   if (cbor2 != null) {
     opt2 = decodeTelemetryBattery(cbor2, `${path}.battery`)
   }
-  Telemetry {
+  return Telemetry {
     timeUs: (uint(required(m, "timeUs", path), `${path}.timeUs`, 18446744073709551615) as u64),
     attitude: decodeTelemetryAttitude(required(m, "attitude", path), `${path}.attitude`),
     battery: opt2,
@@ -324,7 +324,7 @@ export function encodeTelemetry(v: Telemetry): Cbor {
     m.set("battery", encodeTelemetryBattery(opt2))
   }
   m.set("mode", encodeTelemetryMode(v.mode))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 function decodeTreeChildrenList(v: Cbor, path: string): Tree[] throws InvalidPayload {
@@ -334,7 +334,7 @@ function decodeTreeChildrenList(v: Cbor, path: string): Tree[] throws InvalidPay
     out.push(decodeTree(e, `${path}[${i}]`))
     i += 1
   }
-  out
+  return out
 }
 
 function encodeTreeChildrenList(v: Tree[]): Cbor {
@@ -342,7 +342,7 @@ function encodeTreeChildrenList(v: Tree[]): Cbor {
   for (const e of v) {
     out.push(encodeTree(e))
   }
-  Cbor.List(out)
+  return Cbor.List(out)
 }
 
 export struct Tree {
@@ -352,7 +352,7 @@ export struct Tree {
 
 export function decodeTree(v: Cbor, path: string): Tree throws InvalidPayload {
   const m = members(v, path, ["name", "children"])
-  Tree {
+  return Tree {
     name: text(required(m, "name", path), `${path}.name`),
     children: decodeTreeChildrenList(required(m, "children", path), `${path}.children`),
   }
@@ -362,7 +362,7 @@ export function encodeTree(v: Tree): Cbor {
   const m = new Map<string, Cbor>()
   m.set("name", Cbor.Text(v.name))
   m.set("children", encodeTreeChildrenList(v.children))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct PortBusy {
@@ -371,7 +371,7 @@ export struct PortBusy {
 
 export function decodePortBusy(v: Cbor, path: string): PortBusy throws InvalidPayload {
   const m = members(v, path, ["port"])
-  PortBusy {
+  return PortBusy {
     port: text(required(m, "port", path), `${path}.port`),
   }
 }
@@ -379,7 +379,7 @@ export function decodePortBusy(v: Cbor, path: string): PortBusy throws InvalidPa
 export function encodePortBusy(v: PortBusy): Cbor {
   const m = new Map<string, Cbor>()
   m.set("port", Cbor.Text(v.port))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct SerialOpenResponse {
@@ -388,7 +388,7 @@ export struct SerialOpenResponse {
 
 export function decodeSerialOpenResponse(v: Cbor, path: string): SerialOpenResponse throws InvalidPayload {
   const m = members(v, path, ["handle"])
-  SerialOpenResponse {
+  return SerialOpenResponse {
     handle: (uint(required(m, "handle", path), `${path}.handle`, 4294967295) as u32),
   }
 }
@@ -396,7 +396,7 @@ export function decodeSerialOpenResponse(v: Cbor, path: string): SerialOpenRespo
 export function encodeSerialOpenResponse(v: SerialOpenResponse): Cbor {
   const m = new Map<string, Cbor>()
   m.set("handle", Cbor.Uint(v.handle as u64))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct SerialWriteResponse {
@@ -405,7 +405,7 @@ export struct SerialWriteResponse {
 
 export function decodeSerialWriteResponse(v: Cbor, path: string): SerialWriteResponse throws InvalidPayload {
   const m = members(v, path, ["written"])
-  SerialWriteResponse {
+  return SerialWriteResponse {
     written: (uint(required(m, "written", path), `${path}.written`, 18446744073709551615) as u64),
   }
 }
@@ -413,7 +413,7 @@ export function decodeSerialWriteResponse(v: Cbor, path: string): SerialWriteRes
 export function encodeSerialWriteResponse(v: SerialWriteResponse): Cbor {
   const m = new Map<string, Cbor>()
   m.set("written", Cbor.Uint(v.written as u64))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct UiReadyPayload {
@@ -421,13 +421,13 @@ export struct UiReadyPayload {
 
 export function decodeUiReadyPayload(v: Cbor, path: string): UiReadyPayload throws InvalidPayload {
   members(v, path, [])
-  UiReadyPayload {
+  return UiReadyPayload {
   }
 }
 
 export function encodeUiReadyPayload(_v: UiReadyPayload): Cbor {
   const m = new Map<string, Cbor>()
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct DroneTelemetryParams {
@@ -441,7 +441,7 @@ export function decodeDroneTelemetryParams(v: Cbor, path: string): DroneTelemetr
   if (cbor0 != null) {
     opt0 = (uint(cbor0, `${path}.rateHz`, 255) as u8)
   }
-  DroneTelemetryParams {
+  return DroneTelemetryParams {
     rateHz: opt0,
   }
 }
@@ -452,32 +452,32 @@ export function encodeDroneTelemetryParams(v: DroneTelemetryParams): Cbor {
   if (opt0 != null) {
     m.set("rateHz", Cbor.Uint(opt0 as u64))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 /// Decodes `v` as the contract type named `name` (the experiment's test drives it).
 export function decodeNamed(name: string, v: Cbor): void throws InvalidPayload {
   switch (name) {
     case "serial-port":
-      decodeSerialPort(v, "$")
+    decodeSerialPort(v, "$")
     case "open-params":
-      decodeOpenParams(v, "$")
+    decodeOpenParams(v, "$")
     case "write-params":
-      decodeWriteParams(v, "$")
+    decodeWriteParams(v, "$")
     case "packet":
-      decodePacket(v, "$")
+    decodePacket(v, "$")
     case "raw-packet":
-      decodeRawPacket(v, "$")
+    decodeRawPacket(v, "$")
     case "text-packet":
-      decodeTextPacket(v, "$")
+    decodeTextPacket(v, "$")
     case "telemetry":
-      decodeTelemetry(v, "$")
+    decodeTelemetry(v, "$")
     case "tree":
-      decodeTree(v, "$")
+    decodeTree(v, "$")
     case "port-busy":
-      decodePortBusy(v, "$")
+    decodePortBusy(v, "$")
     default:
-      throw new InvalidPayload("$", `a contract type, not ${name}`)
+    throw new InvalidPayload("$", `a contract type, not ${name}`)
   }
 }
 

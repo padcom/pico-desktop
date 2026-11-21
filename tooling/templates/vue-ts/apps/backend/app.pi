@@ -9,7 +9,7 @@ export function createBackend(transport: Transport): Communicator {
   // within the host's grace period: c.onClosing = () => { … }
   c.handle("greeting.hello", hello)
   c.publish("clock.ticks", ticks)
-  c
+  return c
 }
 
 async function hello(payload: Cbor?, _ctx: RequestContext): Promise<Cbor?> throws Error {

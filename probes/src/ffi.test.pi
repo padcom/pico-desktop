@@ -24,7 +24,7 @@ extern "C" {
 }
 
 function addr(b: Uint8Array): usize {
-  (b.buffer.__handle + b.byteOffset) as usize
+  return (b.buffer.__handle + b.byteOffset) as usize
 }
 
 function constants(): void {
