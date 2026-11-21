@@ -7,7 +7,7 @@ function bytes(n: int, fill: int): Uint8Array {
   for (let i = 0; i < n; i++) {
     b.set(i, fill)
   }
-  b
+  return b
 }
 
 function chunked(): void throws Error {

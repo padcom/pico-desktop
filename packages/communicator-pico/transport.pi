@@ -28,7 +28,7 @@ export class StdioTransport implements Transport {
       frames.push(chunk)
       message = frames.next()
     }
-    message
+    return message
   }
 }
 
@@ -92,5 +92,5 @@ export function memoryPair(): MemoryEnd[] {
   const b = new MemoryEnd()
   a.peer = b
   b.peer = a
-  [a, b]
+  return [a, b]
 }

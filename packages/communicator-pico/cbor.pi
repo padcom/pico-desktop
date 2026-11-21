@@ -164,7 +164,7 @@ function f64ToBytes(f: f64): Uint8Array {
   for (let i = 0; i < 8; i++) {
     out.set(i, le.get(7 - i))
   }
-  out
+  return out
 }
 
 /// Encodes `v` with the preferred serialization.
@@ -191,7 +191,7 @@ function bytesToF32(b: Uint8Array, at: int): f64 {
   for (let i = 0; i < 4; i++) {
     le.set(i, b.get(at + 3 - i))
   }
-  new Float32Array(buf, 0).get(0) as f64
+  return new Float32Array(buf, 0).get(0) as f64
 }
 
 function halfToF64(half: int): f64 {
@@ -204,7 +204,7 @@ function halfToF64(half: int): f64 {
   if (exponent == 0) {
     return sign * Math.pow(2.0, -14.0) * (fraction / 1024.0)
   }
-  sign * Math.pow(2.0, (exponent - 15) as f64) * (1.0 + fraction / 1024.0)
+  return sign * Math.pow(2.0, (exponent - 15) as f64) * (1.0 + fraction / 1024.0)
 }
 
 /// One strict UTF-8 decoder for every text item (its constructor only throws for unknown labels).
@@ -227,7 +227,7 @@ class Reader {
   }
 
   public done(): bool {
-    pos == bytes.length
+    return pos == bytes.length
   }
 
   /// Moves past `n` bytes, which must be there; the position before them.
@@ -237,7 +237,7 @@ class Reader {
     }
     const at = pos
     pos += n
-    at
+    return at
   }
 
   argument(info: int): u64 throws CborError {
@@ -257,7 +257,7 @@ class Reader {
     for (let i = 0; i < size; i++) {
       n = (n << 8) | (bytes.get(at + i) as u64)
     }
-    n
+    return n
   }
 
   /// A length that has to fit in what's left of the message.
@@ -267,7 +267,7 @@ class Reader {
     if (n > left) {
       throw new CborError("a length beyond the end of the message")
     }
-    n as int
+    return n as int
   }
 
   public item(depth: int): Cbor throws CborError {
@@ -319,17 +319,17 @@ class Reader {
       const value = item(depth + 1)
       switch (key) {
         case Text { value: k }:
-          if (texts.has(k)) {
-            throw new CborError("duplicate map key")
-          }
-          texts.set(k, value)
+        if (texts.has(k)) {
+          throw new CborError("duplicate map key")
+        }
+        texts.set(k, value)
         case Uint { value: k }:
-          if (uints.has(k)) {
-            throw new CborError("duplicate map key")
-          }
-          uints.set(k, value)
+        if (uints.has(k)) {
+          throw new CborError("duplicate map key")
+        }
+        uints.set(k, value)
         default:
-          throw new CborError("map keys must be text or unsigned integers")
+        throw new CborError("map keys must be text or unsigned integers")
       }
     }
     if (texts.size > 0 && uints.size > 0) {
@@ -363,13 +363,13 @@ export function decode(bytes: Uint8Array): Cbor throws CborError {
   if (!r.done()) {
     throw new CborError("trailing bytes after the item")
   }
-  v
+  return v
 }
 
 // ---------------------------------------------------------------------------------- diagnostics
 
 function quote(s: string): string {
-  `"${s.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`
+  return `"${s.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`
 }
 
 /// `v` in the language-neutral form the test vectors use (`diag`): integers in decimal, floats as

@@ -38,7 +38,7 @@ function answer(chunk: Uint8Array): Uint8Array? throws ProtocolError {
     out.setAll(r, at)
     at += r.length
   }
-  out
+  return out
 }
 
 async function serveStdio(): Promise<void> throws Error {

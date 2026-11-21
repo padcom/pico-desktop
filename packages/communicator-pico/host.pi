@@ -41,7 +41,7 @@ export class Host {
   }
 
   public async getTitle(): Promise<string> throws Error {
-    decodeWindowTitle((await call("host.window.getTitle", null)) ?? Cbor.Null, "$").title
+    return decodeWindowTitle((await call("host.window.getTitle", null)) ?? Cbor.Null, "$").title
   }
 
   public async minimize(): Promise<void> throws Error {
@@ -71,16 +71,16 @@ export class Host {
 
   /// The files the user chose (none if they cancelled).
   public async openFile(options: OpenFile = OpenFile {}): Promise<string[]> throws Error {
-    decodeFilePaths((await call("host.dialog.openFile", encodeOpenFile(options))) ?? Cbor.Null, "$").paths
+    return decodeFilePaths((await call("host.dialog.openFile", encodeOpenFile(options))) ?? Cbor.Null, "$").paths
   }
 
   /// Where the user chose to save (null if they cancelled).
   public async saveFile(options: SaveFile = SaveFile {}): Promise<string?> throws Error {
-    decodeFilePath((await call("host.dialog.saveFile", encodeSaveFile(options))) ?? Cbor.Null, "$").path
+    return decodeFilePath((await call("host.dialog.saveFile", encodeSaveFile(options))) ?? Cbor.Null, "$").path
   }
 
   public async openFolder(options: OpenFolder = OpenFolder {}): Promise<string?> throws Error {
-    decodeFilePath((await call("host.dialog.openFolder", encodeOpenFolder(options))) ?? Cbor.Null, "$").path
+    return decodeFilePath((await call("host.dialog.openFolder", encodeOpenFolder(options))) ?? Cbor.Null, "$").path
   }
 
   /// A desktop notification (UNAVAILABLE where the desktop has no notification service).
@@ -96,7 +96,7 @@ export class Host {
 
   /// The clipboard's text: null when it has none. Needs the `clipboard` capability.
   public async readClipboard(): Promise<string?> throws Error {
-    decodeClipboardContent((await call("host.clipboard.readText", null)) ?? Cbor.Null, "$").text
+    return decodeClipboardContent((await call("host.clipboard.readText", null)) ?? Cbor.Null, "$").text
   }
 
   /// Closes the app the orderly way (this backend gets `closing` next).

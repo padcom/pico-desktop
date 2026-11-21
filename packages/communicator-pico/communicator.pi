@@ -66,7 +66,7 @@ export class Sink {
 
   /// Whether values are still wanted.
   public get active(): bool {
-    !closed
+    return !closed
   }
 
   /// Sends a value (dropped, and counted, while MAX_UNDELIVERED are still on their way).
@@ -184,7 +184,7 @@ export class Communicator {
       })
     })
     post(e)
-    answer
+    return answer
   }
 
   /// Says hello, then handles messages until the link closes or the host says the app is closing.
@@ -239,7 +239,7 @@ export class Communicator {
     const r = envelope(kind)
     r.id = to.id
     r.w = to.w
-    r
+    return r
   }
 
   refuse(to: Envelope, code: string, message: string): void {
