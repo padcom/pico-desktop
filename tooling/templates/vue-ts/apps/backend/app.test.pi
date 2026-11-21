@@ -1,5 +1,5 @@
 import { describe, it, expect } from "std/test"
-import { Cbor, Envelope, decodeEnvelope, encodeEnvelope, envelope, memoryPair } from "pico-desktop/communicator"
+import { Cbor, decodeEnvelope, encodeEnvelope, envelope, memoryPair } from "pico-desktop/communicator"
 import { createBackend } from "./app"
 import { HelloRequest, decodeGreeting, encodeHelloRequest } from "./generated/app"
 

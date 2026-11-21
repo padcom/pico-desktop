@@ -8,7 +8,7 @@ export struct WindowTitle {
 
 export function decodeWindowTitle(v: Cbor, path: string): WindowTitle throws InvalidPayload {
   const m = members(v, path, ["title"])
-  WindowTitle {
+  return WindowTitle {
     title: text(required(m, "title", path), `${path}.title`),
   }
 }
@@ -16,7 +16,7 @@ export function decodeWindowTitle(v: Cbor, path: string): WindowTitle throws Inv
 export function encodeWindowTitle(v: WindowTitle): Cbor {
   const m = new Map<string, Cbor>()
   m.set("title", Cbor.Text(v.title))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct WindowSize {
@@ -26,7 +26,7 @@ export struct WindowSize {
 
 export function decodeWindowSize(v: Cbor, path: string): WindowSize throws InvalidPayload {
   const m = members(v, path, ["width", "height"])
-  WindowSize {
+  return WindowSize {
     width: (uint(required(m, "width", path), `${path}.width`, 65535) as u16),
     height: (uint(required(m, "height", path), `${path}.height`, 65535) as u16),
   }
@@ -36,7 +36,7 @@ export function encodeWindowSize(v: WindowSize): Cbor {
   const m = new Map<string, Cbor>()
   m.set("width", Cbor.Uint(v.width as u64))
   m.set("height", Cbor.Uint(v.height as u64))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct WindowBounds {
@@ -48,7 +48,7 @@ export struct WindowBounds {
 
 export function decodeWindowBounds(v: Cbor, path: string): WindowBounds throws InvalidPayload {
   const m = members(v, path, ["x", "y", "width", "height"])
-  WindowBounds {
+  return WindowBounds {
     x: (uint(required(m, "x", path), `${path}.x`, 4294967295) as u32),
     y: (uint(required(m, "y", path), `${path}.y`, 4294967295) as u32),
     width: (uint(required(m, "width", path), `${path}.width`, 4294967295) as u32),
@@ -62,7 +62,7 @@ export function encodeWindowBounds(v: WindowBounds): Cbor {
   m.set("y", Cbor.Uint(v.y as u64))
   m.set("width", Cbor.Uint(v.width as u64))
   m.set("height", Cbor.Uint(v.height as u64))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 function decodeOpenFileFiltersList(v: Cbor, path: string): string[] throws InvalidPayload {
@@ -72,7 +72,7 @@ function decodeOpenFileFiltersList(v: Cbor, path: string): string[] throws Inval
     out.push(text(e, `${path}[${i}]`))
     i += 1
   }
-  out
+  return out
 }
 
 function encodeOpenFileFiltersList(v: string[]): Cbor {
@@ -80,7 +80,7 @@ function encodeOpenFileFiltersList(v: string[]): Cbor {
   for (const e of v) {
     out.push(Cbor.Text(e))
   }
-  Cbor.List(out)
+  return Cbor.List(out)
 }
 
 export struct OpenFile {
@@ -106,7 +106,7 @@ export function decodeOpenFile(v: Cbor, path: string): OpenFile throws InvalidPa
   if (cbor2 != null) {
     opt2 = decodeOpenFileFiltersList(cbor2, `${path}.filters`)
   }
-  OpenFile {
+  return OpenFile {
     title: opt0,
     multiple: opt1,
     filters: opt2,
@@ -127,7 +127,7 @@ export function encodeOpenFile(v: OpenFile): Cbor {
   if (opt2 != null) {
     m.set("filters", encodeOpenFileFiltersList(opt2))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct SaveFile {
@@ -147,7 +147,7 @@ export function decodeSaveFile(v: Cbor, path: string): SaveFile throws InvalidPa
   if (cbor1 != null) {
     opt1 = text(cbor1, `${path}.defaultPath`)
   }
-  SaveFile {
+  return SaveFile {
     title: opt0,
     defaultPath: opt1,
   }
@@ -163,7 +163,7 @@ export function encodeSaveFile(v: SaveFile): Cbor {
   if (opt1 != null) {
     m.set("defaultPath", Cbor.Text(opt1))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct OpenFolder {
@@ -177,7 +177,7 @@ export function decodeOpenFolder(v: Cbor, path: string): OpenFolder throws Inval
   if (cbor0 != null) {
     opt0 = text(cbor0, `${path}.title`)
   }
-  OpenFolder {
+  return OpenFolder {
     title: opt0,
   }
 }
@@ -188,7 +188,7 @@ export function encodeOpenFolder(v: OpenFolder): Cbor {
   if (opt0 != null) {
     m.set("title", Cbor.Text(opt0))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 function decodeFilePathsPathsList(v: Cbor, path: string): string[] throws InvalidPayload {
@@ -198,7 +198,7 @@ function decodeFilePathsPathsList(v: Cbor, path: string): string[] throws Invali
     out.push(text(e, `${path}[${i}]`))
     i += 1
   }
-  out
+  return out
 }
 
 function encodeFilePathsPathsList(v: string[]): Cbor {
@@ -206,7 +206,7 @@ function encodeFilePathsPathsList(v: string[]): Cbor {
   for (const e of v) {
     out.push(Cbor.Text(e))
   }
-  Cbor.List(out)
+  return Cbor.List(out)
 }
 
 export struct FilePaths {
@@ -215,7 +215,7 @@ export struct FilePaths {
 
 export function decodeFilePaths(v: Cbor, path: string): FilePaths throws InvalidPayload {
   const m = members(v, path, ["paths"])
-  FilePaths {
+  return FilePaths {
     paths: decodeFilePathsPathsList(required(m, "paths", path), `${path}.paths`),
   }
 }
@@ -223,7 +223,7 @@ export function decodeFilePaths(v: Cbor, path: string): FilePaths throws Invalid
 export function encodeFilePaths(v: FilePaths): Cbor {
   const m = new Map<string, Cbor>()
   m.set("paths", encodeFilePathsPathsList(v.paths))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct FilePath {
@@ -237,7 +237,7 @@ export function decodeFilePath(v: Cbor, path: string): FilePath throws InvalidPa
   if (cbor0 != null) {
     opt0 = text(cbor0, `${path}.path`)
   }
-  FilePath {
+  return FilePath {
     path: opt0,
   }
 }
@@ -248,7 +248,7 @@ export function encodeFilePath(v: FilePath): Cbor {
   if (opt0 != null) {
     m.set("path", Cbor.Text(opt0))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct Notification {
@@ -263,7 +263,7 @@ export function decodeNotification(v: Cbor, path: string): Notification throws I
   if (cbor1 != null) {
     opt1 = text(cbor1, `${path}.body`)
   }
-  Notification {
+  return Notification {
     title: text(required(m, "title", path), `${path}.title`),
     body: opt1,
   }
@@ -276,7 +276,7 @@ export function encodeNotification(v: Notification): Cbor {
   if (opt1 != null) {
     m.set("body", Cbor.Text(opt1))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct ClipboardText {
@@ -285,7 +285,7 @@ export struct ClipboardText {
 
 export function decodeClipboardText(v: Cbor, path: string): ClipboardText throws InvalidPayload {
   const m = members(v, path, ["text"])
-  ClipboardText {
+  return ClipboardText {
     text: text(required(m, "text", path), `${path}.text`),
   }
 }
@@ -293,7 +293,7 @@ export function decodeClipboardText(v: Cbor, path: string): ClipboardText throws
 export function encodeClipboardText(v: ClipboardText): Cbor {
   const m = new Map<string, Cbor>()
   m.set("text", Cbor.Text(v.text))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct ClipboardContent {
@@ -307,7 +307,7 @@ export function decodeClipboardContent(v: Cbor, path: string): ClipboardContent 
   if (cbor0 != null) {
     opt0 = text(cbor0, `${path}.text`)
   }
-  ClipboardContent {
+  return ClipboardContent {
     text: opt0,
   }
 }
@@ -318,5 +318,5 @@ export function encodeClipboardContent(v: ClipboardContent): Cbor {
   if (opt0 != null) {
     m.set("text", Cbor.Text(opt0))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }

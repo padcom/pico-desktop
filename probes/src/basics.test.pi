@@ -118,7 +118,7 @@ async function cancelsWithSignal(): Promise<void> throws Error {
 
 async function manualPromise(): Promise<void> throws Error {
   const pending = new Map<int, (v: string) => void>()
-  const p = new Promise<string, Error>((resolve, reject) => {
+  const p = new Promise<string, Error>((resolve, _reject) => {
     pending.set(1, resolve)
   })
   setTimeout(() => {
@@ -131,8 +131,8 @@ async function manualPromise(): Promise<void> throws Error {
 }
 
 async function racesTimeout(): Promise<void> throws Error {
-  const slow = delay(1000).then<string>((v: void) => "slow")
-  const fast = delay(5).then<string>((v: void) => "fast")
+  const slow = delay(1000).then<string>((_v: void) => "slow")
+  const fast = delay(5).then<string>((_v: void) => "fast")
   const winner: string = await Promise.race([slow, fast])
   expect(winner).toBe("fast")
 }

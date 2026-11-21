@@ -7,7 +7,7 @@ export struct HelloRequest {
 
 export function decodeHelloRequest(v: Cbor, path: string): HelloRequest throws InvalidPayload {
   const m = members(v, path, ["name"])
-  HelloRequest {
+  return HelloRequest {
     name: text(required(m, "name", path), `${path}.name`),
   }
 }
@@ -15,7 +15,7 @@ export function decodeHelloRequest(v: Cbor, path: string): HelloRequest throws I
 export function encodeHelloRequest(v: HelloRequest): Cbor {
   const m = new Map<string, Cbor>()
   m.set("name", Cbor.Text(v.name))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct Greeting {
@@ -25,7 +25,7 @@ export struct Greeting {
 
 export function decodeGreeting(v: Cbor, path: string): Greeting throws InvalidPayload {
   const m = members(v, path, ["message", "count"])
-  Greeting {
+  return Greeting {
     message: text(required(m, "message", path), `${path}.message`),
     count: (uint(required(m, "count", path), `${path}.count`, 4294967295) as u32),
   }
@@ -35,7 +35,7 @@ export function encodeGreeting(v: Greeting): Cbor {
   const m = new Map<string, Cbor>()
   m.set("message", Cbor.Text(v.message))
   m.set("count", Cbor.Uint(v.count as u64))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct Greeted {
@@ -45,7 +45,7 @@ export struct Greeted {
 
 export function decodeGreeted(v: Cbor, path: string): Greeted throws InvalidPayload {
   const m = members(v, path, ["name", "count"])
-  Greeted {
+  return Greeted {
     name: text(required(m, "name", path), `${path}.name`),
     count: (uint(required(m, "count", path), `${path}.count`, 4294967295) as u32),
   }
@@ -55,7 +55,7 @@ export function encodeGreeted(v: Greeted): Cbor {
   const m = new Map<string, Cbor>()
   m.set("name", Cbor.Text(v.name))
   m.set("count", Cbor.Uint(v.count as u64))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct ConfirmRequest {
@@ -64,7 +64,7 @@ export struct ConfirmRequest {
 
 export function decodeConfirmRequest(v: Cbor, path: string): ConfirmRequest throws InvalidPayload {
   const m = members(v, path, ["question"])
-  ConfirmRequest {
+  return ConfirmRequest {
     question: text(required(m, "question", path), `${path}.question`),
   }
 }
@@ -72,7 +72,7 @@ export function decodeConfirmRequest(v: Cbor, path: string): ConfirmRequest thro
 export function encodeConfirmRequest(v: ConfirmRequest): Cbor {
   const m = new Map<string, Cbor>()
   m.set("question", Cbor.Text(v.question))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct ConfirmResponse {
@@ -81,7 +81,7 @@ export struct ConfirmResponse {
 
 export function decodeConfirmResponse(v: Cbor, path: string): ConfirmResponse throws InvalidPayload {
   const m = members(v, path, ["ok"])
-  ConfirmResponse {
+  return ConfirmResponse {
     ok: boolean(required(m, "ok", path), `${path}.ok`),
   }
 }
@@ -89,7 +89,7 @@ export function decodeConfirmResponse(v: Cbor, path: string): ConfirmResponse th
 export function encodeConfirmResponse(v: ConfirmResponse): Cbor {
   const m = new Map<string, Cbor>()
   m.set("ok", Cbor.Bool(v.ok))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct ClockParams {
@@ -103,7 +103,7 @@ export function decodeClockParams(v: Cbor, path: string): ClockParams throws Inv
   if (cbor0 != null) {
     opt0 = (uint(cbor0, `${path}.intervalMs`, 4294967295) as u32)
   }
-  ClockParams {
+  return ClockParams {
     intervalMs: opt0,
   }
 }
@@ -114,7 +114,7 @@ export function encodeClockParams(v: ClockParams): Cbor {
   if (opt0 != null) {
     m.set("intervalMs", Cbor.Uint(opt0 as u64))
   }
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct Tick {
@@ -123,7 +123,7 @@ export struct Tick {
 
 export function decodeTick(v: Cbor, path: string): Tick throws InvalidPayload {
   const m = members(v, path, ["n"])
-  Tick {
+  return Tick {
     n: (uint(required(m, "n", path), `${path}.n`, 4294967295) as u32),
   }
 }
@@ -131,7 +131,7 @@ export function decodeTick(v: Cbor, path: string): Tick throws InvalidPayload {
 export function encodeTick(v: Tick): Cbor {
   const m = new Map<string, Cbor>()
   m.set("n", Cbor.Uint(v.n as u64))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct WindowTitle {
@@ -140,7 +140,7 @@ export struct WindowTitle {
 
 export function decodeWindowTitle(v: Cbor, path: string): WindowTitle throws InvalidPayload {
   const m = members(v, path, ["title"])
-  WindowTitle {
+  return WindowTitle {
     title: text(required(m, "title", path), `${path}.title`),
   }
 }
@@ -148,7 +148,7 @@ export function decodeWindowTitle(v: Cbor, path: string): WindowTitle throws Inv
 export function encodeWindowTitle(v: WindowTitle): Cbor {
   const m = new Map<string, Cbor>()
   m.set("title", Cbor.Text(v.title))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 function decodePickedPathsList(v: Cbor, path: string): string[] throws InvalidPayload {
@@ -158,7 +158,7 @@ function decodePickedPathsList(v: Cbor, path: string): string[] throws InvalidPa
     out.push(text(e, `${path}[${i}]`))
     i += 1
   }
-  out
+  return out
 }
 
 function encodePickedPathsList(v: string[]): Cbor {
@@ -166,7 +166,7 @@ function encodePickedPathsList(v: string[]): Cbor {
   for (const e of v) {
     out.push(Cbor.Text(e))
   }
-  Cbor.List(out)
+  return Cbor.List(out)
 }
 
 export struct Picked {
@@ -175,7 +175,7 @@ export struct Picked {
 
 export function decodePicked(v: Cbor, path: string): Picked throws InvalidPayload {
   const m = members(v, path, ["paths"])
-  Picked {
+  return Picked {
     paths: decodePickedPathsList(required(m, "paths", path), `${path}.paths`),
   }
 }
@@ -183,7 +183,7 @@ export function decodePicked(v: Cbor, path: string): Picked throws InvalidPayloa
 export function encodePicked(v: Picked): Cbor {
   const m = new Map<string, Cbor>()
   m.set("paths", encodePickedPathsList(v.paths))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct BytesMessage {
@@ -192,7 +192,7 @@ export struct BytesMessage {
 
 export function decodeBytesMessage(v: Cbor, path: string): BytesMessage throws InvalidPayload {
   const m = members(v, path, ["data"])
-  BytesMessage {
+  return BytesMessage {
     data: bytes(required(m, "data", path), `${path}.data`),
   }
 }
@@ -200,7 +200,7 @@ export function decodeBytesMessage(v: Cbor, path: string): BytesMessage throws I
 export function encodeBytesMessage(v: BytesMessage): Cbor {
   const m = new Map<string, Cbor>()
   m.set("data", Cbor.Bytes(v.data))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct BytesEcho {
@@ -211,7 +211,7 @@ export struct BytesEcho {
 
 export function decodeBytesEcho(v: Cbor, path: string): BytesEcho throws InvalidPayload {
   const m = members(v, path, ["data", "length", "sum"])
-  BytesEcho {
+  return BytesEcho {
     data: bytes(required(m, "data", path), `${path}.data`),
     length: (uint(required(m, "length", path), `${path}.length`, 4294967295) as u32),
     sum: (uint(required(m, "sum", path), `${path}.sum`, 4294967295) as u32),
@@ -223,7 +223,7 @@ export function encodeBytesEcho(v: BytesEcho): Cbor {
   m.set("data", Cbor.Bytes(v.data))
   m.set("length", Cbor.Uint(v.length as u64))
   m.set("sum", Cbor.Uint(v.sum as u64))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct BenchParams {
@@ -234,7 +234,7 @@ export struct BenchParams {
 
 export function decodeBenchParams(v: Cbor, path: string): BenchParams throws InvalidPayload {
   const m = members(v, path, ["perSecond", "count", "bytes"])
-  BenchParams {
+  return BenchParams {
     perSecond: (uint(required(m, "perSecond", path), `${path}.perSecond`, 65535) as u16),
     count: (uint(required(m, "count", path), `${path}.count`, 4294967295) as u32),
     bytes: (uint(required(m, "bytes", path), `${path}.bytes`, 4294967295) as u32),
@@ -246,7 +246,7 @@ export function encodeBenchParams(v: BenchParams): Cbor {
   m.set("perSecond", Cbor.Uint(v.perSecond as u64))
   m.set("count", Cbor.Uint(v.count as u64))
   m.set("bytes", Cbor.Uint(v.bytes as u64))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }
 
 export struct BenchEvent {
@@ -257,7 +257,7 @@ export struct BenchEvent {
 
 export function decodeBenchEvent(v: Cbor, path: string): BenchEvent throws InvalidPayload {
   const m = members(v, path, ["n", "sentAt", "data"])
-  BenchEvent {
+  return BenchEvent {
     n: (uint(required(m, "n", path), `${path}.n`, 4294967295) as u32),
     sentAt: (uint(required(m, "sentAt", path), `${path}.sentAt`, 18446744073709551615) as u64),
     data: bytes(required(m, "data", path), `${path}.data`),
@@ -269,5 +269,5 @@ export function encodeBenchEvent(v: BenchEvent): Cbor {
   m.set("n", Cbor.Uint(v.n as u64))
   m.set("sentAt", Cbor.Uint(v.sentAt as u64))
   m.set("data", Cbor.Bytes(v.data))
-  Cbor.Dict(m)
+  return Cbor.Dict(m)
 }

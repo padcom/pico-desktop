@@ -48,7 +48,7 @@ export function createBackend(transport: Transport): Communicator {
   c.handle("data.echo", echoBytes)
   c.publish("clock.ticks", ticks)
   c.publish("bench.events", benchEvents)
-  c
+  return c
 }
 
 function communicator(): Communicator {
@@ -56,7 +56,7 @@ function communicator(): Communicator {
   if (c == null) {
     panic("hello-world: createBackend wasn't called")
   }
-  c
+  return c
 }
 
 /// "Hello, <name>!" (a name is required), counted, and announced to the window that asked.
@@ -68,7 +68,7 @@ async function greet(name: string, window: u64?): Promise<Greeting> throws Error
   state.greetings += 1
   const greeting = Greeting { message: `Hello, ${trimmed}!`, count: state.greetings }
   await communicator().emit("greeting.greeted", encodeGreeted(Greeted { name: trimmed, count: greeting.count }), window)
-  greeting
+  return greeting
 }
 
 async function hello(payload: Cbor?, ctx: RequestContext): Promise<Cbor?> throws Error {
@@ -92,7 +92,7 @@ function host(): Host {
   if (h == null) {
     panic("hello-world: createBackend wasn't called")
   }
-  h
+  return h
 }
 
 /// Sets the window's title through the host, and answers with what the window now says.

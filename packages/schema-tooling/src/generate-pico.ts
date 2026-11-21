@@ -114,9 +114,9 @@ class PicoGenerator {
   private alias(name: string, type: Type) {
     this.out.push(`export type ${name} = ${this.picoType(type, name)}\n`)
     this.out.push(`export function decode${name}(v: Cbor, path: string): ${name} throws InvalidPayload {`)
-    this.out.push(`  ${this.decodeExpr(type, 'v', 'path', name)}`)
+    this.out.push(`  return ${this.decodeExpr(type, 'v', 'path', name)}`)
     this.out.push('}\n')
-    this.out.push(`export function encode${name}(v: ${name}): Cbor {`, `  ${this.encodeExpr(type, 'v', name)}`, '}\n')
+    this.out.push(`export function encode${name}(v: ${name}): Cbor {`, `  return ${this.encodeExpr(type, 'v', name)}`, '}\n')
   }
 
   /**
@@ -167,7 +167,7 @@ class PicoGenerator {
       fields.length ? `  const m = members(v, path, ${known})` : `  members(v, path, ${known})`,
     ]
     decoder.push(...this.optionalLocals(name, fields))
-    decoder.push(`  ${name} {`)
+    decoder.push(`  return ${name} {`)
 
     fields.forEach((f, i) => {
       const at = `\`\${path}.${f.name}\``
@@ -223,7 +223,7 @@ class PicoGenerator {
         lines.push(`  m.set(${key}, ${this.encodeExpr(f.type, `v.${f.name}`, owner)})`)
       }
     })
-    lines.push('  Cbor.Dict(m)', '}\n')
+    lines.push('  return Cbor.Dict(m)', '}\n')
 
     return lines
   }
@@ -303,7 +303,7 @@ class PicoGenerator {
       '  for (const e of v) {',
       `    out.push(${this.encodeExpr(itemType, 'e', `${owner}Item`)})`,
       '  }',
-      '  Cbor.List(out)',
+      '  return Cbor.List(out)',
       '}\n',
     )
 
@@ -365,7 +365,7 @@ class PicoGenerator {
       `    out.push(${decodeOne})`,
       '    i += 1',
       '  }',
-      '  out',
+      '  return out',
       '}\n',
     )
 
@@ -378,9 +378,9 @@ class PicoGenerator {
     this.out.push('  switch (name) {')
 
     for (const { name } of this.contract.types) {
-      this.out.push(`    case ${JSON.stringify(name)}:`, `      decode${typeName(name)}(v, "$")`)
+      this.out.push(`    case ${JSON.stringify(name)}:`, `    decode${typeName(name)}(v, "$")`)
     }
-    this.out.push('    default:', '      throw new InvalidPayload("$", `a contract type, not ${name}`)', '  }', '}\n')
+    this.out.push('    default:', '    throw new InvalidPayload("$", `a contract type, not ${name}`)', '  }', '}\n')
     this.out.push('/// Decodes `v` as the contract type named `name` and encodes it again (tests).')
     this.out.push('export function roundTripNamed(name: string, v: Cbor): Cbor throws InvalidPayload {')
     this.out.push('  match (name) {')

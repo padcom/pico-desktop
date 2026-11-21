@@ -11,7 +11,7 @@ async function hwm(): Promise<string> throws Error {
       return line.replace("VmHWM:", "").trim()
     }
   }
-  "?"
+  return "?"
 }
 
 const mode = args[0]

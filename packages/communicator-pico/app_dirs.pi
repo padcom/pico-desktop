@@ -55,7 +55,7 @@ export function isValidAppId(appId: string): bool {
       return false
     }
   }
-  true
+  return true
 }
 
 /// One dot-separated part of an app ID: a-z, 0-9 and '-', not starting with '-'.
@@ -68,7 +68,7 @@ function isValidLabel(label: string): bool {
       return false
     }
   }
-  true
+  return true
 }
 
 /// The variable that says where `kind` ("data" or "cache") goes on this system.
@@ -160,5 +160,5 @@ export async function appDirs(appId: string): Promise<AppDirs> throws AppDirErro
   const dirs = locate(appId, env.toObject())
   await prepare(dirs.data, variableFor("data", onWindows))
   await prepare(dirs.cache, variableFor("cache", onWindows))
-  dirs
+  return dirs
 }

@@ -57,7 +57,7 @@ class Frontend {
 async function connected(): Promise<Frontend> throws Error {
   const f = new Frontend()
   expect((await f.next()).n ?? "").toBe("hello")
-  f
+  return f
 }
 
 async function greets(): Promise<void> throws Error {
@@ -161,7 +161,7 @@ function counting(n: int): Uint8Array {
   for (let i = 0; i < n; i++) {
     bytes.set(i, i % 256)
   }
-  bytes
+  return bytes
 }
 
 /// Bytes are bytes: a byte string of any size arrives in Pico as the same bytes, and goes back the

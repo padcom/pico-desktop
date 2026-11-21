@@ -8,7 +8,7 @@ class Counts {
   public finalized: int = 0
 }
 const counts = new Counts()
-const registry = new FinalizationRegistry<int>((n: int) => {
+const registry = new FinalizationRegistry<int>((_n: int) => {
   counts.finalized += 1
 })
 
@@ -18,7 +18,7 @@ async function hwm(): Promise<string> throws Error {
       return line.replace("VmRSS:", "").trim()
     }
   }
-  "?"
+  return "?"
 }
 
 async function main(): Promise<void> throws Error {

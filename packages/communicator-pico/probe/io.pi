@@ -7,7 +7,7 @@ async function hwm(): Promise<string> throws Error {
       return line.replace("VmHWM:", "").trim()
     }
   }
-  "?"
+  return "?"
 }
 
 async function main(): Promise<void> throws Error {
