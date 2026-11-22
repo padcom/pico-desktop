@@ -18,8 +18,12 @@ commit, saying why.
 
 ### Pico
 
-**Pico 0.8.0** is what CI uses; the framework's code needed no change for it or for 0.6.0, which fixes defaulted parameters inside the argument of an overloaded call such as `expect(...)`
-(E0302, #146/#147) and adds method overloading (#148).
+**Pico 0.8.0** is what CI uses (it is the release that came out after 0.5.1; the pin first moved to 0.6.0 and then to 0.8.0, which is
+what was actually released). The pico-lang release notes have the full list; the two items that matter here are from 0.6.0: defaulted
+parameters inside the argument of an overloaded call such as `expect(...)` now work (E0302, #146/#147), and methods can be overloaded
+(#148). What was verified: on 0.6.0 and again on 0.8.0, `pico fmt --check` and `pico lint` of the framework's `.pi` (41 files) are clean,
+`communicator-pico` (250 tests) and the hello-world backend (7) pass, and `probes` passes but for the one test that needs the prebuilt
+`./bin/stdio_echo`. No breaking change was seen and no code change was needed; the CEF and TypeScript jobs are CI's.
 
 **Pico 0.5.1** (released 2026-11-15) was the pin before. It adds to 0.4.3, which already has every fix the framework needs:
 - 0.5.0: lint rules from the author's ESLint configuration, `explicitReturn` (W0006: write `return` before the result of a
