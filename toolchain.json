@@ -12,10 +12,10 @@
     "developedWith": "g++ 14.2.0 (Debian 14.2.0-19)"
   },
   "pico": {
-    "minimum": "0.5.1",
-    "releasedPin": "0.5.1",
+    "minimum": "0.6.0",
+    "releasedPin": "0.6.0",
     "localBuild": "~/projects/padcom/pico/pico-lang (clone of padcom/pico-lang), branch local/integration (never pushed): pico-lang main, which has every fix the framework's PRs needed",
-    "$comment": "0.5.1 is released (2026-11-15) and CI uses it (every repo's CI follows this pin). 0.4.3 (2026-11-08) has every pico-lang fix the framework needed, including backends built for the architecture's baseline CPU (#117, PR #120); 0.5.0 adds lint rules on by default (explicitReturn: write `return` before a function's result, which is valid on 0.4.3 too) and 0.5.1 makes `pico lint` 30-180x faster: docs/toolchain.md."
+    "$comment": "0.6.0 is released and CI uses it (every repo's CI follows this pin); it fixes defaulted parameters inside an overloaded call's argument (E0302) and adds method overloading; the framework's code needed no change. 0.5.1 (2026-11-15) was the pin before. 0.4.3 (2026-11-08) has every pico-lang fix the framework needed, including backends built for the architecture's baseline CPU (#117, PR #120); 0.5.0 adds lint rules on by default (explicitReturn: write `return` before a function's result, which is valid on 0.4.3 too) and 0.5.1 makes `pico lint` 30-180x faster: docs/toolchain.md."
   },
   "cef": {
     "status": "pinned for linux-arm64 (verified in F1) and linux-x64 (SHA-256 from CI's first verified download, 2026-11-07: built and all self-tests passed on a native x64 runner); provisional for the other targets",
