@@ -18,8 +18,8 @@ commit, saying why.
 
 ### Pico
 
-**Pico 0.8.0** is what CI uses (it is the release that came out after 0.5.1; the pin first moved to 0.6.0 and then to 0.8.0, which is
-what was actually released). The pico-lang release notes have the full list; the two items that matter here are from 0.6.0: defaulted
+**Pico 0.8.0** is what CI uses: it is the latest release; 0.6.0 and 0.7.0 came out between 0.5.1 and it. The pico-lang release notes
+have the full list; the two items that matter here are from 0.6.0: defaulted
 parameters inside the argument of an overloaded call such as `expect(...)` now work (E0302, #146/#147), and methods can be overloaded
 (#148). What was verified: on 0.6.0 and again on 0.8.0, `pico fmt --check` and `pico lint` of the framework's `.pi` (41 files) are clean,
 `communicator-pico` (250 tests) and the hello-world backend (7) pass, and `probes` passes but for the one test that needs the prebuilt
