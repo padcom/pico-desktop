@@ -5,9 +5,9 @@
       "name": "padcom/pico-cbor",
       "version": "0.1.0",
       "git": "https://github.com/padcom/pico-cbor",
-      "ref": "branch:feature/codec",
-      "commit": "7f615c8d32a62fafedaa460f7c4a3cc8b8978fae",
-      "hash": "sha256:0ee3f48b7486c8ba525b621dbb4b1dc08dfb39780983318bbbe5f1dfc8eef857"
+      "ref": "tag:v0.1.0",
+      "commit": "3b9daee89a577466c800545d15584f6fcc31d8e0",
+      "hash": "sha256:1eeba5e542b2dd481582a0cde2bea230c2fc4f50d80d90e8c2598d4f9ef0f549"
     },
     {
       "name": "pico-desktop/communicator",

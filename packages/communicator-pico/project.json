@@ -4,7 +4,7 @@
   "dependencies": {
     "padcom/pico-cbor": {
       "git": "https://github.com/padcom/pico-cbor",
-      "branch": "feature/codec"
+      "tag": "v0.1.0"
     }
   }
 }
