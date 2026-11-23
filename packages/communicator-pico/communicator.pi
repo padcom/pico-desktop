@@ -173,18 +173,17 @@ export class Communicator {
     e.n = name
     e.p = payload
     e.w = window
-    const answer = new Promise<Cbor?, CommunicatorError>((resolve, reject) => {
-      this.waiting.set(id, (reply: Envelope) => {
-        const err = reply.err
-        if (err != null) {
-          reject(new CommunicatorError(err.code, err.message, err.data))
-        } else {
-          resolve(reply.p)
-        }
-      })
+    const answer = Promise.withResolvers<Cbor?, CommunicatorError>()
+    waiting.set(id, (reply: Envelope) => {
+      const err = reply.err
+      if (err != null) {
+        answer.reject(new CommunicatorError(err.code, err.message, err.data))
+      } else {
+        answer.resolve(reply.p)
+      }
     })
     post(e)
-    return answer
+    return answer.promise
   }
 
   /// Says hello, then handles messages until the link closes or the host says the app is closing.

@@ -14,11 +14,15 @@ commit, saying why.
 | ESLint, Vite, Vitest | 10.14.0, 8.3.6, 5.1.0 | `package.json` | pnpm; style from `@padcom/eslint-config-typescript` |
 | CMake | ≥ 3.28 (developed with 4.4.5) | `CMakeLists.txt`, `CMakePresets.json` | Kitware's `cmake-4.4.5-linux-aarch64.tar.gz` in `~/.local/opt`, SHA-256 checked against `cmake-4.4.5-SHA-256.txt` from the GitHub release |
 | C++ compiler | C++20 (developed with g++ 14.2.0) | `CMakeLists.txt` | distribution package |
-| Pico | 0.5.1 (CI's pin; 0.4.3 is the oldest that has the fixes) | `toolchain.json` | see below |
+| Pico | 0.10.1 (CI's pin; 0.10.0 is the oldest the communicator builds with) | `toolchain.json` | see below |
 
 ### Pico
 
-**Pico 0.5.1** (released 2026-11-15) is what CI uses. It adds to 0.4.3, which already has every fix the framework needs:
+**Pico 0.10.1** is what CI uses: 0.10.0 plus git dependencies fetched safely from parallel `pico test` workers (pico-lang#195; the
+communicator depends on padcom/pico-cbor). **0.10.0** is the oldest the communicator builds with: it takes the CBOR codec from
+padcom/pico-cbor (with its `PICO_DESKTOP` preset), framing and `Channel` from `std/streams`, the per-user directories from
+`std/os` and `Promise.withResolvers`, all new in 0.10.0, which also fixes lowering's memory use (#134: a test file's build
+needs a few hundred MB, not several GB). Before it, CI used 0.5.1, which added to 0.4.3:
 - 0.5.0: lint rules from the author's ESLint configuration, `explicitReturn` (W0006: write `return` before the result of a
   function, also a variable, a literal or an operation) on by default among them, with `"overrides"` for per-file rules in
   `project.json`'s `lint`. `pico lint` exits 1 on any warning, so the code (and the generator's output) writes `return`: valid on
@@ -55,7 +59,7 @@ To try pico-lang changes before a release, put a compiler built from the `pico-l
 to this repository first on `PATH`: `export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`.
 
 Newer Pico is stricter than 0.4.1 in two ways the code handles: `TextDecoder`'s constructor
-`throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI uses the 0.5.1
+`throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI uses the 0.10.1
 release (`toolchain.json`'s `pico.minimum`; see `.github/workflows/ci.yml`): its Pico job, and the CEF job's `cli.dev-loop` and
 `cli.bundle`, run with it. Release archives are
 named `pico-<version>-<host>.tar.gz|zip` (linux-arm64, linux-x64, macos-arm64, windows-arm64,
