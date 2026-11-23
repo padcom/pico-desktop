@@ -2,9 +2,20 @@
   "version": 1,
   "packages": [
     {
+      "name": "padcom/pico-cbor",
+      "version": "0.1.0",
+      "git": "https://github.com/padcom/pico-cbor",
+      "ref": "branch:feature/codec",
+      "commit": "7f615c8d32a62fafedaa460f7c4a3cc8b8978fae",
+      "hash": "sha256:0ee3f48b7486c8ba525b621dbb4b1dc08dfb39780983318bbbe5f1dfc8eef857"
+    },
+    {
       "name": "pico-desktop/communicator",
       "version": "0.0.0",
-      "path": "packages/communicator-pico"
+      "path": "packages/communicator-pico",
+      "dependencies": {
+        "padcom/pico-cbor": "padcom/pico-cbor@0.1.0"
+      }
     },
     {
       "name": "pico-desktop/hello-world-backend",

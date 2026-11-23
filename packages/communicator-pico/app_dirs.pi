@@ -10,7 +10,8 @@
 // to is an `AppDirError` naming the directory and the variable to change, not a crash. macOS and Windows
 // are not tested yet.
 import { chmod, exists, mkdir, remove, writeText } from "std/fs"
-import { isAbsolute, join } from "std/path"
+import { userDirs } from "std/os"
+import { join } from "std/path"
 import { env, pid } from "std/process"
 
 /// Whether this is a Windows build: it looks for %LOCALAPPDATA%, everything else for the XDG variables.
@@ -76,24 +77,13 @@ function variableFor(kind: string, windows: bool): string {
   if (windows) "LOCALAPPDATA" else if (kind == "data") "XDG_DATA_HOME" else "XDG_CACHE_HOME"
 }
 
-/// An absolute path in the variable `name`, or null.
-function absolute(vars: Map<string, string>, name: string): string? {
-  const value = vars.get(name)
-  if (value != null && value != "" && isAbsolute(value)) value else null
-}
-
-/// The base directory for `kind`: on Windows %LOCALAPPDATA%; elsewhere its XDG variable, else `fallback`
-/// under the home directory. Null when nothing says.
-function base(vars: Map<string, string>, kind: string, fallback: string, windows: bool): string? {
-  if (windows) {
-    return absolute(vars, "LOCALAPPDATA")
-  }
-  const wanted = absolute(vars, variableFor(kind, false))
-  if (wanted != null) {
-    return wanted
-  }
-  const home = absolute(vars, "HOME")
-  if (home != null) join(home!, fallback) else null
+/// The base directory for `kind` ("data" or "cache"), from std/os' per-user directories: on Windows
+/// %LOCALAPPDATA% (`localData`, not the roaming %APPDATA%); elsewhere its XDG variable, else its
+/// default under the home directory. macOS keeps the XDG layout (not ~/Library), as before. Null when
+/// nothing says.
+function base(vars: Map<string, string>, kind: string, windows: bool): string? {
+  const dirs = userDirs(vars, if (windows) "windows" else "linux")
+  if (kind == "data") dirs.localData else dirs.cache
 }
 
 /// Where the directories of `appId` are, given the environment `vars` (and whether it's Windows's).
@@ -102,8 +92,8 @@ export function locate(appId: string, vars: Map<string, string>, windows: bool =
   if (!isValidAppId(appId)) {
     throw new AppDirError("InvalidAppId", "", `'${appId}' isn't a valid app ID: use lowercase letters, digits, '-' and '.' (like com.example.app)`)
   }
-  const data = base(vars, "data", ".local/share", windows)
-  const cache = base(vars, "cache", ".cache", windows)
+  const data = base(vars, "data", windows)
+  const cache = base(vars, "cache", windows)
   if (data == null || cache == null) {
     const names = if (windows) "LOCALAPPDATA" else "XDG_DATA_HOME and XDG_CACHE_HOME (or HOME)"
     throw new AppDirError("NoHome", "", `no place for the app's data: set ${names} to an absolute path`)

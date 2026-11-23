@@ -1,5 +1,10 @@
 {
   "name": "pico-desktop/communicator",
   "version": "0.0.0",
-  "dependencies": {}
+  "dependencies": {
+    "padcom/pico-cbor": {
+      "git": "https://github.com/padcom/pico-cbor",
+      "branch": "feature/codec"
+    }
+  }
 }
