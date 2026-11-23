@@ -14,11 +14,12 @@ commit, saying why.
 | ESLint, Vite, Vitest | 10.14.0, 8.3.6, 5.1.0 | `package.json` | pnpm; style from `@padcom/eslint-config-typescript` |
 | CMake | ≥ 3.28 (developed with 4.4.5) | `CMakeLists.txt`, `CMakePresets.json` | Kitware's `cmake-4.4.5-linux-aarch64.tar.gz` in `~/.local/opt`, SHA-256 checked against `cmake-4.4.5-SHA-256.txt` from the GitHub release |
 | C++ compiler | C++20 (developed with g++ 14.2.0) | `CMakeLists.txt` | distribution package |
-| Pico | 0.10.0 (CI's pin and the oldest the communicator builds with) | `toolchain.json` | see below |
+| Pico | 0.10.1 (CI's pin; 0.10.0 is the oldest the communicator builds with) | `toolchain.json` | see below |
 
 ### Pico
 
-**Pico 0.10.0** is what CI uses, and the oldest the communicator builds with: it takes the CBOR codec from
+**Pico 0.10.1** is what CI uses: 0.10.0 plus git dependencies fetched safely from parallel `pico test` workers (pico-lang#195; the
+communicator depends on padcom/pico-cbor). **0.10.0** is the oldest the communicator builds with: it takes the CBOR codec from
 padcom/pico-cbor (with its `PICO_DESKTOP` preset), framing and `Channel` from `std/streams`, the per-user directories from
 `std/os` and `Promise.withResolvers`, all new in 0.10.0, which also fixes lowering's memory use (#134: a test file's build
 needs a few hundred MB, not several GB). Before it, CI used 0.5.1, which added to 0.4.3:
@@ -58,7 +59,7 @@ To try pico-lang changes before a release, put a compiler built from the `pico-l
 to this repository first on `PATH`: `export PATH=~/projects/padcom/pico/pico-lang/target/release:$PATH`.
 
 Newer Pico is stricter than 0.4.1 in two ways the code handles: `TextDecoder`'s constructor
-`throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI uses the 0.10.0
+`throws RangeError` (#26), and later declarations in a block shadow earlier uses. CI uses the 0.10.1
 release (`toolchain.json`'s `pico.minimum`; see `.github/workflows/ci.yml`): its Pico job, and the CEF job's `cli.dev-loop` and
 `cli.bundle`, run with it. Release archives are
 named `pico-<version>-<host>.tar.gz|zip` (linux-arm64, linux-x64, macos-arm64, windows-arm64,
